@@ -1,0 +1,30 @@
+name: Standard Pipeline Orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      settings_path:
+        description: 'Path to pipeline settings file'
+        required: false
+        default: '.github/pipeline-settings.yml'
+        type: string
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: 'main'
+
+      - name: Execute Check Stage
+        uses: ./.platform-temp/central-pipeline-workflows/actions/check
+        with:
+          settings_path: ${{ inputs.settings_path }}

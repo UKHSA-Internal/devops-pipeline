@@ -1,0 +1,23 @@
+name: Platform Pre-Gate
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Execute Self-Test (Standards Checker)
+        run: |
+          python3 standards-check-tool/checker.py --config .github/pipeline-settings.yml --strict

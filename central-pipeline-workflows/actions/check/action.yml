@@ -1,0 +1,21 @@
+name: Pipeline Check Action
+description: Validates pipeline-settings.yml against required standards schema
+
+inputs:
+  settings_path:
+    description: 'Path to pipeline settings file'
+    required: true
+    default: '.github/pipeline-settings.yml'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Run Standards Check Tool
+      shell: bash
+      run: |
+        python3 "${{ github.action_path }}/../../../standards-check-tool/checker.py" --config "${{ inputs.settings_path }}"
