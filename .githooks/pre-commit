@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+branch=$(git symbolic-ref --quiet --short HEAD || true)
+if [[ -z "${branch}" ]]; then
+  printf 'ERROR: Cannot validate branch name while HEAD is detached.\n' >&2
+  exit 1
+fi
+
+if [[ "${branch}" == "main" || "${branch}" == release/* ]]; then
+  printf 'Branch name accepted: %s\n' "${branch}"
+  exit 0
+fi
+
+if [[ "${branch}" =~ ^(task|feature|fix|chore|refactor|docs)/[A-Z][A-Z0-9]*-[0-9]+/[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  printf 'Branch name accepted: %s\n' "${branch}"
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+ERROR: Branch name does not follow the required pattern.
+Use: <type>/<JIRA-TICKET-ID>/<descriptive-name>
+Prefixes: task, feature, fix, chore, refactor, docs
+Example: feature/DP-146/add-pregate-check
+EOF
+exit 1
