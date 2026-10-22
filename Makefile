@@ -5,8 +5,8 @@ ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:full-latest
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-check-settings: ## Validate .github/pipeline-settings.yml locally
-	@python3 standards-check-tool/checker.py --config .github/pipeline-settings.yml --mode pr --strict
+check-settings: ## Check a settings file is readable (SETTINGS=path/to/pipeline-settings.yml; schema validation pending)
+	@python3 standards-check-tool/checker.py --config "$(or $(SETTINGS),.github/pipeline-settings.yml)" --mode pr --strict
 
 test-pregate-local: ## Run the platform pull-request pre-gate with act
 	@./act-run.sh pull_request -W .github/workflows/pre-gate.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)

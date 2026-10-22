@@ -6,13 +6,25 @@ Centralised pipeline standards, shared GitHub Actions workflows, compliance chec
 
 Run `make help` to see the available local commands.
 
-### Validate settings and test the standard pipeline
+### Check settings and test the standard pipeline
 
-Validate the platform repository's settings:
+Confirm that the platform repository's settings file is present and readable:
 
 ```bash
 make check-settings
 ```
+
+The same command can check either fixture file:
+
+```bash
+make check-settings SETTINGS=tests/fixtures/valid-settings.yml
+make check-settings SETTINGS=tests/fixtures/invalid-settings.yml
+```
+
+These commands currently perform only a file readability smoke check. Both
+fixtures can pass this check because YAML parsing and schema validation have
+not been implemented yet. A missing or unreadable file returns a non-zero exit
+code. Paths are relative to the repository root.
 
 Test the **reusable standard pipeline** against the local composite action and
 the root settings file:

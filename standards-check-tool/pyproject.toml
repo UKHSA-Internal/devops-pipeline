@@ -3,6 +3,3 @@ name = "standards-check-tool"
 version = "0.1.0"
 description = "Validation engine for UKHSA pipeline-settings contract"
 requires-python = ">=3.10"
-dependencies = [
-    "pyyaml>=6.0"
-]

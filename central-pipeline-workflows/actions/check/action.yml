@@ -1,5 +1,5 @@
 name: Pipeline Check Action
-description: Validates pipeline-settings.yml against required standards schema
+description: Checks that pipeline-settings.yml is readable; schema validation is pending
 
 inputs:
   settings_path:

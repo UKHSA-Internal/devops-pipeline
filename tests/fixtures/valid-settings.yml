@@ -9,6 +9,7 @@ environments:
   - name: "fixture-dev"
     category: "Dev"
     account_id: "123456789012"
+    role_name: "fixture-deployment-role"
     region: "eu-west-2"
 
 governance:
