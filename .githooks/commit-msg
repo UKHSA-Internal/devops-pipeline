@@ -20,7 +20,7 @@ while IFS= read -r line || [[ -n "${line}" ]]; do
   fi
 done < "${commit_message_file}"
 
-if [[ "${subject}" =~ ^(feat|fix|chore|docs|refactor|test)\((workflows|checker|starter-template|sample-app|fixtures|docs)\):[[:space:]].+ ]]; then
+if [[ "${subject}" =~ ^(feat|fix|chore|docs|refactor|test)\((workflows|checker|starter-template|sample-app|fixtures|docs|workspace)\):[[:space:]].+ ]]; then
   printf 'Commit message accepted: %s\n' "${subject}"
   exit 0
 fi
@@ -29,7 +29,7 @@ cat >&2 <<'EOF'
 ERROR: Commit message does not follow the required Conventional Commit format.
 Use: <type>(<scope>): <short description>
 Types: feat, fix, chore, docs, refactor, test
-Scopes: workflows, checker, starter-template, sample-app, fixtures, docs
+Scopes: workflows, checker, starter-template, sample-app, fixtures, docs, workspace
 Example: feat(checker): validate pipeline settings (DP-146)
 EOF
 exit 1

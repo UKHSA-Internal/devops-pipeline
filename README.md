@@ -89,4 +89,4 @@ feat(checker): validate pipeline settings (DP-146)
 
 Allowed commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`.
 
-Allowed scopes: `workflows`, `checker`, `starter-template`, `sample-app`, `fixtures`, `docs`.
+Allowed scopes: `workflows`, `checker`, `starter-template`, `sample-app`, `fixtures`, `docs`, `workspace`. Use `workspace` for changes spanning multiple components or repository-wide tooling/configuration.
