@@ -8,6 +8,11 @@ on:
         required: false
         default: '.github/pipeline-settings.yml'
         type: string
+      use_local_action:
+        description: 'Use the action from this checkout for local workflow development'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   check:
@@ -19,12 +24,20 @@ jobs:
 
       - name: Checkout Platform Central Workflows
         uses: actions/checkout@v4
+        if: ${{ !inputs.use_local_action }}
         with:
           repository: 'UKHSA/devops-pipeline'
           path: '.platform-temp'
           ref: 'main'
 
-      - name: Execute Check Stage
+      - name: Execute Check Stage (local action)
+        if: ${{ inputs.use_local_action }}
+        uses: ./central-pipeline-workflows/actions/check
+        with:
+          settings_path: ${{ inputs.settings_path }}
+
+      - name: Execute Check Stage (central action)
+        if: ${{ !inputs.use_local_action }}
         uses: ./.platform-temp/central-pipeline-workflows/actions/check
         with:
           settings_path: ${{ inputs.settings_path }}

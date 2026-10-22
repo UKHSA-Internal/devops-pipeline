@@ -1,13 +1,18 @@
-.PHONY: help check-settings test-workflow-local install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local install-hooks
+
+ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:full-latest
 
 help: ## Show available targets
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 check-settings: ## Validate .github/pipeline-settings.yml locally
-	@python3 standards-check-tool/checker.py --config .github/pipeline-settings.yml --mode pr
+	@python3 standards-check-tool/checker.py --config .github/pipeline-settings.yml --mode pr --strict
 
-test-workflow-local: ## Run GitHub Actions locally with act (ARGS="pull_request -W .github/workflows/pre-gate.yml")
-	@./act-run.sh $(ARGS)
+test-pregate-local: ## Run the platform pull-request pre-gate with act
+	@./act-run.sh pull_request -W .github/workflows/pre-gate.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+
+test-standard-pipeline-local: ## Run the reusable standard pipeline and local action with act
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=.github/pipeline-settings.yml --input use_local_action=true -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks

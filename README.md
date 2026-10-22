@@ -6,39 +6,55 @@ Centralised pipeline standards, shared GitHub Actions workflows, compliance chec
 
 Run `make help` to see the available local commands.
 
-### Validate pipeline settings
+### Validate settings and test the standard pipeline
 
-Check `.github/pipeline-settings.yml` against the settings contract before committing:
+Validate the platform repository's settings:
 
 ```bash
 make check-settings
 ```
 
-### Run GitHub Actions locally
-
-Install [act](https://nektosact.com/) and Docker, and make sure the Docker daemon is running. Then list detected workflows and jobs:
-
-```bash
-make test-workflow-local ARGS=-l
-```
-
-Run the pre-gate workflow locally with a full runner image:
+Test the **reusable standard pipeline** against the local composite action and
+the root settings file:
 
 ```bash
-make test-workflow-local ARGS='pull_request -W .github/workflows/pre-gate.yml -P ubuntu-latest=catthehacker/ubuntu:full-latest'
+make test-standard-pipeline-local
 ```
 
-The default `.actrc` image is lightweight. The full image is used above because actions such as `actions/setup-python` require Node.js for their post-step, which is not present in the lightweight image. The full runner image is large and may use substantial disk space.
+This invokes `.github/workflows/standard-pipeline.yml` directly with `act`'s
+`workflow_call` event and passes the root settings path plus
+`use_local_action=true`. Edits to the reusable workflow, composite action, and
+checker in this checkout are tested without fetching the published platform
+action. No local test-caller workflow is added to the workflows shown in GitHub.
+
+### Run the platform pre-gate locally
+
+The pre-gate is a separate workflow; run it with:
+
+```bash
+make test-pregate-local
+```
+
+Both workflow targets require [act](https://nektosact.com/) and Docker, with the
+Docker daemon running. They use the full runner image by default because
+`actions/setup-python` needs Node.js during cleanup. The full image is large;
+override it if you have a compatible image:
+
+```bash
+make test-standard-pipeline-local ACT_RUNNER_IMAGE=catthehacker/ubuntu:act-latest
+```
+
+To list detected workflows and jobs, run `act -l`. For GitHub's remote workflow
+behavior and permissions, also verify the workflow in a GitHub Actions run.
 
 ### Git hooks
-
-Enable the repository's local branch-name and commit-message checks once per clone:
 
 ```bash
 make install-hooks
 ```
 
-The hooks validate branch names and Conventional Commit messages before committing. To check the staged changes before committing:
+This enables the local branch-name and commit-message checks. Review staged
+changes before committing:
 
 ```bash
 git status
