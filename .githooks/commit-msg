@@ -6,30 +6,4 @@ if (($# != 1)); then
   exit 2
 fi
 
-commit_message_file=$1
-if [[ ! -r "${commit_message_file}" ]]; then
-  printf 'ERROR: Cannot read commit message file: %s\n' "${commit_message_file}" >&2
-  exit 2
-fi
-
-subject=''
-while IFS= read -r line || [[ -n "${line}" ]]; do
-  if [[ -n "${line}" && "${line}" != \#* ]]; then
-    subject=${line}
-    break
-  fi
-done < "${commit_message_file}"
-
-if [[ "${subject}" =~ ^(feat|fix|chore|docs|refactor|test)\((workflows|checker|starter-template|sample-app|fixtures|docs|workspace)\):[[:space:]].+ ]]; then
-  printf 'Commit message accepted: %s\n' "${subject}"
-  exit 0
-fi
-
-cat >&2 <<'EOF'
-ERROR: Commit message does not follow the required Conventional Commit format.
-Use: <type>(<scope>): <short description>
-Types: feat, fix, chore, docs, refactor, test
-Scopes: workflows, checker, starter-template, sample-app, fixtures, docs, workspace
-Example: feat(checker): validate pipeline settings (DP-146)
-EOF
-exit 1
+python3 "$(git rev-parse --show-toplevel)/scripts/contribution_rules.py" commit "$1"

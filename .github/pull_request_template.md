@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- Briefly describe what this PR changes and why. Include the Jira ticket in the title or below. -->
+<!-- PR title format: <type>(<scope>): <short description> (DP-123). Include the Jira key in the title. -->
 
 ## Changes
 

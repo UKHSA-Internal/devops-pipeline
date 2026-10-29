@@ -56,6 +56,13 @@ override it if you have a compatible image:
 make test-standard-pipeline-local ACT_RUNNER_IMAGE=catthehacker/ubuntu:act-latest
 ```
 
+The pre-gate target generates local pull-request metadata automatically. To use
+a specific `act`-compatible pull-request event JSON instead, pass:
+
+```bash
+make test-pregate-local ACT_EVENT_FILE=/path/to/pull-request-event.json
+```
+
 To list detected workflows and jobs, run `act -l`. For GitHub's remote workflow
 behavior and permissions, also verify the workflow in a GitHub Actions run.
 
@@ -81,12 +88,16 @@ Create branches using `<type>/<JIRA-ticket>/<short-description>`, for example:
 feature/DP-146/initial-monorepo-scaffold
 ```
 
-Use Conventional Commit messages in the form `<type>(<scope>): <short description>` and include the Jira ticket, for example:
+Use Conventional Commit messages in the form `<type>(<scope>): <short description>`, for example:
 
 ```text
-feat(checker): validate pipeline settings (DP-146)
+feat(checker): validate pipeline settings
 ```
 
 Allowed commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`.
 
-Allowed scopes: `workflows`, `checker`, `starter-template`, `sample-app`, `fixtures`, `docs`, `workspace`. Use `workspace` for changes spanning multiple components or repository-wide tooling/configuration.
+Allowed scopes: `workflows`, `checker`, `starter-template`, `sample-app`, `fixtures`, `docs`, `repo`, `deps`.
+
+Include the Jira key in the PR title. For a branch without a Jira ID, include a Jira key in the PR title or a commit message.
+
+Mark breaking changes with `!` after the scope or a `BREAKING CHANGE:` footer. Breaking PRs require a new ADR under `docs/adr/` or a reference to an ADR that exists on `main`.

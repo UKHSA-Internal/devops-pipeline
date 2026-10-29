@@ -18,6 +18,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Validate contribution rules
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: python3 scripts/contribution_rules.py pull-request
+
       - name: Execute Self-Test (Standards Checker)
         run: |
           python3 standards-check-tool/checker.py --config .github/pipeline-settings.yml --strict
