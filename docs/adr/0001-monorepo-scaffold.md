@@ -1,7 +1,7 @@
 # 1. Monorepo Workspace Scaffold
 
-* **Status:** Proposed
-* **Date:** 2026-10-20
+* **Status:** Approved
+* **Date:** 2026-10-30
 
 ## Context
 A central monorepo is required to house shared pipeline workflows, governance validation tools, reference starter templates, and test fixtures.
