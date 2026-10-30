@@ -87,9 +87,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       # TODO: Enable settings schema validation when checker.py supports it.
       - name: Execute Check Stage (local action)
@@ -142,9 +142,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Execute Test Stage (local action)
         if: ${{ env.ACT == 'true' }}
@@ -167,9 +167,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Execute Scan Stage (local action)
         if: ${{ env.ACT == 'true' }}
@@ -195,9 +195,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Execute Build Stage (local action)
         id: build-local
@@ -237,9 +237,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Execute Deploy Stage (local action)
         id: deploy-local
@@ -324,9 +324,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Execute Deploy Stage (local action)
         id: deploy-local
@@ -413,9 +413,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Execute Deploy Stage (local action)
         id: deploy-local
@@ -493,9 +493,9 @@ jobs:
         uses: actions/checkout@v4
         if: ${{ env.ACT != 'true' }}
         with:
-          repository: 'UKHSA-Internal/devops-pipeline'
+          repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
-          ref: v1
+          ref: ${{ job.workflow_sha }}
 
       - name: Publish Run Report (local action)
         if: ${{ env.ACT == 'true' }}
