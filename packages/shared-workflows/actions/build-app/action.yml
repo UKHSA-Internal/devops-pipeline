@@ -1,0 +1,103 @@
+name: Build Application Image
+description: Builds and archives the service container image without publishing it
+
+inputs:
+  service_directory:
+    description: Service directory containing the Dockerfile
+    required: true
+  commit_sha:
+    description: Full commit SHA used as the image tag
+    required: true
+
+outputs:
+  image_tag:
+    description: Local image tag
+    value: ${{ steps.build.outputs.image_tag }}
+  checksum:
+    description: SHA-256 checksum of the image tar
+    value: ${{ steps.build.outputs.checksum }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build and Package Image
+      id: build
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        COMMIT_SHA: ${{ inputs.commit_sha }}
+      run: |
+        set -euo pipefail
+        printf '[STAGE: BUILD] Building image from %s\n' "$SERVICE_DIRECTORY"
+        if [[ ! -f "$SERVICE_DIRECTORY/Dockerfile" ]]; then
+          printf 'ERROR: No Dockerfile found in service directory: %s\n' "$SERVICE_DIRECTORY" >&2
+          exit 1
+        fi
+
+        image_tag="sample-app:${COMMIT_SHA}"
+        output_directory="."
+        if [[ "${ACT:-}" == "true" ]]; then
+          output_directory=".act-artifacts"
+          mkdir -p "$output_directory"
+        fi
+
+        tar_file="$output_directory/build-image.tar"
+        checksum_file="$output_directory/build-image.tar.sha256"
+        manifest_file="$output_directory/build-manifest.json"
+
+        docker build --file "$SERVICE_DIRECTORY/Dockerfile" --tag "$image_tag" "$SERVICE_DIRECTORY"
+        image_id="$(docker image inspect --format '{{.Id}}' "$image_tag")"
+        docker save "$image_tag" --output "$tar_file"
+        checksum="$(sha256sum "$tar_file" | awk '{print $1}')"
+        printf '%s  %s\n' "$checksum" "$(basename "$tar_file")" > "$checksum_file"
+        built_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+        python3 - "$manifest_file" "$COMMIT_SHA" "$image_tag" "$image_id" "$checksum" "$built_at" <<'PY'
+        import json
+        import sys
+        from pathlib import Path
+
+        manifest = {
+            "commit_sha": sys.argv[2],
+            "image_tag": sys.argv[3],
+            "local_image_id": sys.argv[4],
+            "tar_sha256": sys.argv[5],
+            "built_at": sys.argv[6],
+        }
+        Path(sys.argv[1]).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        PY
+
+        printf 'image_tag=%s\n' "$image_tag" >> "$GITHUB_OUTPUT"
+        printf 'checksum=%s\n' "$checksum" >> "$GITHUB_OUTPUT"
+
+    - name: Upload Image Build Artifacts
+      if: ${{ env.ACT != 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-${{ inputs.commit_sha }}
+        path: |
+          build-image.tar
+          build-image.tar.sha256
+          build-manifest.json
+        if-no-files-found: error
+
+    - name: Record Build Result
+      if: always()
+      shell: bash
+      env:
+        BUILD_STATUS: ${{ job.status }}
+        IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+        IMAGE_CHECKSUM: ${{ steps.build.outputs.checksum }}
+      run: |
+        printf '[STAGE: BUILD] %s\n' "$BUILD_STATUS"
+        {
+          printf '## Build\n\n'
+          printf -- '- Status: **%s**\n' "$BUILD_STATUS"
+          if [[ -n "$IMAGE_TAG" ]]; then
+            printf -- '- Image: `%s`\n' "$IMAGE_TAG"
+            printf -- '- Tar SHA-256: `%s`\n' "$IMAGE_CHECKSUM"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+        if [[ "$BUILD_STATUS" == "success" ]]; then
+          printf 'TODO: Publish the image to Amazon ECR.\n'
+        fi

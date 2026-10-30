@@ -39,8 +39,8 @@ make check-settings SETTINGS=tests/fixtures/valid-settings.yml
 make check-settings SETTINGS=tests/fixtures/invalid-settings.yml
 ```
 
-These commands currently perform only a file readability smoke check. Both
-fixtures can pass this check because YAML parsing and schema validation have
+The local settings command currently performs only a file readability smoke
+check. Both fixtures can pass because YAML parsing and schema validation have
 not been implemented yet. A missing or unreadable file returns a non-zero exit
 code. Paths are relative to the repository root.
 
@@ -52,12 +52,16 @@ make test-standard-pipeline-local
 ```
 
 This invokes `.github/workflows/standard-pipeline.yml` directly with `act`'s
-`workflow_call` event and passes the sample app settings path plus
-`use_local_action=true`. Edits to the reusable workflow, composite action, and
-checker in this checkout are tested without fetching the published platform
-action. The `.github/workflows/sample-app-pipeline.yml` caller also uses the
-reusable workflow and action from this checkout. To smoke-test the published
-`v1` release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
+`workflow_call` event and passes the sample app settings path. Under `act`, the
+reusable workflow automatically uses the actions in this checkout; hosted runs
+use the central workflow package pinned to `v1`. The
+`.github/workflows/sample-app-pipeline.yml` caller also uses the reusable
+workflow and action from this checkout, running on branch pushes and pull
+requests. The full flow includes placeholder test, scan, deploy and verify
+stages, a local image build, and a run report. To smoke-test the published `v1`
+release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
+For `act` runs, generated build files and `run-record.json` are persisted under
+the ignored `.act-artifacts/` directory.
 
 ### Run the platform pre-gate locally
 
@@ -68,9 +72,8 @@ make test-pregate-local
 ```
 
 Both workflow targets require [act](https://nektosact.com/) and Docker, with the
-Docker daemon running. They use the full runner image by default because
-`actions/setup-python` needs Node.js during cleanup. The full image is large;
-override it if you have a compatible image:
+Docker daemon running. They default to the smaller `catthehacker/ubuntu:act-latest`
+image. Override it if you need a different compatible runner:
 
 ```bash
 make test-standard-pipeline-local ACT_RUNNER_IMAGE=catthehacker/ubuntu:act-latest

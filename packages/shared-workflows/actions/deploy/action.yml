@@ -1,0 +1,25 @@
+name: Deploy Stage
+description: Placeholder deployment stage for the standard pipeline
+
+inputs:
+  environment_name:
+    description: Target environment name
+    required: true
+  stage_name:
+    description: Stage identifier used in the log marker
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Run Deploy Placeholder
+      shell: bash
+      env:
+        ENVIRONMENT_NAME: ${{ inputs.environment_name }}
+        STAGE_NAME: ${{ inputs.stage_name }}
+      run: |
+        printf '[STAGE: %s] Deploy to %s: not yet implemented.\n' "$STAGE_NAME" "$ENVIRONMENT_NAME"
+        {
+          printf '## Deploy %s\n\n' "$ENVIRONMENT_NAME"
+          printf 'Deploy to %s: not yet implemented.\n' "$ENVIRONMENT_NAME"
+        } >> "$GITHUB_STEP_SUMMARY"

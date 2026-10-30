@@ -6,43 +6,372 @@ on:
       settings_path:
         description: 'Path to pipeline settings file'
         required: false
-        default: '.github/pipeline-settings.yml'
         type: string
-      use_local_action:
-        description: 'Use the action from this checkout for local workflow development'
-        required: false
-        default: false
-        type: boolean
-      platform_ref:
-        description: 'Ref of the platform package to use when loading the central action'
-        required: false
-        default: 'main'
-        type: string
+
+permissions:
+  contents: read
 
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    outputs:
+      settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
+      service_directory: ${{ steps.resolve-settings.outputs.service_directory }}
+      start_time: ${{ steps.started.outputs.start_time }}
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Record Pipeline Start
+        id: started
+        shell: bash
+        run: |
+          python3 -c 'from datetime import datetime, timezone; print("start_time=" + datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"))' \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Settings File
+        id: resolve-settings
+        shell: bash
+        env:
+          SETTINGS_PATH_INPUT: ${{ inputs.settings_path }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$SETTINGS_PATH_INPUT" == *$'\n'* || "$SETTINGS_PATH_INPUT" == *$'\r'* ]]; then
+            echo "ERROR: settings_path must not contain newline characters." >&2
+            exit 1
+          fi
+
+          if [[ -n "$SETTINGS_PATH_INPUT" ]]; then
+            if [[ ! -f "$SETTINGS_PATH_INPUT" ]]; then
+              printf 'ERROR: settings_path was provided but the file does not exist: %s\n' "$SETTINGS_PATH_INPUT" >&2
+              exit 1
+            fi
+            settings_path="$SETTINGS_PATH_INPUT"
+          elif [[ -f .github/pipeline-settings.yml ]]; then
+            settings_path=".github/pipeline-settings.yml"
+          else
+            shopt -s nullglob
+            matches=( */.github/pipeline-settings.yml )
+            if (( ${#matches[@]} == 0 )); then
+              echo "ERROR: No pipeline settings file found." >&2
+              exit 1
+            fi
+            if (( ${#matches[@]} > 1 )); then
+              printf 'ERROR: Expected exactly one */.github/pipeline-settings.yml fallback, found %s: %s\n' \
+                "${#matches[@]}" "${matches[*]}" >&2
+              exit 1
+            fi
+            settings_path="${matches[0]}"
+          fi
+
+          service_directory="$(dirname -- "$(dirname -- "$settings_path")")"
+          printf 'settings_path=%s\n' "$settings_path" >> "$GITHUB_OUTPUT"
+          printf 'service_directory=%s\n' "$service_directory" >> "$GITHUB_OUTPUT"
+          printf '[STAGE: CHECK] Settings file exists: %s\n' "$settings_path"
+          {
+            printf '## Check\n\n'
+            printf -- '- Settings file: `%s`\n' "$settings_path"
+            printf -- '- Service directory: `%s`\n' "$service_directory"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout Platform Central Workflows
         uses: actions/checkout@v4
-        if: ${{ !inputs.use_local_action }}
+        if: ${{ env.ACT != 'true' }}
         with:
           repository: 'UKHSA/devops-pipeline'
           path: '.platform-temp'
-          ref: ${{ inputs.platform_ref }}
+          ref: v1
 
+      # TODO: Enable settings schema validation when checker.py supports it.
       - name: Execute Check Stage (local action)
-        if: ${{ inputs.use_local_action }}
+        id: check-local
+        if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/check
         with:
-          settings_path: ${{ inputs.settings_path }}
+          settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
 
       - name: Execute Check Stage (central action)
-        if: ${{ !inputs.use_local_action }}
+        id: check-central
+        if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/check
         with:
-          settings_path: ${{ inputs.settings_path }}
+          settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
+
+      - name: Record Check Result
+        if: always()
+        shell: bash
+        env:
+          CHECK_RESULT: ${{ job.status }}
+        run: |
+          printf '[STAGE: CHECK] %s\n' "$CHECK_RESULT"
+          printf -- '- Check action: **%s**\n' "$CHECK_RESULT" >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    name: Test
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Test Stage (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/test
+
+      - name: Execute Test Stage (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/test
+
+  scan:
+    name: Scan
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Scan Stage (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/scan
+
+      - name: Execute Scan Stage (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/scan
+
+  build:
+    name: Build
+    needs: [check, scan]
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.build-local.outputs.image_tag || steps.build-central.outputs.image_tag }}
+      checksum: ${{ steps.build-local.outputs.checksum || steps.build-central.outputs.checksum }}
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Build Stage (local action)
+        id: build-local
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/build-app
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          commit_sha: ${{ github.sha }}
+
+      - name: Execute Build Stage (central action)
+        id: build-central
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/build-app
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          commit_sha: ${{ github.sha }}
+
+  deploy-dev:
+    name: Deploy Dev
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deployment-dev
+      cancel-in-progress: false
+    # TODO: Grant id-token: write when the deployment implementation uses OIDC.
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Deploy Dev Stage (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/deploy
+        with:
+          environment_name: Dev
+          stage_name: DEPLOY-DEV
+
+      - name: Execute Deploy Dev Stage (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/deploy
+        with:
+          environment_name: Dev
+          stage_name: DEPLOY-DEV
+
+  deploy-preprod:
+    name: Deploy Pre-production
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deployment-preprod
+      cancel-in-progress: false
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Deploy Pre-production Stage (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/deploy
+        with:
+          environment_name: Pre-production
+          stage_name: DEPLOY-PREPROD
+
+      - name: Execute Deploy Pre-production Stage (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/deploy
+        with:
+          environment_name: Pre-production
+          stage_name: DEPLOY-PREPROD
+
+  deploy-prod:
+    name: Deploy Production
+    needs: deploy-preprod
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deployment-prod
+      cancel-in-progress: false
+    # TODO: Add the Production approval gate when deployment environments are introduced.
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Deploy Production Stage (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/deploy
+        with:
+          environment_name: Production
+          stage_name: DEPLOY-PROD
+
+      - name: Execute Deploy Production Stage (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/deploy
+        with:
+          environment_name: Production
+          stage_name: DEPLOY-PROD
+
+  verify:
+    name: Verify
+    needs: [deploy-dev, deploy-preprod, deploy-prod]
+    if: >-
+      always() &&
+      needs.deploy-dev.result == 'success' &&
+      needs.deploy-preprod.result == 'success' &&
+      (needs.deploy-prod.result == 'success' || needs.deploy-prod.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Execute Verify Stage (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/verify
+
+      - name: Execute Verify Stage (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/verify
+
+  publish-report:
+    name: Publish Run Report
+    needs: [check, test, scan, build, deploy-dev, deploy-preprod, deploy-prod, verify]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ env.ACT != 'true' }}
+        with:
+          repository: 'UKHSA/devops-pipeline'
+          path: '.platform-temp'
+          ref: v1
+
+      - name: Publish Run Report (local action)
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/publish-run-report
+        with:
+          check_result: ${{ needs.check.result }}
+          test_result: ${{ needs.test.result }}
+          scan_result: ${{ needs.scan.result }}
+          build_result: ${{ needs.build.result }}
+          deploy_dev_result: ${{ needs.deploy-dev.result }}
+          deploy_preprod_result: ${{ needs.deploy-preprod.result }}
+          deploy_prod_result: ${{ needs.deploy-prod.result }}
+          verify_result: ${{ needs.verify.result }}
+          start_time: ${{ needs.check.outputs.start_time }}
+
+      - name: Publish Run Report (central action)
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/publish-run-report
+        with:
+          check_result: ${{ needs.check.result }}
+          test_result: ${{ needs.test.result }}
+          scan_result: ${{ needs.scan.result }}
+          build_result: ${{ needs.build.result }}
+          deploy_dev_result: ${{ needs.deploy-dev.result }}
+          deploy_preprod_result: ${{ needs.deploy-preprod.result }}
+          deploy_prod_result: ${{ needs.deploy-prod.result }}
+          verify_result: ${{ needs.verify.result }}
+          start_time: ${{ needs.check.outputs.start_time }}

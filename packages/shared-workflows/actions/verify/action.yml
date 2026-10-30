@@ -1,0 +1,11 @@
+name: Verify Stage
+description: Placeholder verification stage for the standard pipeline
+
+runs:
+  using: composite
+  steps:
+    - name: Run Verify Placeholder
+      shell: bash
+      run: |
+        printf '[STAGE: VERIFY] Verification stage is not yet implemented.\n'
+        printf '## Verify\n\nVerification stage is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"

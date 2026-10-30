@@ -1,0 +1,11 @@
+name: Test Stage
+description: Placeholder test stage for the standard pipeline
+
+runs:
+  using: composite
+  steps:
+    - name: Run Test Placeholder
+      shell: bash
+      run: |
+        printf '[STAGE: TEST] Test stage is not yet implemented.\n'
+        printf '## Test\n\nTest stage is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"

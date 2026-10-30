@@ -20,7 +20,7 @@ test-pregate-local: ## Run the platform pull-request pre-gate with act
 	fi
 
 test-standard-pipeline-local: ## Run the reusable standard pipeline and local action with act
-	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=sample-app/.github/pipeline-settings.yml --input use_local_action=true -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=sample-app/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks
