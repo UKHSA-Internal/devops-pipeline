@@ -5,7 +5,22 @@ service:
   owner_team: "platform-team"
   language: "python"
 
-environments: []
+environments:
+  - name: dev-env-1
+    category: Dev
+    account_id: "123456789012"
+    role_name: pipeline-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
+    region: eu-west-2
 
 governance:
   retention_days: 30

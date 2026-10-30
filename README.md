@@ -57,8 +57,13 @@ reusable workflow automatically uses the actions in this checkout; hosted runs
 use the central workflow package pinned to `v1`. The
 `.github/workflows/sample-app-pipeline.yml` caller also uses the reusable
 workflow and action from this checkout, running on branch pushes and pull
-requests. The full flow includes placeholder test, scan, deploy and verify
-stages, a local image build, and a run report. To smoke-test the published `v1`
+requests. The full flow includes placeholder test, scan and deploy stages, a
+local image build, and a run report. Deployments come from the `environments`
+list in the settings file: each category (Dev, Pre-production, Production) can
+contain several named deployments, which run one at a time in settings order.
+Each deployment is followed immediately by the `verify-app` action against its
+health endpoint (`verification.health_endpoint`). Check fails if a category has
+no deployments. To smoke-test the published `v1`
 release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
 For `act` runs, generated build files and `run-record.json` are persisted under
 the ignored `.act-artifacts/` directory.

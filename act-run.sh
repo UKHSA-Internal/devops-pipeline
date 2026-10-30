@@ -20,6 +20,7 @@ fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 mkdir -p "${SCRIPT_DIR}/.act-artifacts"
+rm -rf "${SCRIPT_DIR}/.act-artifacts/deployments"
 
 if (($# == 0)); then
   set -- pull_request

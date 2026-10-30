@@ -1,12 +1,24 @@
 name: Deploy Stage
-description: Placeholder deployment stage for the standard pipeline
+description: Placeholder deployment stage for a single named deployment
 
 inputs:
   environment_name:
-    description: Target environment name
+    description: Name of the deployment target
+    required: true
+  category:
+    description: Environment category (Dev, Pre-production or Production)
     required: true
   stage_name:
     description: Stage identifier used in the log marker
+    required: true
+  account_id:
+    description: Target account ID
+    required: true
+  role_name:
+    description: Role the deployment will assume
+    required: true
+  region:
+    description: Target region
     required: true
 
 runs:
@@ -16,10 +28,15 @@ runs:
       shell: bash
       env:
         ENVIRONMENT_NAME: ${{ inputs.environment_name }}
+        CATEGORY: ${{ inputs.category }}
         STAGE_NAME: ${{ inputs.stage_name }}
+        ACCOUNT_ID: ${{ inputs.account_id }}
+        ROLE_NAME: ${{ inputs.role_name }}
+        REGION: ${{ inputs.region }}
       run: |
-        printf '[STAGE: %s] Deploy to %s: not yet implemented.\n' "$STAGE_NAME" "$ENVIRONMENT_NAME"
+        printf '[STAGE: %s] Deploy to %s (%s): would assume %s in account %s (%s); not yet implemented.\n' \
+          "$STAGE_NAME" "$ENVIRONMENT_NAME" "$CATEGORY" "$ROLE_NAME" "$ACCOUNT_ID" "$REGION"
         {
           printf '## Deploy %s\n\n' "$ENVIRONMENT_NAME"
-          printf 'Deploy to %s: not yet implemented.\n' "$ENVIRONMENT_NAME"
+          printf 'Deploy to %s (%s): not yet implemented.\n' "$ENVIRONMENT_NAME" "$CATEGORY"
         } >> "$GITHUB_STEP_SUMMARY"

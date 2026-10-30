@@ -1,0 +1,41 @@
+name: Resolve Deployments
+description: Resolves the named deployments for each environment category and the verification settings
+
+inputs:
+  settings_path:
+    description: Path to the pipeline settings file
+    required: true
+
+outputs:
+  dev_deployments:
+    description: JSON list of Dev deployments
+    value: ${{ steps.resolve.outputs.dev_deployments }}
+  preprod_deployments:
+    description: JSON list of Pre-production deployments
+    value: ${{ steps.resolve.outputs.preprod_deployments }}
+  prod_deployments:
+    description: JSON list of Production deployments
+    value: ${{ steps.resolve.outputs.prod_deployments }}
+  deployments:
+    description: JSON list of all deployments in promotion order
+    value: ${{ steps.resolve.outputs.deployments }}
+  health_endpoint:
+    description: Health endpoint path used to verify each deployment
+    value: ${{ steps.resolve.outputs.health_endpoint }}
+  timeout_seconds:
+    description: Verification timeout in seconds
+    value: ${{ steps.resolve.outputs.timeout_seconds }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve Deployments
+      id: resolve
+      shell: bash
+      env:
+        SETTINGS_PATH: ${{ inputs.settings_path }}
+      run: |
+        set -euo pipefail
+        python3 -m venv "$RUNNER_TEMP/settings-venv"
+        "$RUNNER_TEMP/settings-venv/bin/pip" install --quiet pyyaml==6.0.3
+        "$RUNNER_TEMP/settings-venv/bin/python" "${{ github.action_path }}/resolve_deployments.py" "$SETTINGS_PATH"

@@ -1,0 +1,63 @@
+name: Record Deployment Result
+description: Records the deploy and verify outcome of one deployment for the run report
+
+inputs:
+  deployment_name:
+    description: Name of the deployment
+    required: true
+  category:
+    description: Environment category of the deployment
+    required: true
+  deploy_outcome:
+    description: Outcome of the deploy step
+    required: true
+  verify_outcome:
+    description: Outcome of the verify step
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write Deployment Result
+      shell: bash
+      env:
+        DEPLOYMENT_NAME: ${{ inputs.deployment_name }}
+        CATEGORY: ${{ inputs.category }}
+        DEPLOY_OUTCOME: ${{ inputs.deploy_outcome }}
+        VERIFY_OUTCOME: ${{ inputs.verify_outcome }}
+      run: |
+        set -euo pipefail
+        if [[ "${ACT:-}" == "true" ]]; then
+          results_directory=".act-artifacts/deployments"
+        else
+          results_directory="deployment-results"
+        fi
+        mkdir -p "$results_directory"
+        python3 - "$results_directory/$DEPLOYMENT_NAME.json" <<'PY'
+        import json
+        import os
+        import sys
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        verify_outcome = os.environ["VERIFY_OUTCOME"]
+        verified_at = None
+        if verify_outcome == "success":
+            verified_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        result = {
+            "name": os.environ["DEPLOYMENT_NAME"],
+            "category": os.environ["CATEGORY"],
+            "deploy_outcome": os.environ["DEPLOY_OUTCOME"],
+            "verify_outcome": verify_outcome,
+            "verified_at": verified_at,
+        }
+        Path(sys.argv[1]).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        PY
+
+    - name: Upload Deployment Result
+      if: ${{ env.ACT != 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-result-${{ inputs.deployment_name }}
+        path: deployment-results/${{ inputs.deployment_name }}.json
+        if-no-files-found: error

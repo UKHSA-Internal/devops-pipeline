@@ -19,6 +19,12 @@ jobs:
       settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
       service_directory: ${{ steps.resolve-settings.outputs.service_directory }}
       start_time: ${{ steps.started.outputs.start_time }}
+      dev_deployments: ${{ steps.deployments-local.outputs.dev_deployments || steps.deployments-central.outputs.dev_deployments }}
+      preprod_deployments: ${{ steps.deployments-local.outputs.preprod_deployments || steps.deployments-central.outputs.preprod_deployments }}
+      prod_deployments: ${{ steps.deployments-local.outputs.prod_deployments || steps.deployments-central.outputs.prod_deployments }}
+      deployments: ${{ steps.deployments-local.outputs.deployments || steps.deployments-central.outputs.deployments }}
+      health_endpoint: ${{ steps.deployments-local.outputs.health_endpoint || steps.deployments-central.outputs.health_endpoint }}
+      timeout_seconds: ${{ steps.deployments-local.outputs.timeout_seconds || steps.deployments-central.outputs.timeout_seconds }}
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v4
@@ -97,6 +103,20 @@ jobs:
         id: check-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/check
+        with:
+          settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
+
+      - name: Resolve Deployments (local action)
+        id: deployments-local
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/resolve-deployments
+        with:
+          settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
+
+      - name: Resolve Deployments (central action)
+        id: deployments-central
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/resolve-deployments
         with:
           settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
 
@@ -196,11 +216,16 @@ jobs:
           commit_sha: ${{ github.sha }}
 
   deploy-dev:
-    name: Deploy Dev
-    needs: build
+    name: Deploy Dev (${{ matrix.deployment.name }})
+    needs: [check, build]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        deployment: ${{ fromJSON(needs.check.outputs.dev_deployments || '[]') }}
     concurrency:
-      group: deployment-dev
+      group: deployment-${{ matrix.deployment.name }}
       cancel-in-progress: false
     # TODO: Grant id-token: write when the deployment implementation uses OIDC.
     steps:
@@ -216,26 +241,79 @@ jobs:
           path: '.platform-temp'
           ref: v1
 
-      - name: Execute Deploy Dev Stage (local action)
+      - name: Execute Deploy Stage (local action)
+        id: deploy-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/deploy
         with:
-          environment_name: Dev
+          environment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-DEV
+          account_id: ${{ matrix.deployment.account_id }}
+          role_name: ${{ matrix.deployment.role_name }}
+          region: ${{ matrix.deployment.region }}
 
-      - name: Execute Deploy Dev Stage (central action)
+      - name: Execute Deploy Stage (central action)
+        id: deploy-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/deploy
         with:
-          environment_name: Dev
+          environment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-DEV
+          account_id: ${{ matrix.deployment.account_id }}
+          role_name: ${{ matrix.deployment.role_name }}
+          region: ${{ matrix.deployment.region }}
+
+      - name: Verify Deployment (local action)
+        id: verify-local
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/verify-app
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          health_endpoint: ${{ needs.check.outputs.health_endpoint }}
+          timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+
+      - name: Verify Deployment (central action)
+        id: verify-central
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/verify-app
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          health_endpoint: ${{ needs.check.outputs.health_endpoint }}
+          timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+
+      - name: Record Deployment Result (local action)
+        if: ${{ always() && env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/record-deployment
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
+          verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
+
+      - name: Record Deployment Result (central action)
+        if: ${{ always() && env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/record-deployment
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
+          verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
   deploy-preprod:
-    name: Deploy Pre-production
-    needs: deploy-dev
+    name: Deploy Pre-production (${{ matrix.deployment.name }})
+    needs: [check, deploy-dev]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        deployment: ${{ fromJSON(needs.check.outputs.preprod_deployments || '[]') }}
     concurrency:
-      group: deployment-preprod
+      group: deployment-${{ matrix.deployment.name }}
       cancel-in-progress: false
     steps:
       - name: Checkout Caller Repo
@@ -250,27 +328,80 @@ jobs:
           path: '.platform-temp'
           ref: v1
 
-      - name: Execute Deploy Pre-production Stage (local action)
+      - name: Execute Deploy Stage (local action)
+        id: deploy-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/deploy
         with:
-          environment_name: Pre-production
+          environment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PREPROD
+          account_id: ${{ matrix.deployment.account_id }}
+          role_name: ${{ matrix.deployment.role_name }}
+          region: ${{ matrix.deployment.region }}
 
-      - name: Execute Deploy Pre-production Stage (central action)
+      - name: Execute Deploy Stage (central action)
+        id: deploy-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/deploy
         with:
-          environment_name: Pre-production
+          environment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PREPROD
+          account_id: ${{ matrix.deployment.account_id }}
+          role_name: ${{ matrix.deployment.role_name }}
+          region: ${{ matrix.deployment.region }}
+
+      - name: Verify Deployment (local action)
+        id: verify-local
+        if: ${{ env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/verify-app
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          health_endpoint: ${{ needs.check.outputs.health_endpoint }}
+          timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+
+      - name: Verify Deployment (central action)
+        id: verify-central
+        if: ${{ env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/verify-app
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          health_endpoint: ${{ needs.check.outputs.health_endpoint }}
+          timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+
+      - name: Record Deployment Result (local action)
+        if: ${{ always() && env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/record-deployment
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
+          verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
+
+      - name: Record Deployment Result (central action)
+        if: ${{ always() && env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/record-deployment
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
+          verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
   deploy-prod:
-    name: Deploy Production
-    needs: deploy-preprod
+    name: Deploy Production (${{ matrix.deployment.name }})
+    needs: [check, deploy-preprod]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        deployment: ${{ fromJSON(needs.check.outputs.prod_deployments || '[]') }}
     concurrency:
-      group: deployment-prod
+      group: deployment-${{ matrix.deployment.name }}
       cancel-in-progress: false
     # TODO: Add the Production approval gate when deployment environments are introduced.
     steps:
@@ -286,53 +417,71 @@ jobs:
           path: '.platform-temp'
           ref: v1
 
-      - name: Execute Deploy Production Stage (local action)
+      - name: Execute Deploy Stage (local action)
+        id: deploy-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/deploy
         with:
-          environment_name: Production
+          environment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PROD
+          account_id: ${{ matrix.deployment.account_id }}
+          role_name: ${{ matrix.deployment.role_name }}
+          region: ${{ matrix.deployment.region }}
 
-      - name: Execute Deploy Production Stage (central action)
+      - name: Execute Deploy Stage (central action)
+        id: deploy-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/deploy
         with:
-          environment_name: Production
+          environment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PROD
+          account_id: ${{ matrix.deployment.account_id }}
+          role_name: ${{ matrix.deployment.role_name }}
+          region: ${{ matrix.deployment.region }}
 
-  verify:
-    name: Verify
-    needs: [deploy-dev, deploy-preprod, deploy-prod]
-    if: >-
-      always() &&
-      needs.deploy-dev.result == 'success' &&
-      needs.deploy-preprod.result == 'success' &&
-      (needs.deploy-prod.result == 'success' || needs.deploy-prod.result == 'skipped')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Caller Repo
-        uses: actions/checkout@v4
-        if: ${{ env.ACT != 'true' }}
-
-      - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
-        if: ${{ env.ACT != 'true' }}
-        with:
-          repository: 'UKHSA/devops-pipeline'
-          path: '.platform-temp'
-          ref: v1
-
-      - name: Execute Verify Stage (local action)
+      - name: Verify Deployment (local action)
+        id: verify-local
         if: ${{ env.ACT == 'true' }}
-        uses: ./packages/shared-workflows/actions/verify
+        uses: ./packages/shared-workflows/actions/verify-app
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          health_endpoint: ${{ needs.check.outputs.health_endpoint }}
+          timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
 
-      - name: Execute Verify Stage (central action)
+      - name: Verify Deployment (central action)
+        id: verify-central
         if: ${{ env.ACT != 'true' }}
-        uses: ./.platform-temp/packages/shared-workflows/actions/verify
+        uses: ./.platform-temp/packages/shared-workflows/actions/verify-app
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          health_endpoint: ${{ needs.check.outputs.health_endpoint }}
+          timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+
+      - name: Record Deployment Result (local action)
+        if: ${{ always() && env.ACT == 'true' }}
+        uses: ./packages/shared-workflows/actions/record-deployment
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
+          verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
+
+      - name: Record Deployment Result (central action)
+        if: ${{ always() && env.ACT != 'true' }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/record-deployment
+        with:
+          deployment_name: ${{ matrix.deployment.name }}
+          category: ${{ matrix.deployment.category }}
+          deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
+          verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
   publish-report:
     name: Publish Run Report
-    needs: [check, test, scan, build, deploy-dev, deploy-preprod, deploy-prod, verify]
+    needs: [check, test, scan, build, deploy-dev, deploy-preprod, deploy-prod]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -359,7 +508,7 @@ jobs:
           deploy_dev_result: ${{ needs.deploy-dev.result }}
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
-          verify_result: ${{ needs.verify.result }}
+          deployments: ${{ needs.check.outputs.deployments }}
           start_time: ${{ needs.check.outputs.start_time }}
 
       - name: Publish Run Report (central action)
@@ -373,5 +522,5 @@ jobs:
           deploy_dev_result: ${{ needs.deploy-dev.result }}
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
-          verify_result: ${{ needs.verify.result }}
+          deployments: ${{ needs.check.outputs.deployments }}
           start_time: ${{ needs.check.outputs.start_time }}

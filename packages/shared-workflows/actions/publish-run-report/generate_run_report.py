@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Generate the standard pipeline run report and job summary."""
 
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime, timezone
@@ -26,7 +28,18 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def create_report(environment: dict[str, str], end_time: str) -> dict[str, object]:
+def load_deployment_results(planned: list[dict], results_dir: Path) -> list[dict]:
+    results = []
+    for deployment in planned:
+        result_path = results_dir / f"{deployment['name']}.json"
+        if result_path.is_file():
+            results.append(json.loads(result_path.read_text(encoding="utf-8")))
+    return results
+
+
+def create_report(
+    environment: dict[str, str], end_time: str, deployment_results: list[dict] | None = None
+) -> dict[str, object]:
     deploy_results = [
         environment[key]
         for key in ("deploy_dev_result", "deploy_preprod_result", "deploy_prod_result")
@@ -39,25 +52,17 @@ def create_report(environment: dict[str, str], end_time: str) -> dict[str, objec
         if any(result in ("failure", "cancelled") for result in ran_deploy_results)
         else "PASSED"
     )
-    verify_status = map_result(environment["verify_result"])
-    environments = []
-    for key, name, category in (
-        ("deploy_dev_result", "Dev", "Dev"),
-        ("deploy_preprod_result", "Pre-production", "Pre-production"),
-        ("deploy_prod_result", "Production", "Production"),
-    ):
-        deploy_result = environment[key]
-        if deploy_result == "skipped":
-            continue
-        environments.append(
-            {
-                "name": name,
-                "category": category,
-                "deploy_status": map_result(deploy_result),
-                "verify_status": verify_status,
-                "verified_at": end_time if verify_status == "PASSED" else None,
-            }
-        )
+    environments = [
+        {
+            "name": result["name"],
+            "category": result["category"],
+            "deploy_status": map_result(result["deploy_outcome"]),
+            "verify_status": map_result(result["verify_outcome"]),
+            "verified_at": result.get("verified_at"),
+        }
+        for result in deployment_results or []
+        if result["deploy_outcome"] != "skipped"
+    ]
 
     return {
         "context": {
@@ -99,6 +104,13 @@ def append_summary(report: dict[str, object], summary_path: Path) -> None:
         for stage, result in stages.items():
             summary.write(f"| {stage.replace('-', ' ').title()} | **{result}** |\n")
         summary.write("\n")
+        summary.write("| Deployment | Category | Deploy | Verify |\n| --- | --- | --- | --- |\n")
+        for deployment in report["environments"]:
+            summary.write(
+                f"| {deployment['name']} | {deployment['category']} | "
+                f"**{deployment['deploy_status']}** | **{deployment['verify_status']}** |\n"
+            )
+        summary.write("\n")
 
 
 def main() -> None:
@@ -119,14 +131,17 @@ def main() -> None:
             "DEPLOY_DEV_RESULT",
             "DEPLOY_PREPROD_RESULT",
             "DEPLOY_PROD_RESULT",
-            "VERIFY_RESULT",
         )
     }
     normalized_environment = {
         key.lower(): value for key, value in environment.items()
     }
+    planned_deployments = json.loads(os.environ.get("DEPLOYMENTS") or "[]")
+    deployment_results = load_deployment_results(
+        planned_deployments, Path(os.environ["RESULTS_DIR"])
+    )
     end_time = utc_now()
-    report = create_report(normalized_environment, end_time)
+    report = create_report(normalized_environment, end_time, deployment_results)
     output_path = Path(os.environ["REPORT_PATH"])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
