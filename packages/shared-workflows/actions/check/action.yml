@@ -18,4 +18,4 @@ runs:
     - name: Run Standards Check Tool
       shell: bash
       run: |
-        python3 "${{ github.action_path }}/../../../standards-check-tool/checker.py" --config "${{ inputs.settings_path }}"
+        python3 "${{ github.action_path }}/../../../setting-checker/checker.py" --config "${{ inputs.settings_path }}"

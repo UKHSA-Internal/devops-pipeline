@@ -33,7 +33,7 @@ jobs:
         id: standards-checker
         run: |
           set +e
-          python3 standards-check-tool/checker.py --config .github/pipeline-settings.yml --strict 2>&1 \
+          python3 packages/setting-checker/checker.py --config sample-app/.github/pipeline-settings.yml --strict 2>&1 \
             | tee "$RUNNER_TEMP/standards-checker-output.txt"
           checker_status=${PIPESTATUS[0]}
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"
@@ -41,7 +41,7 @@ jobs:
 
       - name: Write workflow run record
         if: always()
-        uses: ./central-pipeline-workflows/actions/run-record
+        uses: ./packages/shared-workflows/actions/run-record
         with:
           output_file: ${{ runner.temp }}/standards-checker-output.txt
           build_status: ${{ steps.standards-checker.outputs.exit_code || 'not run' }}

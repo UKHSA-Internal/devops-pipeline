@@ -2,13 +2,31 @@
 
 Centralised pipeline standards, shared GitHub Actions workflows, compliance checking tools, and onboarding starter templates for UKHSA service teams.
 
+## Repository structure
+
+| Path | Purpose |
+| --- | --- |
+| `.github/` | Repository settings, GitHub workflow entrypoints, and pull request template |
+| `packages/shared-workflows/` | Reusable workflow sources and composite actions, released together with root `.github/workflows/` as one workflow package |
+| `packages/setting-checker/` | Reusable standards settings checker and its Python project metadata |
+| `packages/app-template/` | Starter configuration and workflow for adopting service repositories |
+| `sample-app/` | Example microservice demonstrating the shared pipeline |
+| `scripts/` | Repository-maintenance scripts, including contribution-rule validation used by hooks and CI |
+| `tests/` | Automated tests and settings fixtures under `tests/fixtures/` |
+| `docs/` | Architecture Decision Records and other repository documentation |
+
+The shared workflow sources in `packages/shared-workflows/` are not an
+independently published component. They are packaged and released with the
+GitHub-discovered workflow entrypoints under `.github/workflows/`.
+
 ## Local development
 
 Run `make help` to see the available local commands.
 
 ### Check settings and test the standard pipeline
 
-Confirm that the platform repository's settings file is present and readable:
+Confirm that the sample app's application-specific settings file is present
+and readable:
 
 ```bash
 make check-settings
@@ -27,17 +45,19 @@ not been implemented yet. A missing or unreadable file returns a non-zero exit
 code. Paths are relative to the repository root.
 
 Test the **reusable standard pipeline** against the local composite action and
-the root settings file:
+the sample app's settings file:
 
 ```bash
 make test-standard-pipeline-local
 ```
 
 This invokes `.github/workflows/standard-pipeline.yml` directly with `act`'s
-`workflow_call` event and passes the root settings path plus
+`workflow_call` event and passes the sample app settings path plus
 `use_local_action=true`. Edits to the reusable workflow, composite action, and
 checker in this checkout are tested without fetching the published platform
-action. No local test-caller workflow is added to the workflows shown in GitHub.
+action. The `.github/workflows/sample-app-pipeline.yml` caller also uses the
+reusable workflow and action from this checkout. To smoke-test the published
+`v1` release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
 
 ### Run the platform pre-gate locally
 
@@ -96,7 +116,7 @@ feat(checker): validate pipeline settings
 
 Allowed commit types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`.
 
-Allowed scopes: `workflows`, `checker`, `starter-template`, `sample-app`, `fixtures`, `docs`, `repo`, `deps`.
+Allowed scopes: `workflows`, `checker`, `app-template`, `sample-app`, `fixtures`, `docs`, `repo`, `deps`.
 
 Include the Jira key in the PR title. For a branch without a Jira ID, include a Jira key in the PR title or a commit message.
 

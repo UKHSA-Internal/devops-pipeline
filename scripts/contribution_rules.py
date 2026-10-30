@@ -15,7 +15,7 @@ TYPES = ("feat", "fix", "chore", "docs", "refactor", "test")
 SCOPES = (
     "workflows",
     "checker",
-    "starter-template",
+    "app-template",
     "sample-app",
     "fixtures",
     "docs",

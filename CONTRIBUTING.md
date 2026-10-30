@@ -41,9 +41,9 @@ This gives auditability across shared platform assets, automated changelog gener
 
 | Scope | Covers |
 | --- | --- |
-| `workflows` | `.github/workflows/` and the composite actions in `standard-pipeline-workflows/actions/` |
-| `checker` | `standards-check-tool/` |
-| `starter-template` | `starter-template/` |
+| `workflows` | `.github/workflows/` and the composite actions in `packages/shared-workflows/actions/`, released together as one workflow package |
+| `checker` | `packages/setting-checker/` |
+| `app-template` | `packages/app-template/` |
 | `sample-app` | `sample-app/` |
 | `fixtures` | `tests/fixtures/` |
 | `docs` | `docs/`, including ADRs |
@@ -103,8 +103,8 @@ Each component releases automatically when its version file changes on `main`:
 | Component | Version file |
 | --- | --- |
 | Workflows and actions | `package.json` |
-| Standards Check tool | `standards-check-tool/pyproject.toml` |
-| Starter template | `starter-template/VERSION` |
+| Standards Check tool | `packages/setting-checker/pyproject.toml` |
+| Starter template | `packages/app-template/VERSION` |
 
 Only change a version file when you intend to release.
 
@@ -112,7 +112,7 @@ Only change a version file when you intend to release.
 
 - Run `checker.py` against the relevant fixtures:
   ```
-  python3 standards-check-tool/checker.py --config tests/fixtures/<file>.yml
+  python3 packages/setting-checker/checker.py --config tests/fixtures/<file>.yml
   ```
 - Exercise workflow changes locally with [`act`](https://github.com/nektos/act).
 - Add or update fixtures in `tests/fixtures/` when you change settings validation rules.

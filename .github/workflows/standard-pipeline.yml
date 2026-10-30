@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      platform_ref:
+        description: 'Ref of the platform package to use when loading the central action'
+        required: false
+        default: 'main'
+        type: string
 
 jobs:
   check:
@@ -28,16 +33,16 @@ jobs:
         with:
           repository: 'UKHSA/devops-pipeline'
           path: '.platform-temp'
-          ref: 'main'
+          ref: ${{ inputs.platform_ref }}
 
       - name: Execute Check Stage (local action)
         if: ${{ inputs.use_local_action }}
-        uses: ./central-pipeline-workflows/actions/check
+        uses: ./packages/shared-workflows/actions/check
         with:
           settings_path: ${{ inputs.settings_path }}
 
       - name: Execute Check Stage (central action)
         if: ${{ !inputs.use_local_action }}
-        uses: ./.platform-temp/central-pipeline-workflows/actions/check
+        uses: ./.platform-temp/packages/shared-workflows/actions/check
         with:
           settings_path: ${{ inputs.settings_path }}

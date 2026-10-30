@@ -1,15 +1,22 @@
+import importlib.util
 import unittest
+from pathlib import Path
 
-from scripts.contribution_rules import (
-    SCOPES,
-    TYPES,
-    is_breaking_change,
-    validate_adr_gate,
-    validate_branch_linkage,
-    validate_branch_name,
-    validate_commit_message,
-    validate_pr_title,
-)
+RULES_PATH = Path(__file__).resolve().parents[1] / "scripts" / "contribution_rules.py"
+RULES_SPEC = importlib.util.spec_from_file_location("contribution_rules", RULES_PATH)
+if RULES_SPEC is None or RULES_SPEC.loader is None:
+    raise ImportError(f"Unable to load contribution rules from {RULES_PATH}")
+RULES = importlib.util.module_from_spec(RULES_SPEC)
+RULES_SPEC.loader.exec_module(RULES)
+
+SCOPES = RULES.SCOPES
+TYPES = RULES.TYPES
+is_breaking_change = RULES.is_breaking_change
+validate_adr_gate = RULES.validate_adr_gate
+validate_branch_linkage = RULES.validate_branch_linkage
+validate_branch_name = RULES.validate_branch_name
+validate_commit_message = RULES.validate_commit_message
+validate_pr_title = RULES.validate_pr_title
 
 
 class CommitMessageTests(unittest.TestCase):
@@ -40,6 +47,12 @@ class CommitMessageTests(unittest.TestCase):
 
     def test_invalid_scope_is_rejected(self):
         self.assertTrue(validate_commit_message("feat(workspace): implement change"))
+        self.assertTrue(
+            validate_commit_message("feat(starter-template): update app template")
+        )
+        self.assertEqual(
+            validate_commit_message("feat(app-template): update app template"), []
+        )
 
     def test_invalid_type_is_rejected(self):
         self.assertTrue(validate_commit_message("build(repo): update tooling"))
