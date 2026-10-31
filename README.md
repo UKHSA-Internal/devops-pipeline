@@ -54,9 +54,9 @@ make test-standard-pipeline-local
 This invokes `.github/workflows/standard-pipeline.yml` directly with `act`'s
 `workflow_call` event and passes the sample app settings path. Under `act`, the
 reusable workflow automatically uses the actions in this checkout; hosted runs
-use the central workflow package pinned to `v1`. The
+load the actions from the same commit as the called workflow. The
 `.github/workflows/sample-app-pipeline.yml` caller also uses the reusable
-workflow and action from this checkout, running on branch pushes and pull
+workflow and action from this checkout, running on pushes to `main` and pull
 requests. The full flow includes placeholder test, scan and deploy stages, a
 local image build, and a run report. Deployments come from the `environments`
 list in the settings file: each category (Dev, Pre-production, Production) can
