@@ -22,6 +22,7 @@ jobs:
       dev_deployments: ${{ steps.deployments-local.outputs.dev_deployments || steps.deployments-central.outputs.dev_deployments }}
       preprod_deployments: ${{ steps.deployments-local.outputs.preprod_deployments || steps.deployments-central.outputs.preprod_deployments }}
       prod_deployments: ${{ steps.deployments-local.outputs.prod_deployments || steps.deployments-central.outputs.prod_deployments }}
+      test_command: ${{ steps.deployments-local.outputs.test_command || steps.deployments-central.outputs.test_command }}
       deployments: ${{ steps.deployments-local.outputs.deployments || steps.deployments-central.outputs.deployments }}
       health_endpoint: ${{ steps.deployments-local.outputs.health_endpoint || steps.deployments-central.outputs.health_endpoint }}
       timeout_seconds: ${{ steps.deployments-local.outputs.timeout_seconds || steps.deployments-central.outputs.timeout_seconds }}
@@ -149,10 +150,16 @@ jobs:
       - name: Execute Test Stage (local action)
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/test
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          test_command: ${{ needs.check.outputs.test_command }}
 
       - name: Execute Test Stage (central action)
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/test
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          test_command: ${{ needs.check.outputs.test_command }}
 
   scan:
     name: Scan
@@ -249,6 +256,7 @@ jobs:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-DEV
+          image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
@@ -261,6 +269,7 @@ jobs:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-DEV
+          image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
@@ -291,6 +300,7 @@ jobs:
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
           verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
@@ -300,12 +310,13 @@ jobs:
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
           verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
-    needs: [check, deploy-dev]
+    needs: [check, build, deploy-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
@@ -337,6 +348,7 @@ jobs:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PREPROD
+          image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
@@ -349,6 +361,7 @@ jobs:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PREPROD
+          image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
@@ -379,6 +392,7 @@ jobs:
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
           verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
@@ -388,12 +402,13 @@ jobs:
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
           verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
   deploy-prod:
     name: Deploy Production (${{ matrix.deployment.name }})
-    needs: [check, deploy-preprod]
+    needs: [check, build, deploy-preprod]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
@@ -426,6 +441,7 @@ jobs:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PROD
+          image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
@@ -438,6 +454,7 @@ jobs:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
           stage_name: DEPLOY-PROD
+          image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
@@ -468,6 +485,7 @@ jobs:
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
           verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
@@ -477,6 +495,7 @@ jobs:
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy-local.outcome == 'skipped' && steps.deploy-central.outcome || steps.deploy-local.outcome }}
           verify_outcome: ${{ steps.verify-local.outcome == 'skipped' && steps.verify-central.outcome || steps.verify-local.outcome }}
 
@@ -511,6 +530,7 @@ jobs:
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
           start_time: ${{ needs.check.outputs.start_time }}
+          trigger_type: ${{ github.event_name }}
 
       - name: Publish Run Report (central action)
         if: ${{ env.ACT != 'true' }}
@@ -525,3 +545,4 @@ jobs:
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
           start_time: ${{ needs.check.outputs.start_time }}
+          trigger_type: ${{ github.event_name }}

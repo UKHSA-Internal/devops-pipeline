@@ -28,12 +28,29 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def load_deployment_results(planned: list[dict], results_dir: Path) -> list[dict]:
+def load_deployment_results(
+    planned: list[dict],
+    results_dir: Path,
+    active_categories: set[str],
+) -> list[dict]:
     results = []
     for deployment in planned:
+        if deployment["category"] not in active_categories:
+            continue
         result_path = results_dir / f"{deployment['name']}.json"
         if result_path.is_file():
             results.append(json.loads(result_path.read_text(encoding="utf-8")))
+        else:
+            results.append(
+                {
+                    "name": deployment["name"],
+                    "category": deployment["category"],
+                    "deploy_outcome": "failure",
+                    "verify_outcome": "skipped",
+                    "verified_at": None,
+                    "result_error": f"Missing deployment result file: {result_path}",
+                }
+            )
     return results
 
 
@@ -45,11 +62,14 @@ def create_report(
         for key in ("deploy_dev_result", "deploy_preprod_result", "deploy_prod_result")
     ]
     ran_deploy_results = [result for result in deploy_results if result != "skipped"]
+    has_failed_deployment = any(
+        result in ("failure", "cancelled") for result in ran_deploy_results
+    ) or any(result.get("result_error") for result in deployment_results or [])
     deploy_status = (
         "SKIPPED"
         if not ran_deploy_results
         else "FAILED"
-        if any(result in ("failure", "cancelled") for result in ran_deploy_results)
+        if has_failed_deployment
         else "PASSED"
     )
     environments = [
@@ -58,7 +78,9 @@ def create_report(
             "category": result["category"],
             "deploy_status": map_result(result["deploy_outcome"]),
             "verify_status": map_result(result["verify_outcome"]),
+            "image_tag": result.get("image_tag"),
             "verified_at": result.get("verified_at"),
+            **({"error": result["result_error"]} if result.get("result_error") else {}),
         }
         for result in deployment_results or []
         if result["deploy_outcome"] != "skipped"
@@ -72,7 +94,7 @@ def create_report(
             "ref": environment["ref"],
             "workflow_ref": environment["workflow_ref"],
             "workflow_sha": environment["workflow_sha"],
-            "trigger_type": "release",
+            "trigger_type": environment["trigger_type"],
         },
         "timestamps": {
             "start_time": environment["start_time"] or None,
@@ -110,6 +132,8 @@ def append_summary(report: dict[str, object], summary_path: Path) -> None:
                 f"| {deployment['name']} | {deployment['category']} | "
                 f"**{deployment['deploy_status']}** | **{deployment['verify_status']}** |\n"
             )
+            if "error" in deployment:
+                summary.write(f"\n**ERROR:** {deployment['error']}\n")
         summary.write("\n")
 
 
@@ -123,6 +147,7 @@ def main() -> None:
             "REF",
             "WORKFLOW_REF",
             "WORKFLOW_SHA",
+            "TRIGGER_TYPE",
             "START_TIME",
             "CHECK_RESULT",
             "TEST_RESULT",
@@ -137,9 +162,23 @@ def main() -> None:
         key.lower(): value for key, value in environment.items()
     }
     planned_deployments = json.loads(os.environ.get("DEPLOYMENTS") or "[]")
+    deployment_results_by_category = {
+        "Dev": normalized_environment["deploy_dev_result"],
+        "Pre-production": normalized_environment["deploy_preprod_result"],
+        "Production": normalized_environment["deploy_prod_result"],
+    }
     deployment_results = load_deployment_results(
-        planned_deployments, Path(os.environ["RESULTS_DIR"])
+        planned_deployments,
+        Path(os.environ["RESULTS_DIR"]),
+        {
+            category
+            for category, result in deployment_results_by_category.items()
+            if result != "skipped"
+        },
     )
+    for result in deployment_results:
+        if result.get("result_error"):
+            print(f"ERROR: {result['result_error']}")
     end_time = utc_now()
     report = create_report(normalized_environment, end_time, deployment_results)
     output_path = Path(os.environ["REPORT_PATH"])

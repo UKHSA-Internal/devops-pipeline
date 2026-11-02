@@ -1,5 +1,9 @@
 import importlib.util
 import json
+import os
+import re
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,6 +33,7 @@ def report_inputs(**overrides):
         "ref": "refs/heads/feature/example",
         "workflow_ref": "UKHSA/devops-pipeline/.github/workflows/sample-app-pipeline.yml@refs/heads/main",
         "workflow_sha": "fedcba654321",
+        "trigger_type": "pull_request",
         "start_time": "2026-10-30T12:00:00Z",
         "check_result": "success",
         "test_result": "success",
@@ -47,6 +52,7 @@ def deployment_result(name, category, deploy="success", verify="success"):
         "category": category,
         "deploy_outcome": deploy,
         "verify_outcome": verify,
+        "image_tag": "sample-app:abcdef123456",
         "verified_at": "2026-10-30T12:05:00Z" if verify == "success" else None,
     }
 
@@ -76,12 +82,12 @@ class RunReportTests(unittest.TestCase):
             all(entry["verify_status"] == "PASSED" for entry in report["environments"])
         )
         self.assertEqual(report["environments"][0]["verified_at"], "2026-10-30T12:05:00Z")
-        self.assertEqual(report["context"]["trigger_type"], "release")
+        self.assertEqual(report["context"]["trigger_type"], "pull_request")
         self.assertIsNone(report["governance"]["compliance_verdict"])
 
     def test_maps_main_flow_to_include_production(self):
         report = REPORT.create_report(
-            report_inputs(deploy_prod_result="success"),
+            report_inputs(deploy_prod_result="success", trigger_type="push"),
             END_TIME,
             [
                 deployment_result("dev-env-1", "Dev"),
@@ -93,6 +99,7 @@ class RunReportTests(unittest.TestCase):
         self.assertEqual(report["stages"]["deploy"], "PASSED")
         self.assertEqual(len(report["environments"]), 3)
         self.assertEqual(report["environments"][-1]["name"], "prod")
+        self.assertEqual(report["context"]["trigger_type"], "push")
 
     def test_failure_and_cancellation_are_failed(self):
         report = REPORT.create_report(
@@ -146,20 +153,134 @@ class RunReportTests(unittest.TestCase):
 
     def test_loads_results_in_planned_order_and_ignores_missing(self):
         planned = [
-            {"name": "dev-env-1"},
-            {"name": "dev-env-2"},
-            {"name": "preprod-env-1"},
+            {"name": "dev-env-1", "category": "Dev"},
+            {"name": "dev-env-2", "category": "Dev"},
+            {"name": "preprod-env-1", "category": "Pre-production"},
+            {"name": "prod", "category": "Production"},
         ]
         with tempfile.TemporaryDirectory() as directory:
             results_dir = Path(directory)
-            for name in ("preprod-env-1", "dev-env-1"):
+            for name, category in (
+                ("preprod-env-1", "Pre-production"),
+                ("dev-env-1", "Dev"),
+                ("dev-env-2", "Dev"),
+            ):
                 (results_dir / f"{name}.json").write_text(
-                    json.dumps(deployment_result(name, "Dev")), encoding="utf-8"
+                    json.dumps(deployment_result(name, category)), encoding="utf-8"
                 )
 
-            results = REPORT.load_deployment_results(planned, results_dir)
+            results = REPORT.load_deployment_results(
+                planned, results_dir, {"Dev", "Pre-production"}
+            )
 
-        self.assertEqual([result["name"] for result in results], ["dev-env-1", "preprod-env-1"])
+        self.assertEqual(
+            [result["name"] for result in results],
+            ["dev-env-1", "dev-env-2", "preprod-env-1"],
+        )
+        self.assertNotIn("prod", [result["name"] for result in results])
+
+    def test_missing_result_for_ran_deployment_is_recorded_as_failure(self):
+        planned = [{"name": "dev-env-1", "category": "Dev"}]
+        with tempfile.TemporaryDirectory() as directory:
+            results = REPORT.load_deployment_results(planned, Path(directory), {"Dev"})
+
+        report = REPORT.create_report(report_inputs(), END_TIME, results)
+
+        self.assertEqual(report["stages"]["deploy"], "FAILED")
+        self.assertEqual(report["environments"][0]["deploy_status"], "FAILED")
+        self.assertEqual(report["environments"][0]["verify_status"], "SKIPPED")
+        self.assertIn("Missing deployment result file", report["environments"][0]["error"])
+
+    def test_same_image_tag_is_reported_for_every_environment(self):
+        report = REPORT.create_report(
+            report_inputs(deploy_prod_result="success", trigger_type="push"),
+            END_TIME,
+            [
+                deployment_result("dev-env-1", "Dev"),
+                deployment_result("preprod-env-1", "Pre-production"),
+                deployment_result("prod", "Production"),
+            ],
+        )
+
+        self.assertEqual(
+            {entry["image_tag"] for entry in report["environments"]},
+            {"sample-app:abcdef123456"},
+        )
+
+
+class RunRecordFileTests(unittest.TestCase):
+    TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+    def generate(self, **overrides):
+        values = report_inputs(**overrides)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            results = root / "results"
+            results.mkdir()
+            (results / "dev-env-1.json").write_text(
+                json.dumps(deployment_result("dev-env-1", "Dev")), encoding="utf-8"
+            )
+            environment = {
+                **os.environ,
+                **{key.upper(): value for key, value in values.items()},
+                "DEPLOYMENTS": json.dumps([{"name": "dev-env-1", "category": "Dev"}]),
+                "RESULTS_DIR": str(results),
+                "REPORT_PATH": str(root / "run-record.json"),
+                "GITHUB_STEP_SUMMARY": str(root / "summary.md"),
+            }
+            subprocess.run(
+                [sys.executable, str(REPORT_PATH)],
+                env=environment,
+                check=True,
+                capture_output=True,
+            )
+            return json.loads((root / "run-record.json").read_text(encoding="utf-8"))
+
+    def test_run_record_has_expected_structure(self):
+        record = self.generate(deploy_preprod_result="skipped")
+
+        self.assertEqual(
+            set(record), {"context", "timestamps", "stages", "environments", "governance"}
+        )
+        self.assertEqual(
+            set(record["context"]),
+            {
+                "pipeline_run_id",
+                "repository",
+                "change_id",
+                "ref",
+                "workflow_ref",
+                "workflow_sha",
+                "trigger_type",
+            },
+        )
+        self.assertEqual(set(record["stages"]), {"check", "test", "scan", "build", "deploy"})
+        self.assertTrue(set(record["stages"].values()) <= {"PASSED", "FAILED", "SKIPPED"})
+        for value in record["timestamps"].values():
+            self.assertRegex(value, self.TIMESTAMP)
+        self.assertEqual(record["environments"][0]["image_tag"], "sample-app:abcdef123456")
+
+    def test_failed_check_records_check_failed_and_downstream_skipped(self):
+        record = self.generate(
+            check_result="failure",
+            test_result="skipped",
+            scan_result="skipped",
+            build_result="skipped",
+            deploy_dev_result="skipped",
+            deploy_preprod_result="skipped",
+        )
+
+        self.assertEqual(
+            record["stages"],
+            {
+                "check": "FAILED",
+                "test": "SKIPPED",
+                "scan": "SKIPPED",
+                "build": "SKIPPED",
+                "deploy": "SKIPPED",
+            },
+        )
+        self.assertEqual(record["environments"], [])
 
 
 if __name__ == "__main__":

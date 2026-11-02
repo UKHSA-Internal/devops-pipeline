@@ -57,8 +57,10 @@ reusable workflow automatically uses the actions in this checkout; hosted runs
 load the actions from the same commit as the called workflow. The
 `.github/workflows/sample-app-pipeline.yml` caller also uses the reusable
 workflow and action from this checkout, running on pushes to `main` and pull
-requests. The full flow includes placeholder test, scan and deploy stages, a
-local image build, and a run report. Deployments come from the `environments`
+requests. The full flow runs the service's real test command (`service.test_command`
+in the settings file, run from the service directory), placeholder scan and deploy
+stages, a local image build, and a run report. The build's full-commit-SHA image tag is
+passed unchanged to each deployment. Deployments come from the `environments`
 list in the settings file: each category (Dev, Pre-production, Production) can
 contain several named deployments, which run one at a time in settings order.
 Each deployment is followed immediately by the `verify-app` action against its
@@ -68,6 +70,18 @@ Production deploy only on pushes to `main`. To smoke-test the published `v1`
 release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
 For `act` runs, generated build files and `run-record.json` are persisted under
 the ignored `.act-artifacts/` directory.
+
+Two failure scenarios can be exercised locally; each asserts a non-zero run and
+that the run record marks downstream stages `SKIPPED`:
+
+```bash
+make test-pipeline-failing-test   # injected unit-test failure: test FAILED
+make test-pipeline-failing-check  # missing settings file: check FAILED
+```
+
+The run-record structure is covered by `python3 -m unittest discover -s tests`.
+Pull-request and `main` behaviour (Production skipped or included, artifact
+upload) can only be confirmed in hosted GitHub Actions runs.
 
 ### Run the platform pre-gate locally
 

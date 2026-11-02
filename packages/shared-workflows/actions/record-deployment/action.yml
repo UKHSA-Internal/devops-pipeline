@@ -8,6 +8,9 @@ inputs:
   category:
     description: Environment category of the deployment
     required: true
+  image_tag:
+    description: Image tag deployed to this deployment
+    required: true
   deploy_outcome:
     description: Outcome of the deploy step
     required: true
@@ -23,6 +26,7 @@ runs:
       env:
         DEPLOYMENT_NAME: ${{ inputs.deployment_name }}
         CATEGORY: ${{ inputs.category }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
         DEPLOY_OUTCOME: ${{ inputs.deploy_outcome }}
         VERIFY_OUTCOME: ${{ inputs.verify_outcome }}
       run: |
@@ -47,6 +51,7 @@ runs:
         result = {
             "name": os.environ["DEPLOYMENT_NAME"],
             "category": os.environ["CATEGORY"],
+            "image_tag": os.environ["IMAGE_TAG"],
             "deploy_outcome": os.environ["DEPLOY_OUTCOME"],
             "verify_outcome": verify_outcome,
             "verified_at": verified_at,

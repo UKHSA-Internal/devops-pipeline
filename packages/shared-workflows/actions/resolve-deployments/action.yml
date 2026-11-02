@@ -7,6 +7,9 @@ inputs:
     required: true
 
 outputs:
+  test_command:
+    description: Service test command run by the Test stage
+    value: ${{ steps.resolve.outputs.test_command }}
   dev_deployments:
     description: JSON list of Dev deployments
     value: ${{ steps.resolve.outputs.dev_deployments }}

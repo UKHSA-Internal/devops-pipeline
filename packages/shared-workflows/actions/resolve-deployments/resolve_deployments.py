@@ -61,7 +61,15 @@ def resolve(settings: dict) -> dict:
     if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or timeout_seconds < 1:
         raise SettingsError("verification.timeout_seconds must be a positive integer.")
 
+    service = settings.get("service")
+    test_command = service.get("test_command") if isinstance(service, dict) else None
+    if not isinstance(test_command, str) or not test_command.strip():
+        raise SettingsError("'service.test_command' must be a non-empty string.")
+    if "\n" in test_command or "\r" in test_command:
+        raise SettingsError("'service.test_command' must be a single line.")
+
     return {
+        "test_command": test_command.strip(),
         "dev_deployments": by_category["dev"],
         "preprod_deployments": by_category["preprod"],
         "prod_deployments": by_category["prod"],

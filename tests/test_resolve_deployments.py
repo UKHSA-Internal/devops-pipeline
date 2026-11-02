@@ -35,6 +35,7 @@ def settings(*environments, **overrides):
             environment("preprod-env-1", "Pre-production"),
             environment("prod", "Production"),
         ],
+        "service": {"test_command": "python3 -m unittest discover"},
         "verification": {"health_endpoint": "/health", "timeout_seconds": 60},
         **overrides,
     }
@@ -49,6 +50,7 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in plan["prod_deployments"]], ["prod"])
         self.assertEqual(plan["health_endpoint"], "/health")
         self.assertEqual(plan["timeout_seconds"], 60)
+        self.assertEqual(plan["test_command"], "python3 -m unittest discover")
 
     def test_supports_multiple_deployments_per_category_in_promotion_order(self):
         plan = RESOLVER.resolve(
@@ -104,6 +106,9 @@ class ResolveDeploymentsTests(unittest.TestCase):
             "relative health endpoint": settings(
                 verification={"health_endpoint": "health", "timeout_seconds": 60}
             ),
+            "missing test command": settings(service={"name": "sample-app"}),
+            "blank test command": settings(service={"test_command": "  "}),
+            "multiline test command": settings(service={"test_command": "a\nb"}),
             "bad timeout": settings(
                 verification={"health_endpoint": "/health", "timeout_seconds": 0}
             ),

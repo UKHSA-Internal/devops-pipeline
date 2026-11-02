@@ -20,6 +20,9 @@ inputs:
   region:
     description: Target region
     required: true
+  image_tag:
+    description: Full commit SHA tag of the built image
+    required: true
 
 runs:
   using: composite
@@ -33,10 +36,12 @@ runs:
         ACCOUNT_ID: ${{ inputs.account_id }}
         ROLE_NAME: ${{ inputs.role_name }}
         REGION: ${{ inputs.region }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
-        printf '[STAGE: %s] Deploy to %s (%s): would assume %s in account %s (%s); not yet implemented.\n' \
-          "$STAGE_NAME" "$ENVIRONMENT_NAME" "$CATEGORY" "$ROLE_NAME" "$ACCOUNT_ID" "$REGION"
+        printf '[STAGE: %s] Deploy %s to %s (%s): would assume %s in account %s (%s); not yet implemented.\n' \
+          "$STAGE_NAME" "$IMAGE_TAG" "$ENVIRONMENT_NAME" "$CATEGORY" "$ROLE_NAME" "$ACCOUNT_ID" "$REGION"
         {
           printf '## Deploy %s\n\n' "$ENVIRONMENT_NAME"
+          printf 'Image: `%s`\n\n' "$IMAGE_TAG"
           printf 'Deploy to %s (%s): not yet implemented.\n' "$ENVIRONMENT_NAME" "$CATEGORY"
         } >> "$GITHUB_STEP_SUMMARY"

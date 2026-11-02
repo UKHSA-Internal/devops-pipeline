@@ -4,6 +4,7 @@ service:
   name: "sample-app"
   owner_team: "platform-team"
   language: "python"
+  test_command: "python3 -m unittest discover -s tests -v"
 
 environments:
   - name: dev-env-1

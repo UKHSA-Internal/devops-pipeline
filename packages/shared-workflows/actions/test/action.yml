@@ -1,11 +1,32 @@
 name: Test Stage
-description: Placeholder test stage for the standard pipeline
+description: Runs the service's test command from its pipeline settings
+
+inputs:
+  service_directory:
+    description: Service directory the test command runs in
+    required: true
+  test_command:
+    description: Test command resolved from pipeline settings (service.test_command)
+    required: true
 
 runs:
   using: composite
   steps:
-    - name: Run Test Placeholder
+    - name: Run Service Tests
       shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        TEST_COMMAND: ${{ inputs.test_command }}
       run: |
-        printf '[STAGE: TEST] Test stage is not yet implemented.\n'
-        printf '## Test\n\nTest stage is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"
+        set -euo pipefail
+        printf '[STAGE: TEST] Running in %s: %s\n' "$SERVICE_DIRECTORY" "$TEST_COMMAND"
+        cd "$SERVICE_DIRECTORY"
+        status=0
+        bash -c "$TEST_COMMAND" || status=$?
+        {
+          printf '## Test\n\n'
+          printf -- '- Command: `%s`\n' "$TEST_COMMAND"
+          printf -- '- Exit code: **%s**\n' "$status"
+        } >> "$GITHUB_STEP_SUMMARY"
+        printf '[STAGE: TEST] Exit code %s\n' "$status"
+        exit "$status"
