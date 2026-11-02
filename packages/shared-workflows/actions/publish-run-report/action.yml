@@ -38,7 +38,7 @@ runs:
     - name: Download Deployment Results
       if: ${{ env.ACT != 'true' }}
       continue-on-error: true
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: deployment-result-*
         path: deployment-results
@@ -75,7 +75,7 @@ runs:
 
     - name: Upload Run Report
       if: ${{ env.ACT != 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: run-record-${{ github.run_id }}
         path: run-record.json

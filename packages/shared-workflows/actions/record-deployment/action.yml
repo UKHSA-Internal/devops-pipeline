@@ -56,7 +56,7 @@ runs:
 
     - name: Upload Deployment Result
       if: ${{ env.ACT != 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: deployment-result-${{ inputs.deployment_name }}
         path: deployment-results/${{ inputs.deployment_name }}.json

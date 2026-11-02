@@ -63,7 +63,8 @@ list in the settings file: each category (Dev, Pre-production, Production) can
 contain several named deployments, which run one at a time in settings order.
 Each deployment is followed immediately by the `verify-app` action against its
 health endpoint (`verification.health_endpoint`). Check fails if a category has
-no deployments. To smoke-test the published `v1`
+no deployments. Pull request runs deploy to Dev only; Pre-production and
+Production deploy only on pushes to `main`. To smoke-test the published `v1`
 release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
 For `act` runs, generated build files and `run-record.json` are persisted under
 the ignored `.act-artifacts/` directory.

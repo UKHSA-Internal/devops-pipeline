@@ -27,7 +27,7 @@ jobs:
       timeout_seconds: ${{ steps.deployments-local.outputs.timeout_seconds || steps.deployments-central.outputs.timeout_seconds }}
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Record Pipeline Start
@@ -84,7 +84,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -135,11 +135,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -160,11 +160,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -188,11 +188,11 @@ jobs:
       checksum: ${{ steps.build-local.outputs.checksum || steps.build-central.outputs.checksum }}
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -230,11 +230,11 @@ jobs:
     # TODO: Grant id-token: write when the deployment implementation uses OIDC.
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -306,6 +306,7 @@ jobs:
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
     needs: [check, deploy-dev]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -317,11 +318,11 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -406,11 +407,11 @@ jobs:
     # TODO: Add the Production approval gate when deployment environments are introduced.
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
@@ -486,11 +487,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Caller Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Checkout Platform Central Workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           repository: ${{ job.workflow_repository }}
