@@ -18,7 +18,6 @@ jobs:
     outputs:
       settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
       service_directory: ${{ steps.resolve-settings.outputs.service_directory }}
-      start_time: ${{ steps.started.outputs.start_time }}
       dev_deployments: ${{ steps.deployments-local.outputs.dev_deployments || steps.deployments-central.outputs.dev_deployments }}
       preprod_deployments: ${{ steps.deployments-local.outputs.preprod_deployments || steps.deployments-central.outputs.preprod_deployments }}
       prod_deployments: ${{ steps.deployments-local.outputs.prod_deployments || steps.deployments-central.outputs.prod_deployments }}
@@ -30,13 +29,6 @@ jobs:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
-
-      - name: Record Pipeline Start
-        id: started
-        shell: bash
-        run: |
-          python3 -c 'from datetime import datetime, timezone; print("start_time=" + datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"))' \
-            >> "$GITHUB_OUTPUT"
 
       - name: Resolve Settings File
         id: resolve-settings
@@ -529,7 +521,7 @@ jobs:
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
-          start_time: ${{ needs.check.outputs.start_time }}
+          start_time: ${{ github.run_started_at }}
           trigger_type: ${{ github.event_name }}
 
       - name: Publish Run Report (central action)
@@ -544,5 +536,5 @@ jobs:
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
-          start_time: ${{ needs.check.outputs.start_time }}
+          start_time: ${{ github.run_started_at }}
           trigger_type: ${{ github.event_name }}
