@@ -28,7 +28,7 @@ inputs:
     required: false
     default: ''
   start_time:
-    description: Pipeline start time recorded by Check
+    description: Pipeline start time (ISO 8601 UTC) recorded by Check
     required: false
     default: ''
   trigger_type:

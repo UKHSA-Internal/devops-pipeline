@@ -20,6 +20,7 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     outputs:
+      start_time: ${{ steps.started.outputs.start_time }}
       settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
       service_directory: ${{ steps.resolve-settings.outputs.service_directory }}
       dev_deployments: ${{ steps.deployments-local.outputs.dev_deployments || steps.deployments-central.outputs.dev_deployments }}
@@ -30,6 +31,11 @@ jobs:
       health_endpoint: ${{ steps.deployments-local.outputs.health_endpoint || steps.deployments-central.outputs.health_endpoint }}
       timeout_seconds: ${{ steps.deployments-local.outputs.timeout_seconds || steps.deployments-central.outputs.timeout_seconds }}
     steps:
+      - name: Record Pipeline Start
+        id: started
+        shell: bash
+        run: echo "start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
@@ -539,7 +545,7 @@ jobs:
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
-          start_time: ${{ github.run_started_at }}
+          start_time: ${{ needs.check.outputs.start_time }}
           trigger_type: ${{ github.event_name }}
 
       - name: Publish Run Report (central action)
@@ -554,5 +560,5 @@ jobs:
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
-          start_time: ${{ github.run_started_at }}
+          start_time: ${{ needs.check.outputs.start_time }}
           trigger_type: ${{ github.event_name }}
