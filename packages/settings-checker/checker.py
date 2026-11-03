@@ -15,7 +15,7 @@ def main():
     args = parser.parse_args()
 
     config_path = Path(args.config)
-    print(f"[STAGE: CHECK] Checking settings file: {config_path}")
+    print(f"[STEP: CHECK] Checking settings file: {config_path}")
 
     try:
         with config_path.open("rb"):

@@ -1,22 +1,22 @@
-name: Write Workflow Run Record
-description: Writes workflow run metadata and build output to the job summary
+name: Publish Checker Summary
+description: Writes workflow metadata and checker output to the job summary
 
 inputs:
   output_file:
-    description: Path to the captured build output
+    description: Path to the captured checker output
     required: true
-  build_status:
-    description: Exit status of the build, or "not run" if it did not run
+  checker_status:
+    description: Exit status of the checker, or "not run" if it did not run
     required: true
 
 runs:
   using: composite
   steps:
-    - name: Append run record to workflow summary
+    - name: Append checker summary to workflow summary
       shell: bash
       env:
         OUTPUT_FILE: ${{ inputs.output_file }}
-        BUILD_STATUS: ${{ inputs.build_status }}
+        CHECKER_STATUS: ${{ inputs.checker_status }}
         WORKFLOW_NAME: ${{ github.workflow }}
         RUN_NUMBER: ${{ github.run_number }}
         BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
@@ -24,15 +24,15 @@ runs:
         JOB_STATUS: ${{ job.status }}
       run: |
         {
-          printf '## Workflow run record\n\n'
+          printf '## Checker summary\n\n'
           printf '| Field | Value |\n| --- | --- |\n'
           printf '| Workflow | `%s` |\n' "$WORKFLOW_NAME"
           printf '| Run | `%s` |\n' "$RUN_NUMBER"
           printf '| Branch | `%s` |\n' "$BRANCH_NAME"
           printf '| Commit | `%s` |\n' "$COMMIT_SHA"
           printf '| Job status | `%s` |\n' "$JOB_STATUS"
-          printf '| Build status | `%s` |\n' "$BUILD_STATUS"
-          printf '\n### Build output\n\n```text\n'
+          printf '| Checker status | `%s` |\n' "$CHECKER_STATUS"
+          printf '\n### Checker output\n\n```text\n'
           if [[ -s "$OUTPUT_FILE" ]]; then
             cat "$OUTPUT_FILE"
           else

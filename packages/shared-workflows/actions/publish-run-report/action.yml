@@ -1,0 +1,97 @@
+name: Publish Pipeline Run Report
+description: Generates and publishes the pipeline run report
+
+inputs:
+  check_result:
+    description: Check job result
+    required: true
+  test_result:
+    description: Test job result
+    required: true
+  scan_result:
+    description: Scan job result
+    required: true
+  build_result:
+    description: Build job result
+    required: true
+  deploy_dev_result:
+    description: Deploy Development job result
+    required: true
+  deploy_preprod_result:
+    description: Deploy Pre-production job result
+    required: true
+  deploy_prod_result:
+    description: Deploy Production job result
+    required: true
+  deployments:
+    description: JSON list of the planned deployments in promotion order
+    required: false
+    default: ''
+  start_time:
+    description: Pipeline start time (ISO 8601 UTC) recorded by Check
+    required: false
+    default: ''
+  trigger_type:
+    description: GitHub event that triggered the workflow
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download Deployment Results
+      if: ${{ env.ACT != 'true' }}
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: deployment-result-*
+        path: deployment-results
+        merge-multiple: true
+
+    - name: Download Deployment Started Markers
+      if: ${{ env.ACT != 'true' }}
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: deployment-started-*
+        path: deployment-started
+        merge-multiple: true
+
+    - name: Generate Run Report
+      shell: bash
+      env:
+        RUN_ID: ${{ github.run_id }}
+        REPOSITORY: ${{ github.repository }}
+        COMMIT_SHA: ${{ github.sha }}
+        REF: ${{ github.ref }}
+        WORKFLOW_REF: ${{ github.workflow_ref }}
+        WORKFLOW_SHA: ${{ github.workflow_sha }}
+        TRIGGER_TYPE: ${{ inputs.trigger_type }}
+        START_TIME: ${{ inputs.start_time }}
+        DEPLOYMENTS: ${{ inputs.deployments }}
+        CHECK_RESULT: ${{ inputs.check_result }}
+        TEST_RESULT: ${{ inputs.test_result }}
+        SCAN_RESULT: ${{ inputs.scan_result }}
+        BUILD_RESULT: ${{ inputs.build_result }}
+        DEPLOY_DEV_RESULT: ${{ inputs.deploy_dev_result }}
+        DEPLOY_PREPROD_RESULT: ${{ inputs.deploy_preprod_result }}
+        DEPLOY_PROD_RESULT: ${{ inputs.deploy_prod_result }}
+      run: |
+        set -euo pipefail
+        if [[ "${ACT:-}" == "true" ]]; then
+          export REPORT_PATH=".act-artifacts/run-record.json"
+          export RESULTS_DIR=".act-artifacts/deployments"
+          export STARTED_DIR=".act-artifacts/started"
+        else
+          export REPORT_PATH="run-record.json"
+          export RESULTS_DIR="deployment-results"
+          export STARTED_DIR="deployment-started"
+        fi
+        python3 "${{ github.action_path }}/generate_run_report.py"
+
+    - name: Upload Run Report
+      if: ${{ env.ACT != 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: run-record-${{ github.run_id }}
+        path: run-record.json
+        if-no-files-found: error

@@ -11,7 +11,8 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
+      if: ${{ env.ACT != 'true' }}
       with:
         python-version: '3.11'
 
@@ -20,4 +21,4 @@ runs:
       env:
         SETTINGS_PATH: ${{ inputs.settings_path }}
       run: |
-        python3 "${{ github.action_path }}/../../../setting-checker/checker.py" --config "$SETTINGS_PATH"
+        python3 "${{ github.action_path }}/../../../settings-checker/checker.py" --config "$SETTINGS_PATH"

@@ -11,12 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
+        if: ${{ env.ACT != 'true' }}
         with:
           python-version: '3.11'
 
@@ -33,15 +35,15 @@ jobs:
         id: standards-checker
         run: |
           set +e
-          python3 packages/setting-checker/checker.py --config sample-app/.github/pipeline-settings.yml --strict 2>&1 \
+          python3 packages/settings-checker/checker.py --config sample-app/.github/pipeline-settings.yml --strict 2>&1 \
             | tee "$RUNNER_TEMP/standards-checker-output.txt"
           checker_status=${PIPESTATUS[0]}
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"
           exit "$checker_status"
 
-      - name: Write workflow run record
+      - name: Publish checker summary
         if: always()
-        uses: ./packages/shared-workflows/actions/run-record
+        uses: ./packages/shared-workflows/actions/publish-checker-summary
         with:
           output_file: ${{ runner.temp }}/standards-checker-output.txt
-          build_status: ${{ steps.standards-checker.outputs.exit_code || 'not run' }}
+          checker_status: ${{ steps.standards-checker.outputs.exit_code || 'not run' }}

@@ -1,0 +1,11 @@
+name: Scan Step
+description: Placeholder scan step for the standard pipeline
+
+runs:
+  using: composite
+  steps:
+    - name: Run Scan Placeholder
+      shell: bash
+      run: |
+        printf '[STEP: SCAN] Scan step is not yet implemented.\n'
+        printf '## Scan\n\nScan step is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"
