@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-CATEGORIES = {"Dev": "dev", "Pre-production": "preprod", "Production": "prod"}
+CATEGORIES = {"Development": "dev", "Pre-production": "preprod", "Production": "prod"}
 REQUIRED_FIELDS = ("name", "category", "account_id", "role_name", "region")
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DEFAULT_HEALTH_ENDPOINT = "/health"

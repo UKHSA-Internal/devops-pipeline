@@ -163,7 +163,7 @@ def main() -> None:
     }
     planned_deployments = json.loads(os.environ.get("DEPLOYMENTS") or "[]")
     deployment_results_by_category = {
-        "Dev": normalized_environment["deploy_dev_result"],
+        "Development": normalized_environment["deploy_dev_result"],
         "Pre-production": normalized_environment["deploy_preprod_result"],
         "Production": normalized_environment["deploy_prod_result"],
     }

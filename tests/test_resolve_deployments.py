@@ -31,7 +31,7 @@ def settings(*environments, **overrides):
     return {
         "environments": list(environments)
         or [
-            environment("dev-env-1", "Dev"),
+            environment("dev-env-1", "Development"),
             environment("preprod-env-1", "Pre-production"),
             environment("prod", "Production"),
         ],
@@ -56,9 +56,9 @@ class ResolveDeploymentsTests(unittest.TestCase):
         plan = RESOLVER.resolve(
             settings(
                 environment("prod", "Production"),
-                environment("dev-b", "Dev"),
+                environment("dev-b", "Development"),
                 environment("preprod-1", "Pre-production"),
-                environment("dev-a", "Dev"),
+                environment("dev-a", "Development"),
             )
         )
 
@@ -69,7 +69,7 @@ class ResolveDeploymentsTests(unittest.TestCase):
         )
 
     def test_unquoted_account_id_is_kept_as_text(self):
-        unquoted = environment("dev-env-1", "Dev") | {"account_id": 123456789012}
+        unquoted = environment("dev-env-1", "Development") | {"account_id": 123456789012}
         plan = RESOLVER.resolve(
             settings(
                 unquoted,
@@ -93,16 +93,16 @@ class ResolveDeploymentsTests(unittest.TestCase):
         cases = {
             "no environments": {"environments": []},
             "missing category": settings(
-                environment("dev-env-1", "Dev"), environment("preprod-env-1", "Pre-production")
+                environment("dev-env-1", "Development"), environment("preprod-env-1", "Pre-production")
             ),
             "unknown category": settings(environment("dev-env-1", "Staging")),
             "duplicate name": settings(
-                environment("same", "Dev"),
+                environment("same", "Development"),
                 environment("same", "Pre-production"),
                 environment("prod", "Production"),
             ),
-            "unsafe name": settings(environment("../dev", "Dev")),
-            "missing field": settings(environment("dev-env-1", "Dev") | {"role_name": ""}),
+            "unsafe name": settings(environment("../dev", "Development")),
+            "missing field": settings(environment("dev-env-1", "Development") | {"role_name": ""}),
             "relative health endpoint": settings(
                 verification={"health_endpoint": "health", "timeout_seconds": 60}
             ),

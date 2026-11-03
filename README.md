@@ -61,7 +61,7 @@ requests. The full flow runs the service's real test command (`service.test_comm
 in the settings file, run from the service directory), placeholder scan and deploy
 steps, a local image build, and a run report. The build's full-commit-SHA image tag is
 passed unchanged to each deployment. Deployments come from the `environments`
-list in the settings file: each category (Dev, Pre-production, Production) can
+list in the settings file: each category (Development, Pre-production, Production) can
 contain several named deployments, which run one at a time in settings order.
 Each deployment is followed immediately by the `verify-app` action against its
 health endpoint (`verification.health_endpoint`). Check fails if a category has

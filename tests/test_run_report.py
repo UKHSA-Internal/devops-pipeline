@@ -63,8 +63,8 @@ class RunReportTests(unittest.TestCase):
             report_inputs(),
             END_TIME,
             [
-                deployment_result("dev-env-1", "Dev"),
-                deployment_result("dev-env-2", "Dev"),
+                deployment_result("dev-env-1", "Development"),
+                deployment_result("dev-env-2", "Development"),
                 deployment_result("preprod-env-1", "Pre-production"),
             ],
         )
@@ -73,8 +73,8 @@ class RunReportTests(unittest.TestCase):
         self.assertEqual(
             [(entry["name"], entry["category"]) for entry in report["environments"]],
             [
-                ("dev-env-1", "Dev"),
-                ("dev-env-2", "Dev"),
+                ("dev-env-1", "Development"),
+                ("dev-env-2", "Development"),
                 ("preprod-env-1", "Pre-production"),
             ],
         )
@@ -90,7 +90,7 @@ class RunReportTests(unittest.TestCase):
             report_inputs(deploy_prod_result="success", trigger_type="push"),
             END_TIME,
             [
-                deployment_result("dev-env-1", "Dev"),
+                deployment_result("dev-env-1", "Development"),
                 deployment_result("preprod-env-1", "Pre-production"),
                 deployment_result("prod", "Production"),
             ],
@@ -128,7 +128,7 @@ class RunReportTests(unittest.TestCase):
                 deploy_prod_result="skipped",
             ),
             END_TIME,
-            [deployment_result("dev-env-1", "Dev", deploy="failure", verify="skipped")],
+            [deployment_result("dev-env-1", "Development", deploy="failure", verify="skipped")],
         )
 
         self.assertEqual(report["steps"]["deploy"], "FAILED")
@@ -141,8 +141,8 @@ class RunReportTests(unittest.TestCase):
             report_inputs(deploy_preprod_result="skipped"),
             END_TIME,
             [
-                deployment_result("dev-env-1", "Dev"),
-                deployment_result("dev-env-2", "Dev", verify="failure"),
+                deployment_result("dev-env-1", "Development"),
+                deployment_result("dev-env-2", "Development", verify="failure"),
             ],
         )
 
@@ -153,8 +153,8 @@ class RunReportTests(unittest.TestCase):
 
     def test_loads_results_in_planned_order_and_ignores_missing(self):
         planned = [
-            {"name": "dev-env-1", "category": "Dev"},
-            {"name": "dev-env-2", "category": "Dev"},
+            {"name": "dev-env-1", "category": "Development"},
+            {"name": "dev-env-2", "category": "Development"},
             {"name": "preprod-env-1", "category": "Pre-production"},
             {"name": "prod", "category": "Production"},
         ]
@@ -162,15 +162,15 @@ class RunReportTests(unittest.TestCase):
             results_dir = Path(directory)
             for name, category in (
                 ("preprod-env-1", "Pre-production"),
-                ("dev-env-1", "Dev"),
-                ("dev-env-2", "Dev"),
+                ("dev-env-1", "Development"),
+                ("dev-env-2", "Development"),
             ):
                 (results_dir / f"{name}.json").write_text(
                     json.dumps(deployment_result(name, category)), encoding="utf-8"
                 )
 
             results = REPORT.load_deployment_results(
-                planned, results_dir, {"Dev", "Pre-production"}
+                planned, results_dir, {"Development", "Pre-production"}
             )
 
         self.assertEqual(
@@ -180,9 +180,9 @@ class RunReportTests(unittest.TestCase):
         self.assertNotIn("prod", [result["name"] for result in results])
 
     def test_missing_result_for_ran_deployment_is_recorded_as_failure(self):
-        planned = [{"name": "dev-env-1", "category": "Dev"}]
+        planned = [{"name": "dev-env-1", "category": "Development"}]
         with tempfile.TemporaryDirectory() as directory:
-            results = REPORT.load_deployment_results(planned, Path(directory), {"Dev"})
+            results = REPORT.load_deployment_results(planned, Path(directory), {"Development"})
 
         report = REPORT.create_report(report_inputs(), END_TIME, results)
 
@@ -196,7 +196,7 @@ class RunReportTests(unittest.TestCase):
             report_inputs(deploy_prod_result="success", trigger_type="push"),
             END_TIME,
             [
-                deployment_result("dev-env-1", "Dev"),
+                deployment_result("dev-env-1", "Development"),
                 deployment_result("preprod-env-1", "Pre-production"),
                 deployment_result("prod", "Production"),
             ],
@@ -218,12 +218,12 @@ class RunRecordFileTests(unittest.TestCase):
             results = root / "results"
             results.mkdir()
             (results / "dev-env-1.json").write_text(
-                json.dumps(deployment_result("dev-env-1", "Dev")), encoding="utf-8"
+                json.dumps(deployment_result("dev-env-1", "Development")), encoding="utf-8"
             )
             environment = {
                 **os.environ,
                 **{key.upper(): value for key, value in values.items()},
-                "DEPLOYMENTS": json.dumps([{"name": "dev-env-1", "category": "Dev"}]),
+                "DEPLOYMENTS": json.dumps([{"name": "dev-env-1", "category": "Development"}]),
                 "RESULTS_DIR": str(results),
                 "REPORT_PATH": str(root / "run-record.json"),
                 "GITHUB_STEP_SUMMARY": str(root / "summary.md"),

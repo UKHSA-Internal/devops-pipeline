@@ -215,7 +215,7 @@ jobs:
           commit_sha: ${{ github.sha }}
 
   deploy-dev:
-    name: Deploy Dev (${{ matrix.deployment.name }})
+    name: Deploy Development (${{ matrix.deployment.name }})
     needs: [check, build]
     runs-on: ubuntu-latest
     strategy:

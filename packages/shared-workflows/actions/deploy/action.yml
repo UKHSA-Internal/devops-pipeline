@@ -6,7 +6,7 @@ inputs:
     description: Name of the deployment target
     required: true
   category:
-    description: Environment category (Dev, Pre-production or Production)
+    description: Environment category (Development, Pre-production or Production)
     required: true
   step_name:
     description: Step identifier used in the log marker
