@@ -5,7 +5,7 @@ APP_DIRECTORY = Path(__file__).resolve().parents[1]
 
 
 class SampleAppTests(unittest.TestCase):
-    def test_dockerfile_exists_for_build_stage(self):
+    def test_dockerfile_exists_for_build_step(self):
         self.assertTrue((APP_DIRECTORY / "Dockerfile").is_file())
 
     def test_readme_is_packaged_into_image(self):

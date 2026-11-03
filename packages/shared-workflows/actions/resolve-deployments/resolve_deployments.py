@@ -112,7 +112,7 @@ def main() -> int:
     write_outputs(plan, Path(os.environ["GITHUB_OUTPUT"]))
     append_summary(plan, Path(os.environ["GITHUB_STEP_SUMMARY"]))
     names = ", ".join(item["name"] for item in plan["deployments"])
-    print(f"[STAGE: CHECK] Resolved {len(plan['deployments'])} deployments: {names}")
+    print(f"[STEP: CHECK] Resolved {len(plan['deployments'])} deployments: {names}")
     return 0
 
 

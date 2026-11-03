@@ -28,7 +28,7 @@ runs:
         COMMIT_SHA: ${{ inputs.commit_sha }}
       run: |
         set -euo pipefail
-        printf '[STAGE: BUILD] Building image from %s\n' "$SERVICE_DIRECTORY"
+        printf '[STEP: BUILD] Building image from %s\n' "$SERVICE_DIRECTORY"
         if [[ ! -f "$SERVICE_DIRECTORY/Dockerfile" ]]; then
           printf 'ERROR: No Dockerfile found in service directory: %s\n' "$SERVICE_DIRECTORY" >&2
           exit 1
@@ -89,7 +89,7 @@ runs:
         IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
         IMAGE_CHECKSUM: ${{ steps.build.outputs.checksum }}
       run: |
-        printf '[STAGE: BUILD] %s\n' "$BUILD_STATUS"
+        printf '[STEP: BUILD] %s\n' "$BUILD_STATUS"
         {
           printf '## Build\n\n'
           printf -- '- Status: **%s**\n' "$BUILD_STATUS"

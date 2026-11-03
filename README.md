@@ -8,7 +8,7 @@ Centralised pipeline standards, shared GitHub Actions workflows, compliance chec
 | --- | --- |
 | `.github/` | Repository settings, GitHub workflow entrypoints, and pull request template |
 | `packages/shared-workflows/` | Reusable workflow sources and composite actions, released together with root `.github/workflows/` as one workflow package |
-| `packages/setting-checker/` | Reusable standards settings checker and its Python project metadata |
+| `packages/setting-checker/` | Source for the publishable `settings-checker` package |
 | `packages/app-template/` | Starter configuration and workflow for adopting service repositories |
 | `sample-app/` | Example microservice demonstrating the shared pipeline |
 | `scripts/` | Repository-maintenance scripts, including contribution-rule validation used by hooks and CI |
@@ -59,7 +59,7 @@ load the actions from the same commit as the called workflow. The
 workflow and action from this checkout, running on pushes to `main` and pull
 requests. The full flow runs the service's real test command (`service.test_command`
 in the settings file, run from the service directory), placeholder scan and deploy
-stages, a local image build, and a run report. The build's full-commit-SHA image tag is
+steps, a local image build, and a run report. The build's full-commit-SHA image tag is
 passed unchanged to each deployment. Deployments come from the `environments`
 list in the settings file: each category (Dev, Pre-production, Production) can
 contain several named deployments, which run one at a time in settings order.
@@ -68,11 +68,13 @@ health endpoint (`verification.health_endpoint`). Check fails if a category has
 no deployments. Pull request runs deploy to Dev only; Pre-production and
 Production deploy only on pushes to `main`. To smoke-test the published `v1`
 release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
+Approval mode identifiers are `all-approvers` (standard) and `single-approver`
+(fast-track). The approval gate is managed separately from this workflow.
 For `act` runs, generated build files and `run-record.json` are persisted under
 the ignored `.act-artifacts/` directory.
 
 Two failure scenarios can be exercised locally; each asserts a non-zero run and
-that the run record marks downstream stages `SKIPPED`:
+that the run record marks downstream steps `SKIPPED`:
 
 ```bash
 make test-pipeline-failing-test   # injected unit-test failure: test FAILED

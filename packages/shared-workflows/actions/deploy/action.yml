@@ -1,5 +1,5 @@
-name: Deploy Stage
-description: Placeholder deployment stage for a single named deployment
+name: Deploy Step
+description: Placeholder deployment step for a single named deployment
 
 inputs:
   environment_name:
@@ -8,8 +8,8 @@ inputs:
   category:
     description: Environment category (Dev, Pre-production or Production)
     required: true
-  stage_name:
-    description: Stage identifier used in the log marker
+  step_name:
+    description: Step identifier used in the log marker
     required: true
   account_id:
     description: Target account ID
@@ -32,14 +32,14 @@ runs:
       env:
         ENVIRONMENT_NAME: ${{ inputs.environment_name }}
         CATEGORY: ${{ inputs.category }}
-        STAGE_NAME: ${{ inputs.stage_name }}
+        STEP_NAME: ${{ inputs.step_name }}
         ACCOUNT_ID: ${{ inputs.account_id }}
         ROLE_NAME: ${{ inputs.role_name }}
         REGION: ${{ inputs.region }}
         IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
-        printf '[STAGE: %s] Deploy %s to %s (%s): would assume %s in account %s (%s); not yet implemented.\n' \
-          "$STAGE_NAME" "$IMAGE_TAG" "$ENVIRONMENT_NAME" "$CATEGORY" "$ROLE_NAME" "$ACCOUNT_ID" "$REGION"
+        printf '[STEP: %s] Deploy %s to %s (%s): would assume %s in account %s (%s); not yet implemented.\n' \
+          "$STEP_NAME" "$IMAGE_TAG" "$ENVIRONMENT_NAME" "$CATEGORY" "$ROLE_NAME" "$ACCOUNT_ID" "$REGION"
         {
           printf '## Deploy %s\n\n' "$ENVIRONMENT_NAME"
           printf 'Image: `%s`\n\n' "$IMAGE_TAG"

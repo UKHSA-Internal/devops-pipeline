@@ -27,7 +27,7 @@ runs:
         TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
       run: |
         # TODO: Resolve the deployment base URL and call the health endpoint.
-        printf '[STAGE: VERIFY] Verify %s (%s): would check %s within %ss; not yet implemented.\n' \
+        printf '[STEP: VERIFY] Verify %s (%s): would check %s within %ss; not yet implemented.\n' \
           "$DEPLOYMENT_NAME" "$CATEGORY" "$HEALTH_ENDPOINT" "$TIMEOUT_SECONDS"
         {
           printf '## Verify %s\n\n' "$DEPLOYMENT_NAME"

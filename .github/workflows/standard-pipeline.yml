@@ -69,7 +69,7 @@ jobs:
           service_directory="$(dirname -- "$(dirname -- "$settings_path")")"
           printf 'settings_path=%s\n' "$settings_path" >> "$GITHUB_OUTPUT"
           printf 'service_directory=%s\n' "$service_directory" >> "$GITHUB_OUTPUT"
-          printf '[STAGE: CHECK] Settings file exists: %s\n' "$settings_path"
+          printf '[STEP: CHECK] Settings file exists: %s\n' "$settings_path"
           {
             printf '## Check\n\n'
             printf -- '- Settings file: `%s`\n' "$settings_path"
@@ -85,14 +85,14 @@ jobs:
           ref: ${{ job.workflow_sha }}
 
       # TODO: Enable settings schema validation when checker.py supports it.
-      - name: Execute Check Stage (local action)
+      - name: Execute Check Step (local action)
         id: check-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/check
         with:
           settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
 
-      - name: Execute Check Stage (central action)
+      - name: Execute Check Step (central action)
         id: check-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/check
@@ -119,7 +119,7 @@ jobs:
         env:
           CHECK_RESULT: ${{ job.status }}
         run: |
-          printf '[STAGE: CHECK] %s\n' "$CHECK_RESULT"
+          printf '[STEP: CHECK] %s\n' "$CHECK_RESULT"
           printf -- '- Check action: **%s**\n' "$CHECK_RESULT" >> "$GITHUB_STEP_SUMMARY"
 
   test:
@@ -139,14 +139,14 @@ jobs:
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
 
-      - name: Execute Test Stage (local action)
+      - name: Execute Test Step (local action)
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/test
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           test_command: ${{ needs.check.outputs.test_command }}
 
-      - name: Execute Test Stage (central action)
+      - name: Execute Test Step (central action)
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/test
         with:
@@ -170,11 +170,11 @@ jobs:
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
 
-      - name: Execute Scan Stage (local action)
+      - name: Execute Scan Step (local action)
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/scan
 
-      - name: Execute Scan Stage (central action)
+      - name: Execute Scan Step (central action)
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/scan
 
@@ -198,7 +198,7 @@ jobs:
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
 
-      - name: Execute Build Stage (local action)
+      - name: Execute Build Step (local action)
         id: build-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/build-app
@@ -206,7 +206,7 @@ jobs:
           service_directory: ${{ needs.check.outputs.service_directory }}
           commit_sha: ${{ github.sha }}
 
-      - name: Execute Build Stage (central action)
+      - name: Execute Build Step (central action)
         id: build-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/build-app
@@ -240,27 +240,27 @@ jobs:
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
 
-      - name: Execute Deploy Stage (local action)
+      - name: Execute Deploy Step (local action)
         id: deploy-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/deploy
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
-          stage_name: DEPLOY-DEV
+          step_name: DEPLOY-DEV
           image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
 
-      - name: Execute Deploy Stage (central action)
+      - name: Execute Deploy Step (central action)
         id: deploy-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/deploy
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
-          stage_name: DEPLOY-DEV
+          step_name: DEPLOY-DEV
           image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
@@ -332,27 +332,27 @@ jobs:
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
 
-      - name: Execute Deploy Stage (local action)
+      - name: Execute Deploy Step (local action)
         id: deploy-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/deploy
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
-          stage_name: DEPLOY-PREPROD
+          step_name: DEPLOY-PREPROD
           image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
 
-      - name: Execute Deploy Stage (central action)
+      - name: Execute Deploy Step (central action)
         id: deploy-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/deploy
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
-          stage_name: DEPLOY-PREPROD
+          step_name: DEPLOY-PREPROD
           image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
@@ -425,27 +425,27 @@ jobs:
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
 
-      - name: Execute Deploy Stage (local action)
+      - name: Execute Deploy Step (local action)
         id: deploy-local
         if: ${{ env.ACT == 'true' }}
         uses: ./packages/shared-workflows/actions/deploy
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
-          stage_name: DEPLOY-PROD
+          step_name: DEPLOY-PROD
           image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}
           region: ${{ matrix.deployment.region }}
 
-      - name: Execute Deploy Stage (central action)
+      - name: Execute Deploy Step (central action)
         id: deploy-central
         if: ${{ env.ACT != 'true' }}
         uses: ./.platform-temp/packages/shared-workflows/actions/deploy
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
-          stage_name: DEPLOY-PROD
+          step_name: DEPLOY-PROD
           image_tag: ${{ needs.build.outputs.image_tag }}
           account_id: ${{ matrix.deployment.account_id }}
           role_name: ${{ matrix.deployment.role_name }}

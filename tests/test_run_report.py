@@ -69,7 +69,7 @@ class RunReportTests(unittest.TestCase):
             ],
         )
 
-        self.assertEqual(report["stages"]["deploy"], "PASSED")
+        self.assertEqual(report["steps"]["deploy"], "PASSED")
         self.assertEqual(
             [(entry["name"], entry["category"]) for entry in report["environments"]],
             [
@@ -96,7 +96,7 @@ class RunReportTests(unittest.TestCase):
             ],
         )
 
-        self.assertEqual(report["stages"]["deploy"], "PASSED")
+        self.assertEqual(report["steps"]["deploy"], "PASSED")
         self.assertEqual(len(report["environments"]), 3)
         self.assertEqual(report["environments"][-1]["name"], "prod")
         self.assertEqual(report["context"]["trigger_type"], "push")
@@ -114,9 +114,9 @@ class RunReportTests(unittest.TestCase):
             END_TIME,
         )
 
-        self.assertEqual(report["stages"]["test"], "FAILED")
-        self.assertEqual(report["stages"]["scan"], "SKIPPED")
-        self.assertEqual(report["stages"]["deploy"], "SKIPPED")
+        self.assertEqual(report["steps"]["test"], "FAILED")
+        self.assertEqual(report["steps"]["scan"], "SKIPPED")
+        self.assertEqual(report["steps"]["deploy"], "SKIPPED")
         self.assertEqual(report["environments"], [])
         self.assertEqual(REPORT.map_result("cancelled"), "FAILED")
 
@@ -131,7 +131,7 @@ class RunReportTests(unittest.TestCase):
             [deployment_result("dev-env-1", "Dev", deploy="failure", verify="skipped")],
         )
 
-        self.assertEqual(report["stages"]["deploy"], "FAILED")
+        self.assertEqual(report["steps"]["deploy"], "FAILED")
         self.assertEqual(report["environments"][0]["deploy_status"], "FAILED")
         self.assertEqual(report["environments"][0]["verify_status"], "SKIPPED")
         self.assertIsNone(report["environments"][0]["verified_at"])
@@ -186,7 +186,7 @@ class RunReportTests(unittest.TestCase):
 
         report = REPORT.create_report(report_inputs(), END_TIME, results)
 
-        self.assertEqual(report["stages"]["deploy"], "FAILED")
+        self.assertEqual(report["steps"]["deploy"], "FAILED")
         self.assertEqual(report["environments"][0]["deploy_status"], "FAILED")
         self.assertEqual(report["environments"][0]["verify_status"], "SKIPPED")
         self.assertIn("Missing deployment result file", report["environments"][0]["error"])
@@ -240,7 +240,7 @@ class RunRecordFileTests(unittest.TestCase):
         record = self.generate(deploy_preprod_result="skipped")
 
         self.assertEqual(
-            set(record), {"context", "timestamps", "stages", "environments", "governance"}
+            set(record), {"context", "timestamps", "steps", "environments", "governance"}
         )
         self.assertEqual(
             set(record["context"]),
@@ -254,8 +254,8 @@ class RunRecordFileTests(unittest.TestCase):
                 "trigger_type",
             },
         )
-        self.assertEqual(set(record["stages"]), {"check", "test", "scan", "build", "deploy"})
-        self.assertTrue(set(record["stages"].values()) <= {"PASSED", "FAILED", "SKIPPED"})
+        self.assertEqual(set(record["steps"]), {"check", "test", "scan", "build", "deploy"})
+        self.assertTrue(set(record["steps"].values()) <= {"PASSED", "FAILED", "SKIPPED"})
         for value in record["timestamps"].values():
             self.assertRegex(value, self.TIMESTAMP)
         self.assertEqual(record["environments"][0]["image_tag"], "sample-app:abcdef123456")
@@ -271,7 +271,7 @@ class RunRecordFileTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            record["stages"],
+            record["steps"],
             {
                 "check": "FAILED",
                 "test": "SKIPPED",

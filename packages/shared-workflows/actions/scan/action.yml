@@ -1,5 +1,5 @@
-name: Scan Stage
-description: Placeholder scan stage for the standard pipeline
+name: Scan Step
+description: Placeholder scan step for the standard pipeline
 
 runs:
   using: composite
@@ -7,5 +7,5 @@ runs:
     - name: Run Scan Placeholder
       shell: bash
       run: |
-        printf '[STAGE: SCAN] Scan stage is not yet implemented.\n'
-        printf '## Scan\n\nScan stage is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"
+        printf '[STEP: SCAN] Scan step is not yet implemented.\n'
+        printf '## Scan\n\nScan step is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"

@@ -100,7 +100,7 @@ def create_report(
             "start_time": environment["start_time"] or None,
             "end_time": end_time,
         },
-        "stages": {
+        "steps": {
             "check": map_result(environment["check_result"]),
             "test": map_result(environment["test_result"]),
             "scan": map_result(environment["scan_result"]),
@@ -119,12 +119,12 @@ def create_report(
 
 
 def append_summary(report: dict[str, object], summary_path: Path) -> None:
-    stages = report["stages"]
+    steps = report["steps"]
     with summary_path.open("a", encoding="utf-8") as summary:
         summary.write("## Pipeline Run Report\n\n")
-        summary.write("| Stage | Result |\n| --- | --- |\n")
-        for stage, result in stages.items():
-            summary.write(f"| {stage.replace('-', ' ').title()} | **{result}** |\n")
+        summary.write("| Step | Result |\n| --- | --- |\n")
+        for step, result in steps.items():
+            summary.write(f"| {step.replace('-', ' ').title()} | **{result}** |\n")
         summary.write("\n")
         summary.write("| Deployment | Category | Deploy | Verify |\n| --- | --- | --- | --- |\n")
         for deployment in report["environments"]:
@@ -185,7 +185,7 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     append_summary(report, Path(os.environ["GITHUB_STEP_SUMMARY"]))
-    print(f"[STAGE: PUBLISH-REPORT] Wrote run report: {output_path}")
+    print(f"[STEP: PUBLISH-REPORT] Wrote run report: {output_path}")
     print("TODO: Set artifact retention from governance.retention_days.")
 
 

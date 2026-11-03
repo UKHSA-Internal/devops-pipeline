@@ -1,5 +1,5 @@
 [project]
-name = "standards-check-tool"
+name = "settings-checker"
 version = "0.1.0"
 description = "Validation engine for UKHSA pipeline-settings contract"
 requires-python = ">=3.10"

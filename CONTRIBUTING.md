@@ -103,8 +103,8 @@ Each component releases automatically when its version file changes on `main`:
 | Component | Version file |
 | --- | --- |
 | Workflows and actions | `package.json` |
-| Standards Check tool | `packages/setting-checker/pyproject.toml` |
-| Starter template | `packages/app-template/VERSION` |
+| `settings-checker` package | `packages/setting-checker/pyproject.toml` |
+| `app-template` package | `packages/app-template/VERSION` |
 
 Only change a version file when you intend to release.
 
