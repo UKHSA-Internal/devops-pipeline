@@ -22,7 +22,7 @@ runs:
         printf '[STEP: TEST] Running in %s: %s\n' "$SERVICE_DIRECTORY" "$TEST_COMMAND"
         cd "$SERVICE_DIRECTORY"
         status=0
-        bash -c "$TEST_COMMAND" || status=$?
+        bash -e -o pipefail -c "$TEST_COMMAND" || status=$?
         {
           printf '## Test\n\n'
           printf -- '- Command: `%s`\n' "$TEST_COMMAND"
