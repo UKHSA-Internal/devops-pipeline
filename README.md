@@ -111,6 +111,22 @@ make test-pregate-local ACT_EVENT_FILE=/path/to/pull-request-event.json
 To list detected workflows and jobs, run `act -l`. For GitHub's remote workflow
 behavior and permissions, also verify the workflow in a GitHub Actions run.
 
+#### Pre-gate limitation: existence-only Check
+
+The pre-gate's settings self-test runs `checker.py --strict` against
+`sample-app/.github/pipeline-settings.yml`. Check (in both the pre-gate and the
+standard pipeline) only confirms the settings file exists and is readable, so:
+
+- The self-test fails only when that file is missing or unreadable; it no longer
+  fails non-compliant settings. `tests/fixtures/invalid-settings.yml` passes the
+  checker, and the pre-gate does not check it anyway.
+- `--strict` is retained for compatibility but has no effect.
+- The pre-gate still enforces the contribution rules (commit, branch and PR title
+  conventions, ADR gate).
+
+Real settings enforcement returns when schema validation lands in the settings
+checker story.
+
 ### Git hooks
 
 ```bash

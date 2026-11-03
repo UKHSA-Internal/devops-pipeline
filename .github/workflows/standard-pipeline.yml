@@ -275,6 +275,7 @@ jobs:
           category: ${{ matrix.deployment.category }}
           health_endpoint: ${{ needs.check.outputs.health_endpoint }}
           timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
 
       - name: Verify Deployment (central action)
         id: verify-central
@@ -285,6 +286,7 @@ jobs:
           category: ${{ matrix.deployment.category }}
           health_endpoint: ${{ needs.check.outputs.health_endpoint }}
           timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
 
       - name: Record Deployment Result (local action)
         if: ${{ always() && env.ACT == 'true' }}
@@ -367,6 +369,7 @@ jobs:
           category: ${{ matrix.deployment.category }}
           health_endpoint: ${{ needs.check.outputs.health_endpoint }}
           timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
 
       - name: Verify Deployment (central action)
         id: verify-central
@@ -377,6 +380,7 @@ jobs:
           category: ${{ matrix.deployment.category }}
           health_endpoint: ${{ needs.check.outputs.health_endpoint }}
           timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
 
       - name: Record Deployment Result (local action)
         if: ${{ always() && env.ACT == 'true' }}
@@ -460,6 +464,7 @@ jobs:
           category: ${{ matrix.deployment.category }}
           health_endpoint: ${{ needs.check.outputs.health_endpoint }}
           timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
 
       - name: Verify Deployment (central action)
         id: verify-central
@@ -470,6 +475,7 @@ jobs:
           category: ${{ matrix.deployment.category }}
           health_endpoint: ${{ needs.check.outputs.health_endpoint }}
           timeout_seconds: ${{ needs.check.outputs.timeout_seconds }}
+          image_tag: ${{ needs.build.outputs.image_tag }}
 
       - name: Record Deployment Result (local action)
         if: ${{ always() && env.ACT == 'true' }}

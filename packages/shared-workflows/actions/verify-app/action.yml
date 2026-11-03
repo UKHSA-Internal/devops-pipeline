@@ -14,6 +14,9 @@ inputs:
   timeout_seconds:
     description: Verification timeout in seconds
     required: true
+  image_tag:
+    description: Image tag deployed to this environment
+    required: true
 
 runs:
   using: composite
@@ -25,10 +28,11 @@ runs:
         CATEGORY: ${{ inputs.category }}
         HEALTH_ENDPOINT: ${{ inputs.health_endpoint }}
         TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
         # TODO: Resolve the deployment base URL and call the health endpoint.
-        printf '[STEP: VERIFY] Verify %s (%s): would check %s within %ss; not yet implemented.\n' \
-          "$DEPLOYMENT_NAME" "$CATEGORY" "$HEALTH_ENDPOINT" "$TIMEOUT_SECONDS"
+        printf '[STEP: VERIFY] Verify %s (%s): would check %s within %ss for image %s; not yet implemented.\n' \
+          "$DEPLOYMENT_NAME" "$CATEGORY" "$HEALTH_ENDPOINT" "$TIMEOUT_SECONDS" "$IMAGE_TAG"
         {
           printf '## Verify %s\n\n' "$DEPLOYMENT_NAME"
           printf 'Health check of `%s` (timeout %ss): not yet implemented.\n' "$HEALTH_ENDPOINT" "$TIMEOUT_SECONDS"
