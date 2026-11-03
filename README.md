@@ -111,6 +111,17 @@ make test-pregate-local ACT_EVENT_FILE=/path/to/pull-request-event.json
 To list detected workflows and jobs, run `act -l`. For GitHub's remote workflow
 behavior and permissions, also verify the workflow in a GitHub Actions run.
 
+#### Platform checkout credential
+
+When a service repository calls the orchestrator, its job checks out this
+repository to load the central composite actions. The caller's default
+`GITHUB_TOKEN` cannot read another internal repository, so callers must supply a
+least-privilege, read-only (contents) credential for this repository as the
+optional `platform_token` secret. `secrets: inherit` passes it through if the
+caller defines a secret with that name; otherwise pass it explicitly with
+`secrets: { platform_token: ${{ secrets.PLATFORM_READ_TOKEN }} }`. Every central
+checkout uses `secrets.platform_token`, falling back to `github.token`.
+
 #### Pre-gate limitation: existence-only Check
 
 The pre-gate's settings self-test runs `checker.py --strict` against

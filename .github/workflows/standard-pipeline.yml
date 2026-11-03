@@ -7,6 +7,10 @@ on:
         description: 'Path to pipeline settings file'
         required: false
         type: string
+    secrets:
+      platform_token:
+        description: 'Token with read access to the platform repository; defaults to the caller GITHUB_TOKEN'
+        required: false
 
 permissions:
   contents: read
@@ -83,6 +87,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       # TODO: Enable settings schema validation when checker.py supports it.
       - name: Execute Check Step (local action)
@@ -138,6 +143,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Execute Test Step (local action)
         if: ${{ env.ACT == 'true' }}
@@ -169,6 +175,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Execute Scan Step (local action)
         if: ${{ env.ACT == 'true' }}
@@ -197,6 +204,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Execute Build Step (local action)
         id: build-local
@@ -239,6 +247,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Execute Deploy Step (local action)
         id: deploy-local
@@ -333,6 +342,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Execute Deploy Step (local action)
         id: deploy-local
@@ -428,6 +438,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Execute Deploy Step (local action)
         id: deploy-local
@@ -514,6 +525,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           path: '.platform-temp'
           ref: ${{ job.workflow_sha }}
+          token: ${{ secrets.platform_token || github.token }}
 
       - name: Publish Run Report (local action)
         if: ${{ env.ACT == 'true' }}
