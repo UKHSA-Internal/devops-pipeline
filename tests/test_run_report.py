@@ -170,7 +170,7 @@ class RunReportTests(unittest.TestCase):
                 )
 
             results = REPORT.load_deployment_results(
-                planned, results_dir, {"Development", "Pre-production"}
+                planned, results_dir, {"Development", "Pre-production"}, results_dir / "started"
             )
 
         self.assertEqual(
@@ -182,7 +182,12 @@ class RunReportTests(unittest.TestCase):
     def test_missing_result_for_ran_deployment_is_recorded_as_failure(self):
         planned = [{"name": "dev-env-1", "category": "Development"}]
         with tempfile.TemporaryDirectory() as directory:
-            results = REPORT.load_deployment_results(planned, Path(directory), {"Development"})
+            started_dir = Path(directory) / "started"
+            started_dir.mkdir()
+            (started_dir / "dev-env-1").touch()
+            results = REPORT.load_deployment_results(
+                planned, Path(directory), {"Development"}, started_dir
+            )
 
         report = REPORT.create_report(report_inputs(), END_TIME, results)
 
@@ -190,6 +195,33 @@ class RunReportTests(unittest.TestCase):
         self.assertEqual(report["environments"][0]["deploy_status"], "FAILED")
         self.assertEqual(report["environments"][0]["verify_status"], "SKIPPED")
         self.assertIn("Missing deployment result file", report["environments"][0]["error"])
+
+    def test_unattempted_deployment_cancelled_by_fail_fast_is_not_a_failure(self):
+        planned = [
+            {"name": "dev-env-1", "category": "Development"},
+            {"name": "dev-env-2", "category": "Development"},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            results_dir = Path(directory)
+            started_dir = results_dir / "started"
+            started_dir.mkdir()
+            (started_dir / "dev-env-1").touch()
+            failed = deployment_result("dev-env-1", "Development")
+            failed["deploy_outcome"] = "failure"
+            failed["verify_outcome"] = "skipped"
+            (results_dir / "dev-env-1.json").write_text(json.dumps(failed), encoding="utf-8")
+
+            results = REPORT.load_deployment_results(
+                planned, results_dir, {"Development"}, started_dir
+            )
+
+        self.assertEqual([result["name"] for result in results], ["dev-env-1"])
+        report = REPORT.create_report(
+            report_inputs(deploy_dev_result="failure"), END_TIME, results
+        )
+        self.assertEqual(report["steps"]["deploy"], "FAILED")
+        self.assertEqual([env["name"] for env in report["environments"]], ["dev-env-1"])
+        self.assertNotIn("error", report["environments"][0])
 
     def test_same_image_tag_is_reported_for_every_environment(self):
         report = REPORT.create_report(
@@ -225,6 +257,7 @@ class RunRecordFileTests(unittest.TestCase):
                 **{key.upper(): value for key, value in values.items()},
                 "DEPLOYMENTS": json.dumps([{"name": "dev-env-1", "category": "Development"}]),
                 "RESULTS_DIR": str(results),
+                "STARTED_DIR": str(root / "started"),
                 "REPORT_PATH": str(root / "run-record.json"),
                 "GITHUB_STEP_SUMMARY": str(root / "summary.md"),
             }

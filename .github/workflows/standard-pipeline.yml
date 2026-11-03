@@ -242,6 +242,28 @@ jobs:
       cancel-in-progress: false
     # TODO: Grant id-token: write when the deployment implementation uses OIDC.
     steps:
+      - name: Mark Deployment Started
+        shell: bash
+        env:
+          DEPLOYMENT_NAME: ${{ matrix.deployment.name }}
+        run: |
+          set -euo pipefail
+          if [[ "${ACT:-}" == "true" ]]; then
+            started_directory=".act-artifacts/started"
+          else
+            started_directory="deployment-started"
+          fi
+          mkdir -p "$started_directory"
+          : > "$started_directory/$DEPLOYMENT_NAME"
+
+      - name: Upload Deployment Started Marker
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: deployment-started-${{ matrix.deployment.name }}
+          path: deployment-started/${{ matrix.deployment.name }}
+          if-no-files-found: error
+
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
@@ -337,6 +359,28 @@ jobs:
       group: deployment-${{ matrix.deployment.name }}
       cancel-in-progress: false
     steps:
+      - name: Mark Deployment Started
+        shell: bash
+        env:
+          DEPLOYMENT_NAME: ${{ matrix.deployment.name }}
+        run: |
+          set -euo pipefail
+          if [[ "${ACT:-}" == "true" ]]; then
+            started_directory=".act-artifacts/started"
+          else
+            started_directory="deployment-started"
+          fi
+          mkdir -p "$started_directory"
+          : > "$started_directory/$DEPLOYMENT_NAME"
+
+      - name: Upload Deployment Started Marker
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: deployment-started-${{ matrix.deployment.name }}
+          path: deployment-started/${{ matrix.deployment.name }}
+          if-no-files-found: error
+
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
@@ -433,6 +477,28 @@ jobs:
       cancel-in-progress: false
     # TODO: Add the Production approval gate when deployment environments are introduced.
     steps:
+      - name: Mark Deployment Started
+        shell: bash
+        env:
+          DEPLOYMENT_NAME: ${{ matrix.deployment.name }}
+        run: |
+          set -euo pipefail
+          if [[ "${ACT:-}" == "true" ]]; then
+            started_directory=".act-artifacts/started"
+          else
+            started_directory="deployment-started"
+          fi
+          mkdir -p "$started_directory"
+          : > "$started_directory/$DEPLOYMENT_NAME"
+
+      - name: Upload Deployment Started Marker
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: deployment-started-${{ matrix.deployment.name }}
+          path: deployment-started/${{ matrix.deployment.name }}
+          if-no-files-found: error
+
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}

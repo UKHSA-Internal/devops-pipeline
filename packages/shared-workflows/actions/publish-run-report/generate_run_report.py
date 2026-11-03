@@ -32,6 +32,7 @@ def load_deployment_results(
     planned: list[dict],
     results_dir: Path,
     active_categories: set[str],
+    started_dir: Path,
 ) -> list[dict]:
     results = []
     for deployment in planned:
@@ -40,6 +41,9 @@ def load_deployment_results(
         result_path = results_dir / f"{deployment['name']}.json"
         if result_path.is_file():
             results.append(json.loads(result_path.read_text(encoding="utf-8")))
+        elif not (started_dir / deployment["name"]).is_file():
+            # Cancelled by fail-fast before it began: unattempted, not a failure.
+            continue
         else:
             results.append(
                 {
@@ -175,6 +179,7 @@ def main() -> None:
             for category, result in deployment_results_by_category.items()
             if result != "skipped"
         },
+        Path(os.environ["STARTED_DIR"]),
     )
     for result in deployment_results:
         if result.get("result_error"):

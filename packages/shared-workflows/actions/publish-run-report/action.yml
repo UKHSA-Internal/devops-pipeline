@@ -47,6 +47,15 @@ runs:
         path: deployment-results
         merge-multiple: true
 
+    - name: Download Deployment Started Markers
+      if: ${{ env.ACT != 'true' }}
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: deployment-started-*
+        path: deployment-started
+        merge-multiple: true
+
     - name: Generate Run Report
       shell: bash
       env:
@@ -71,9 +80,11 @@ runs:
         if [[ "${ACT:-}" == "true" ]]; then
           export REPORT_PATH=".act-artifacts/run-record.json"
           export RESULTS_DIR=".act-artifacts/deployments"
+          export STARTED_DIR=".act-artifacts/started"
         else
           export REPORT_PATH="run-record.json"
           export RESULTS_DIR="deployment-results"
+          export STARTED_DIR="deployment-started"
         fi
         python3 "${{ github.action_path }}/generate_run_report.py"
 
