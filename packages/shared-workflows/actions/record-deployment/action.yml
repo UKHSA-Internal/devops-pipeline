@@ -66,3 +66,4 @@ runs:
         name: deployment-result-${{ inputs.deployment_name }}
         path: deployment-results/${{ inputs.deployment_name }}.json
         if-no-files-found: error
+        retention-days: 1

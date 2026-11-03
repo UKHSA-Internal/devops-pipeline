@@ -79,6 +79,7 @@ runs:
           build-image.tar
           build-image.tar.sha256
           build-manifest.json
+        retention-days: 1
         if-no-files-found: error
 
     - name: Record Build Result

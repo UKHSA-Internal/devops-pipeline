@@ -41,9 +41,9 @@ jobs:
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"
           exit "$checker_status"
 
-      - name: Write workflow run record
+      - name: Publish checker summary
         if: always()
-        uses: ./packages/shared-workflows/actions/run-record
+        uses: ./packages/shared-workflows/actions/publish-checker-summary
         with:
           output_file: ${{ runner.temp }}/standards-checker-output.txt
-          build_status: ${{ steps.standards-checker.outputs.exit_code || 'not run' }}
+          checker_status: ${{ steps.standards-checker.outputs.exit_code || 'not run' }}

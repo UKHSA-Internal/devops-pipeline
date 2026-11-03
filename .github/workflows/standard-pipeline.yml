@@ -263,6 +263,7 @@ jobs:
           name: deployment-started-${{ matrix.deployment.name }}
           path: deployment-started/${{ matrix.deployment.name }}
           if-no-files-found: error
+          retention-days: 1
 
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -380,6 +381,7 @@ jobs:
           name: deployment-started-${{ matrix.deployment.name }}
           path: deployment-started/${{ matrix.deployment.name }}
           if-no-files-found: error
+          retention-days: 1
 
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -498,6 +500,7 @@ jobs:
           name: deployment-started-${{ matrix.deployment.name }}
           path: deployment-started/${{ matrix.deployment.name }}
           if-no-files-found: error
+          retention-days: 1
 
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
