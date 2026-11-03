@@ -1,0 +1,12 @@
+name: Release Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
+    with:
+      settings_path: sample-app/.github/pipeline-settings.yml
+      platform_ref: v1
+    secrets: inherit

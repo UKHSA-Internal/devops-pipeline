@@ -1,0 +1,15 @@
+name: Sample App Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pipeline:
+    uses: ./.github/workflows/standard-pipeline.yml
+    with:
+      settings_path: sample-app/.github/pipeline-settings.yml
+      use_local_action: true
+    secrets: inherit

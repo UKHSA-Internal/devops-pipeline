@@ -1,0 +1,14 @@
+name: Service Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pipeline:
+    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
+    with:
+      platform_ref: v1
+    secrets: inherit

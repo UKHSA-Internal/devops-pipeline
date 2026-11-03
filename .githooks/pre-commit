@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+branch=$(git symbolic-ref --quiet --short HEAD || true)
+if [[ -z "${branch}" ]]; then
+  printf 'ERROR: Cannot validate branch name while HEAD is detached.\n' >&2
+  exit 1
+fi
+
+python3 "$(git rev-parse --show-toplevel)/scripts/contribution_rules.py" branch-local "${branch}"

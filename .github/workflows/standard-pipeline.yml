@@ -1,0 +1,48 @@
+name: Standard Pipeline Orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      settings_path:
+        description: 'Path to pipeline settings file'
+        required: false
+        default: '.github/pipeline-settings.yml'
+        type: string
+      use_local_action:
+        description: 'Use the action from this checkout for local workflow development'
+        required: false
+        default: false
+        type: boolean
+      platform_ref:
+        description: 'Ref of the platform package to use when loading the central action'
+        required: false
+        default: 'main'
+        type: string
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v4
+
+      - name: Checkout Platform Central Workflows
+        uses: actions/checkout@v4
+        if: ${{ !inputs.use_local_action }}
+        with:
+          repository: 'UKHSA-Internal/devops-pipeline'
+          path: '.platform-temp'
+          ref: ${{ inputs.platform_ref }}
+
+      - name: Execute Check Stage (local action)
+        if: ${{ inputs.use_local_action }}
+        uses: ./packages/shared-workflows/actions/check
+        with:
+          settings_path: ${{ inputs.settings_path }}
+
+      - name: Execute Check Stage (central action)
+        if: ${{ !inputs.use_local_action }}
+        uses: ./.platform-temp/packages/shared-workflows/actions/check
+        with:
+          settings_path: ${{ inputs.settings_path }}

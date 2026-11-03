@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if (($# != 1)); then
+  printf 'ERROR: commit-msg hook expects the commit message file path.\n' >&2
+  exit 2
+fi
+
+python3 "$(git rev-parse --show-toplevel)/scripts/contribution_rules.py" commit "$1"
