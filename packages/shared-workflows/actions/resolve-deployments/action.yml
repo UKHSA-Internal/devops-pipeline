@@ -11,7 +11,7 @@ outputs:
     description: Service test command run by the Test step
     value: ${{ steps.resolve.outputs.test_command }}
   dev_deployments:
-    description: JSON list of Dev deployments
+    description: JSON list of Development deployments
     value: ${{ steps.resolve.outputs.dev_deployments }}
   preprod_deployments:
     description: JSON list of Pre-production deployments

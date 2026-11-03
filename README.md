@@ -65,11 +65,13 @@ list in the settings file: each category (Development, Pre-production, Productio
 contain several named deployments, which run one at a time in settings order.
 Each deployment is followed immediately by the `verify-app` action against its
 health endpoint (`verification.health_endpoint`). Check fails if a category has
-no deployments. Pull request runs deploy to Dev only; Pre-production and
+no deployments. Pull request runs deploy to Development only; Pre-production and
 Production deploy only on pushes to `main`. To smoke-test the published `v1`
 release instead, manually run `.github/workflows/smoke-test-pipeline.yml`.
-Approval mode identifiers are `all-approvers` (standard) and `single-approver`
-(fast-track). The approval gate is managed separately from this workflow.
+Approval mode identifiers are `all-approvers` (default; every listed approval
+group must approve), `single-approver` (any one listed approver) and
+`unattended` (no approver needed). The approval gate is managed separately from
+this workflow.
 For `act` runs, generated build files and `run-record.json` are persisted under
 the ignored `.act-artifacts/` directory.
 

@@ -15,7 +15,7 @@ inputs:
     description: Build job result
     required: true
   deploy_dev_result:
-    description: Deploy Dev job result
+    description: Deploy Development job result
     required: true
   deploy_preprod_result:
     description: Deploy Pre-production job result
