@@ -35,7 +35,7 @@ jobs:
         id: standards-checker
         run: |
           set +e
-          python3 packages/setting-checker/checker.py --config sample-app/.github/pipeline-settings.yml --strict 2>&1 \
+          python3 packages/settings-checker/checker.py --config sample-app/.github/pipeline-settings.yml --strict 2>&1 \
             | tee "$RUNNER_TEMP/standards-checker-output.txt"
           checker_status=${PIPESTATUS[0]}
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"

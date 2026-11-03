@@ -8,7 +8,7 @@ Centralised pipeline standards, shared GitHub Actions workflows, compliance chec
 | --- | --- |
 | `.github/` | Repository settings, GitHub workflow entrypoints, and pull request template |
 | `packages/shared-workflows/` | Reusable workflow sources and composite actions, released together with root `.github/workflows/` as one workflow package |
-| `packages/setting-checker/` | Source for the publishable `settings-checker` package |
+| `packages/settings-checker/` | Source for the publishable `settings-checker` package |
 | `packages/app-template/` | Starter configuration and workflow for adopting service repositories |
 | `sample-app/` | Example microservice demonstrating the shared pipeline |
 | `scripts/` | Repository-maintenance scripts, including contribution-rule validation used by hooks and CI |

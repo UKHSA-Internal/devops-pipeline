@@ -21,4 +21,4 @@ runs:
       env:
         SETTINGS_PATH: ${{ inputs.settings_path }}
       run: |
-        python3 "${{ github.action_path }}/../../../setting-checker/checker.py" --config "$SETTINGS_PATH"
+        python3 "${{ github.action_path }}/../../../settings-checker/checker.py" --config "$SETTINGS_PATH"

@@ -8,7 +8,7 @@ A central monorepo is required to house shared pipeline workflows, governance va
 
 ## Decision
 Structure the workspace as a single monorepo. Independently consumable components
-are organized under `./packages/`: `./packages/setting-checker` for standards
+are organized under `./packages/`: `./packages/settings-checker` for standards
 validation and `./packages/app-template` for adopting service repositories.
 Their publishable package names are `settings-checker` and `app-template`.
 `./packages/shared-workflows` contains reusable workflow sources and composite
