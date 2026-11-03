@@ -124,7 +124,8 @@ checkout uses `secrets.platform_token`, falling back to `github.token`.
 
 #### Pre-gate limitation: existence-only Check
 
-The pre-gate's settings self-test runs `checker.py --strict` against
+The pre-gate validates the repository itself, while the sample-app pipeline
+validates the workflow end to end. The pre-gate's settings self-test runs `checker.py --strict` against
 `sample-app/.github/pipeline-settings.yml`. Check (in both the pre-gate and the
 standard pipeline) only confirms the settings file exists and is readable, so:
 
