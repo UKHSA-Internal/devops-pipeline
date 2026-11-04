@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   prepare:
@@ -83,6 +83,15 @@ jobs:
           major_alias="v${major}"
           canary_alias="${major_alias}-canary"
 
+          # TODO: Remove this guard at the deliberate 1.0.0 cut-over.
+          if [[ "$major_alias" != "v0" ]]; then
+            printf 'ERROR: Releases before the 1.0.0 cut-over must use v0 aliases; got %s.\n' "$major_alias" >&2
+            exit 1
+          fi
+
+          git tag --force "$canary_alias" "$COMMIT_SHA"
+          git push --force origin "refs/tags/${canary_alias}"
+
           {
             printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
             printf 'commit_sha=%s\n' "$COMMIT_SHA" >> "$GITHUB_OUTPUT"
@@ -93,7 +102,7 @@ jobs:
           {
             printf '## Release preparation\n\n'
             printf -- '- Version: `%s`\n' "$version"
-            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
             printf -- '- Major alias: `%s`\n' "$major_alias"
-            printf -- '- Canary alias: `%s`\n' "$canary_alias"
+            printf -- '- Canary alias published: `%s`\n' "$canary_alias"
+            printf -- '- Canary commit: `%s`\n' "$COMMIT_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
