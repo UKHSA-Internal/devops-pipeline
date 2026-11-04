@@ -6,19 +6,32 @@ on:
       - main
     paths:
       - packages/shared-workflows/VERSION
+  pull_request:
+    paths:
+      - packages/shared-workflows/VERSION
+      - .github/workflows/release-cicd-platform.yml
+      - .github/workflows/smoke-test-pipeline.yml
 
+# Pushes to main share one release queue. Dry runs use per-ref groups so a pull
+# request run can never displace a pending release.
 concurrency:
-  group: release-platform
+  group: ${{ github.event_name == 'push' && 'release-platform' || format('release-platform-dry-run-{0}', github.ref) }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
+# TODO: The smoke-test and promote jobs (later sub-tasks) must also skip when
+# needs.prepare.outputs.dry_run is 'true'.
 jobs:
   prepare:
     name: Prepare release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
+      dry_run: ${{ steps.mode.outputs.dry_run }}
+      release_needed: ${{ steps.prepare.outputs.release_needed }}
       version: ${{ steps.prepare.outputs.version }}
       commit_sha: ${{ steps.prepare.outputs.commit_sha }}
       major_alias: ${{ steps.prepare.outputs.major_alias }}
@@ -26,15 +39,33 @@ jobs:
     steps:
       - name: Check out triggering commit
         uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+
+      - name: Determine release mode
+        id: mode
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/main" ]]; then
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry_run=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate release version
         id: prepare
         shell: bash
         env:
-          BEFORE_SHA: ${{ github.event.before }}
-          COMMIT_SHA: ${{ github.sha }}
+          DRY_RUN: ${{ steps.mode.outputs.dry_run }}
+          BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
 
@@ -46,7 +77,12 @@ jobs:
             if git cat-file -e "${BEFORE_SHA}:${version_file}" 2>/dev/null; then
               previous_version="$(git show "${BEFORE_SHA}:${version_file}")"
               if [[ "$version" == "$previous_version" ]]; then
-                echo "No release needed: $version is unchanged." >> "$GITHUB_STEP_SUMMARY"
+                echo "release_needed=false" >> "$GITHUB_OUTPUT"
+                if [[ "$DRY_RUN" == "true" ]]; then
+                  echo "No release would run: $version is unchanged against the base." >> "$GITHUB_STEP_SUMMARY"
+                else
+                  echo "No release needed: $version is unchanged." >> "$GITHUB_STEP_SUMMARY"
+                fi
                 exit 0
               fi
             fi
@@ -89,10 +125,8 @@ jobs:
             exit 1
           fi
 
-          git tag --force "$canary_alias" "$COMMIT_SHA"
-          git push --force origin "refs/tags/${canary_alias}"
-
           {
+            printf 'release_needed=true\n' >> "$GITHUB_OUTPUT"
             printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
             printf 'commit_sha=%s\n' "$COMMIT_SHA" >> "$GITHUB_OUTPUT"
             printf 'major_alias=%s\n' "$major_alias" >> "$GITHUB_OUTPUT"
@@ -100,9 +134,53 @@ jobs:
           }
 
           {
-            printf '## Release preparation\n\n'
+            if [[ "$DRY_RUN" == "true" ]]; then
+              printf '## Release dry run\n\n'
+            else
+              printf '## Release preparation\n\n'
+            fi
             printf -- '- Version: `%s`\n' "$version"
+            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
             printf -- '- Major alias: `%s`\n' "$major_alias"
-            printf -- '- Canary alias published: `%s`\n' "$canary_alias"
+            printf -- '- Canary alias: `%s`\n' "$canary_alias"
+            if [[ "$DRY_RUN" == "true" ]]; then
+              printf '\nPlanned tag operations (not executed in dry run):\n\n'
+              printf '```\n'
+              printf 'git tag --force %s %s\n' "$canary_alias" "$COMMIT_SHA"
+              printf 'git push --force origin refs/tags/%s\n' "$canary_alias"
+              printf '```\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  canary:
+    name: Publish canary
+    needs: prepare
+    if: ${{ needs.prepare.outputs.dry_run == 'false' && needs.prepare.outputs.release_needed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Move canary alias
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          git tag --force "$CANARY_ALIAS" "$COMMIT_SHA"
+          git push --force origin "refs/tags/${CANARY_ALIAS}"
+
+          {
+            printf '## Canary published\n\n'
+            printf -- '- Canary alias published: `%s`\n' "$CANARY_ALIAS"
             printf -- '- Canary commit: `%s`\n' "$COMMIT_SHA"
           } >> "$GITHUB_STEP_SUMMARY"

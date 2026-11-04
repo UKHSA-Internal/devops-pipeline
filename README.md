@@ -33,6 +33,30 @@ cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
 `v1-canary` are not created before version `1.0.0`. The smoke-test, approval,
 and stable-tag stages are deferred to a follow-up release-process change.
 
+### Release dry run
+
+`release-cicd-platform.yml` also runs on pull requests that change
+`packages/shared-workflows/VERSION`, `release-cicd-platform.yml` or
+`smoke-test-pipeline.yml`. Any event other than a push to `main` is a dry run,
+so you can test the release logic before merging.
+
+A dry run, with read-only (`contents: read`) permissions:
+
+- Validates the version with the same rules as a real release.
+- Compares the PR head's `VERSION` with the base branch's. If it is unchanged,
+  it reports "no release would run" and passes.
+- Checks that the `vX.Y.Z` tag does not already exist (read-only).
+- Derives the aliases and applies the pre-1.0 safety check.
+- Writes the exact tag commands it would run to the job summary.
+
+A dry run does not:
+
+- Create or move any tag. Only a push to `main` runs the tag-moving `canary`
+  job.
+- Smoke-test the canary. Smoke testing arrives in a later change and will also
+  skip in dry run.
+- Test the PR's own pipeline code. `pre-gate.yml` covers that.
+
 ## Local development
 
 Run `make help` to see the available local commands.
