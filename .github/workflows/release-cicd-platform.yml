@@ -1,0 +1,99 @@
+name: Release CI/CD Platform Workflows
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/shared-workflows/VERSION
+
+concurrency:
+  group: release-platform
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.prepare.outputs.version }}
+      commit_sha: ${{ steps.prepare.outputs.commit_sha }}
+      major_alias: ${{ steps.prepare.outputs.major_alias }}
+      canary_alias: ${{ steps.prepare.outputs.canary_alias }}
+    steps:
+      - name: Check out triggering commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate release version
+        id: prepare
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          version_file="packages/shared-workflows/VERSION"
+          version="$(< "$version_file")"
+
+          if [[ ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            git cat-file -e "${BEFORE_SHA}^{commit}"
+            if git cat-file -e "${BEFORE_SHA}:${version_file}" 2>/dev/null; then
+              previous_version="$(git show "${BEFORE_SHA}:${version_file}")"
+              if [[ "$version" == "$previous_version" ]]; then
+                echo "No release needed: $version is unchanged." >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+            fi
+          fi
+
+          if [[ "$version" == *"+"* ]]; then
+            echo "ERROR: Build metadata is not allowed in release versions." >&2
+            exit 1
+          fi
+
+          # TODO: Pre-release versions are deferred to a later release-process sub-task.
+          if [[ "$version" == *"-"* ]]; then
+            echo "ERROR: Pre-release versions are deferred." >&2
+            exit 1
+          fi
+
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "ERROR: VERSION must contain a strict SemVer major.minor.patch version." >&2
+            exit 1
+          fi
+
+          major="${version%%.*}"
+          version_tag="v${version}"
+          if existing_tag="$(git ls-remote --refs --tags origin "refs/tags/${version_tag}")"; then
+            if [[ -n "$existing_tag" ]]; then
+              printf 'ERROR: Release tag %s already exists on the remote.\n' "$version_tag" >&2
+              exit 1
+            fi
+          else
+            echo "ERROR: Could not check remote tags." >&2
+            exit 1
+          fi
+
+          major_alias="v${major}"
+          canary_alias="${major_alias}-canary"
+
+          {
+            printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+            printf 'commit_sha=%s\n' "$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+            printf 'major_alias=%s\n' "$major_alias" >> "$GITHUB_OUTPUT"
+            printf 'canary_alias=%s\n' "$canary_alias" >> "$GITHUB_OUTPUT"
+          }
+
+          {
+            printf '## Release preparation\n\n'
+            printf -- '- Version: `%s`\n' "$version"
+            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
+            printf -- '- Major alias: `%s`\n' "$major_alias"
+            printf -- '- Canary alias: `%s`\n' "$canary_alias"
+          } >> "$GITHUB_STEP_SUMMARY"
