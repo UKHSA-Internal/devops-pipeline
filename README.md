@@ -30,8 +30,29 @@ allowed, and an existing `vMAJOR.MINOR.PATCH` tag cannot be reused.
 The workflow first publishes the canary alias by force-updating
 `v<MAJOR>-canary` to the triggering commit. Before the deliberate 1.0.0
 cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
-`v1-canary` are not created before version `1.0.0`. The smoke-test, approval,
-and stable-tag stages are deferred to a follow-up release-process change.
+`v1-canary` are not created before version `1.0.0`.
+
+After the canary moves, a smoke test runs against it (see
+[Canary smoke test](#canary-smoke-test)). The approval and stable-tag stages
+are deferred to a follow-up release-process change.
+
+### Canary smoke test
+
+`smoke-test-pipeline.yml` calls the reusable `standard-pipeline.yml` at
+`@v0-canary` (the canary alias for the current major version) with the sample
+app's settings. It passes only if every pipeline stage passes, so it proves that
+the canary commit loads its own actions and runs the full pipeline end to end.
+It passes no token, so the optional `platform_token` uses its default.
+
+- **In a release:** the `smoke-test` job runs after `canary` succeeds.
+- **Manually:** run `smoke-test-pipeline.yml` with `workflow_dispatch` (Actions
+  tab, or `gh workflow run smoke-test-pipeline.yml`) to test the current
+  canary at any time. It also runs when a GitHub release is published.
+- **Limitation:** it runs inside the platform repository, so it cannot catch
+  every cross-repository problem, such as a consumer's own token or
+  permissions.
+- **Dry run:** it is skipped, because the canary has not moved and it would only
+  test previously released code. The dry-run summary says what would run.
 
 ### Release dry run
 
@@ -47,14 +68,15 @@ A dry run, with read-only (`contents: read`) permissions:
   it reports "no release would run" and passes.
 - Checks that the `vX.Y.Z` tag does not already exist (read-only).
 - Derives the aliases and applies the pre-1.0 safety check.
-- Writes the exact tag commands it would run to the job summary.
+- Writes the exact tag commands it would run, and that the smoke test would run
+  against `v<MAJOR>-canary`, to the job summary.
 
 A dry run does not:
 
 - Create or move any tag. Only a push to `main` runs the tag-moving `canary`
   job.
-- Smoke-test the canary. Smoke testing arrives in a later change and will also
-  skip in dry run.
+- Smoke-test the canary. The `smoke-test` job is skipped whenever `canary` is
+  skipped.
 - Test the PR's own pipeline code. `pre-gate.yml` covers that.
 
 ## Local development
@@ -109,7 +131,7 @@ to `main` and pull requests. Its pipeline:
 
 Check fails if a category has no deployments. Pull requests deploy to
 Development only; Pre-production and Production deploy only on pushes to
-`main`. To smoke-test the published workflow-package alias, manually run
+`main`. To smoke-test the published canary alias, manually run
 `.github/workflows/smoke-test-pipeline.yml`.
 
 Approval modes are `all-approvers` (default; every listed approval group must

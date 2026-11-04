@@ -21,8 +21,8 @@ concurrency:
 permissions:
   contents: read
 
-# TODO: The smoke-test and promote jobs (later sub-tasks) must also skip when
-# needs.prepare.outputs.dry_run is 'true'.
+# TODO: The promote job (a later sub-task) must also skip when
+# needs.prepare.outputs.dry_run is 'true'. The smoke-test job skips with canary.
 jobs:
   prepare:
     name: Prepare release
@@ -149,6 +149,7 @@ jobs:
               printf 'git tag --force %s %s\n' "$canary_alias" "$COMMIT_SHA"
               printf 'git push --force origin refs/tags/%s\n' "$canary_alias"
               printf '```\n'
+              printf '\nThe smoke test would then run against `%s`.\n' "$canary_alias"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -184,3 +185,15 @@ jobs:
             printf -- '- Canary alias published: `%s`\n' "$CANARY_ALIAS"
             printf -- '- Canary commit: `%s`\n' "$COMMIT_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Skipped whenever canary is skipped (including every dry run), because a
+  # skipped dependency skips this job. In a pull request the canary has not
+  # moved, so the smoke test would only exercise previously released code.
+  smoke-test:
+    name: Smoke test canary
+    needs: canary
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/smoke-test-pipeline.yml
