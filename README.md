@@ -35,7 +35,13 @@ cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
 Two more checks run in `prepare`:
 
 - **Downgrade guard:** the version must be higher than every existing
-  `vX.Y.Z` tag with the same major. A lower version fails the release.
+  `vX.Y.Z` tag with the same major. A lower version fails the release. The
+  duplicate-tag check runs first, so a version equal to an existing tag fails
+  as a duplicate; only a version below the lowest existing tag (for example
+  `0.0.0`) shows the downgrade error.
+- **Unchanged version:** a `VERSION` edit counts as unchanged only if the value
+  is the same once trailing newlines are ignored. Any other whitespace change
+  makes the value fail strict SemVer.
 - **Concurrency:** pushes to `main` share one `release-platform` queue and never
   cancel a running release. GitHub keeps only the latest queued run, so if
   several releases queue behind a running one, only the newest runs. Skipped
@@ -60,9 +66,12 @@ it does not (for example, if a newer release moved it). It then creates
 - **Recovering a partial promotion** (for example `vX.Y.Z` was pushed but
   moving `v<MAJOR>` failed): use "Re-run failed jobs" on the run, which re-runs
   only `promote`. Do not use "Re-run all jobs": `prepare` would reject the
-  already existing `vX.Y.Z`.
+  already existing `vX.Y.Z`. Only re-run the most recent release run: if a
+  later release has moved `v<MAJOR>-canary`, the canary assertion fails by
+  design.
 - **Smoke test fails:** nothing is promoted. No `vX.Y.Z` is created and
-  `v<MAJOR>` does not move. `v<MAJOR>-canary` has already moved to the commit.
+  `v<MAJOR>` does not move. `v<MAJOR>-canary` has already moved to the commit
+  and stays on that failing commit until the next successful release.
   Releases trigger only when `VERSION` changes, so ship the fix under a new
   version.
 - **Dry run:** `promote` never runs.
@@ -266,6 +275,12 @@ should not need to set it and should not provide a long-lived token. The
 orchestrator checks out this repository at the called workflow's own commit
 SHA, so the workflow and its central composite actions are loaded atomically
 from the same revision.
+
+If the platform repository is private or internal, a consumer's own
+`GITHUB_TOKEN` may not be able to read it, and the platform repository must
+allow access from other repositories (Settings, Actions, Access). Verify this
+from a consumer repository before telling teams they need no secret; if the
+checkout fails, they must supply `platform_token` with read access.
 
 #### Pre-gate limitation: existence-only Check
 
