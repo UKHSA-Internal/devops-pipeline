@@ -24,6 +24,9 @@ permissions:
 # Dry runs stop after prepare: canary is skipped, so smoke-test, promote and
 # the tag steps never run. Promotion is automatic once the smoke test passes.
 # TODO: Decide whether promote should also create a GitHub Release.
+# The smoke test calls the local standard-pipeline.yml, which resolves to the
+# triggering commit when the run is created. Calling a canary tag ref here
+# would test the previous canary and fail at startup if the tag is missing.
 jobs:
   prepare:
     name: Prepare release
@@ -94,7 +97,7 @@ jobs:
             exit 1
           fi
 
-          # TODO: Pre-release versions are deferred to a later release-process sub-task.
+          # TODO: pre-release support: future work, not DP-218.
           if [[ "$version" == *"-"* ]]; then
             echo "ERROR: Pre-release versions are deferred." >&2
             exit 1
@@ -119,6 +122,18 @@ jobs:
 
           major_alias="v${major}"
           canary_alias="${major_alias}-canary"
+
+          # Downgrade guard: the new version must be higher than every existing
+          # tag with the same major. Read-only lookup.
+          if ! major_tags="$(git ls-remote --refs --tags origin "refs/tags/v${major}.*.*")"; then
+            echo "ERROR: Could not list remote tags." >&2
+            exit 1
+          fi
+          highest="$(printf '%s\n' "$major_tags" | awk '{sub("refs/tags/v", "", $2); print $2}' | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -n 1)"
+          if [[ -n "$highest" && "$(printf '%s\n%s\n' "$highest" "$version" | sort -V | head -n 1)" != "$highest" ]]; then
+            printf 'ERROR: Version %s is lower than the existing release v%s.\n' "$version" "$highest" >&2
+            exit 1
+          fi
 
           # TODO: Remove this guard at the deliberate 1.0.0 cut-over.
           if [[ "$major_alias" != "v0" ]]; then
@@ -150,7 +165,7 @@ jobs:
               printf 'git tag --force %s %s\n' "$canary_alias" "$COMMIT_SHA"
               printf 'git push --force origin refs/tags/%s\n' "$canary_alias"
               printf '```\n'
-              printf '\nThe smoke test would then run against `%s`.\n' "$canary_alias"
+              printf '\nThe smoke test would then run the release commit'"'"'s pipeline, and promotion would assert that `%s` points at the commit.\n' "$canary_alias"
               printf '\nIf the smoke test passes, promotion would run:\n\n'
               printf '```\n'
               printf 'git tag v%s %s\n' "$version" "$COMMIT_SHA"
@@ -176,6 +191,8 @@ jobs:
           ref: ${{ needs.prepare.outputs.commit_sha }}
           fetch-depth: 0
 
+      # The job-level condition already excludes dry runs; this repeated guard
+      # is deliberate defence in depth so a tag can only move on a push to main.
       - name: Move canary alias
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         shell: bash
@@ -194,17 +211,20 @@ jobs:
             printf -- '- Canary commit: `%s`\n' "$COMMIT_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Skipped whenever canary is skipped (including every dry run), because a
-  # skipped dependency skips this job. In a pull request the canary has not
-  # moved, so the smoke test would only exercise previously released code.
+  # Smoke-tests the release commit: the local reference resolves to the
+  # triggering commit when the run is created. Skipped whenever canary is
+  # skipped (including every dry run), because a skipped dependency skips this
+  # job. The promote job asserts the canary tag points at the same commit.
   smoke-test:
-    name: Smoke test canary
+    name: Smoke test release commit
     needs: canary
     permissions:
       contents: read
       id-token: write
       packages: write
-    uses: ./.github/workflows/smoke-test-pipeline.yml
+    uses: ./.github/workflows/standard-pipeline.yml
+    with:
+      settings_path: sample-app/.github/pipeline-settings.yml
 
   promote:
     name: Promote release
@@ -221,6 +241,26 @@ jobs:
           ref: ${{ needs.prepare.outputs.commit_sha }}
           fetch-depth: 0
 
+      - name: Assert canary points at the release commit
+        shell: bash
+        env:
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          if ! canary_ref="$(git ls-remote --refs origin "refs/tags/${CANARY_ALIAS}")"; then
+            echo "ERROR: Could not look up ${CANARY_ALIAS} on the remote." >&2
+            exit 1
+          fi
+          canary_sha="$(printf '%s\n' "$canary_ref" | awk '{print $1}')"
+          if [[ "$canary_sha" != "$COMMIT_SHA" ]]; then
+            printf 'ERROR: %s points at "%s", not the release commit %s.\n' "$CANARY_ALIAS" "$canary_sha" "$COMMIT_SHA" >&2
+            exit 1
+          fi
+
+      # The job-level condition already excludes dry runs; this repeated guard
+      # is deliberate defence in depth so a tag can only move on a push to main.
       - name: Create version tag and move major alias
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         shell: bash
@@ -233,8 +273,23 @@ jobs:
 
           version_tag="v${VERSION}"
 
-          git tag "$version_tag" "$COMMIT_SHA"
-          git push origin "refs/tags/${version_tag}"
+          # Idempotent: re-running a failed promote must not fail on a tag
+          # that an earlier attempt already created on this commit.
+          if ! existing_ref="$(git ls-remote --refs origin "refs/tags/${version_tag}")"; then
+            echo "ERROR: Could not look up ${version_tag} on the remote." >&2
+            exit 1
+          fi
+          existing_sha="$(printf '%s\n' "$existing_ref" | awk '{print $1}')"
+
+          if [[ -z "$existing_sha" ]]; then
+            git tag "$version_tag" "$COMMIT_SHA"
+            git push origin "refs/tags/${version_tag}"
+          elif [[ "$existing_sha" == "$COMMIT_SHA" ]]; then
+            echo "${version_tag} already points at ${COMMIT_SHA}; not recreating it."
+          else
+            printf 'ERROR: %s already exists and points at %s, not %s.\n' "$version_tag" "$existing_sha" "$COMMIT_SHA" >&2
+            exit 1
+          fi
 
           git tag --force "$MAJOR_ALIAS" "$COMMIT_SHA"
           git push --force origin "refs/tags/${MAJOR_ALIAS}"
@@ -247,6 +302,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
       - name: Write release summary
         shell: bash
         env:
@@ -257,19 +318,30 @@ jobs:
           CANARY_RESULT: ${{ needs.canary.result }}
           SMOKE_RESULT: ${{ needs.smoke-test.result }}
           PROMOTE_RESULT: ${{ needs.promote.result }}
-          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
         run: |
           set -euo pipefail
 
+          # Uses the checkout's credentials. A failed lookup fails the job
+          # rather than being reported as "not moved".
           tag_state() {
-            local sha
-            sha="$(git ls-remote "$REPO_URL" "refs/tags/$1^{}" "refs/tags/$1" | awk 'END {print $1}')"
-            if [[ "$sha" == "$COMMIT_SHA" ]]; then
+            local ref sha
+            if ! ref="$(git ls-remote --refs origin "refs/tags/$1")"; then
+              echo "ERROR: Could not look up tag $1 on the remote." >&2
+              return 1
+            fi
+            sha="$(printf '%s\n' "$ref" | awk '{print $1}')"
+            if [[ -z "$sha" ]]; then
+              echo "does not exist"
+            elif [[ "$sha" == "$COMMIT_SHA" ]]; then
               echo "points at the release commit"
             else
-              echo "not moved"
+              echo "exists, but not at the release commit"
             fi
           }
+
+          canary_state="$(tag_state "$CANARY_ALIAS")"
+          version_state="$(tag_state "v${VERSION}")"
+          major_state="$(tag_state "$MAJOR_ALIAS")"
 
           {
             printf '## Release summary\n\n'
@@ -279,7 +351,7 @@ jobs:
             printf -- '- Smoke test: %s\n' "$SMOKE_RESULT"
             printf -- '- Promotion: %s\n' "$PROMOTE_RESULT"
             printf '\nTags:\n\n'
-            printf -- '- `%s`: %s\n' "$CANARY_ALIAS" "$(tag_state "$CANARY_ALIAS")"
-            printf -- '- `v%s`: %s\n' "$VERSION" "$(tag_state "v${VERSION}")"
-            printf -- '- `%s`: %s\n' "$MAJOR_ALIAS" "$(tag_state "$MAJOR_ALIAS")"
+            printf -- '- `%s`: %s\n' "$CANARY_ALIAS" "$canary_state"
+            printf -- '- `v%s`: %s\n' "$VERSION" "$version_state"
+            printf -- '- `%s`: %s\n' "$MAJOR_ALIAS" "$major_state"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,10 +1,9 @@
 name: Release Smoke Test
 
+# Manual check against the published canary. The release workflow smoke-tests
+# the release commit directly and does not call this workflow.
 on:
-  workflow_call:
   workflow_dispatch:
-  release:
-    types: [ published ]
 
 permissions:
   contents: read

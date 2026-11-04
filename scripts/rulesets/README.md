@@ -7,18 +7,24 @@ definitions only; nothing applies them automatically.
 | File | Protects | Rules |
 | --- | --- | --- |
 | `release-tags.json` | `v*.*.*` (including `0.x`) | Block updates and deletion. Creation is limited to the bypass actor. |
-| `floating-tags.json` | `v0`, `v0-canary`, `v1`, `v1-canary` | Updates and deletion are limited to the bypass actor. |
+| `floating-tags.json` | `v0`, `v0-canary`, `v1`, `v1-canary` | Creation, updates and deletion are limited to the bypass actor. |
 
 The bypass actor must be the identity the release workflow pushes tags with.
-Nobody else can create release tags or move floating tags.
+Nobody else can create release tags or create, move or delete floating tags.
+
+The bypass actor is needed to **create** `v0` and `v0-canary` on the first
+release, and `v1` and `v1-canary` at the 1.0.0 cut-over. Without it, those
+first pushes are rejected. Until the cut-over, nobody else can create `v1` or
+`v1-canary`.
 
 Apply both rulesets **before the 1.0.0 cut-over**, and preferably before the
 first release.
 
 ## Apply
 
-1. Replace `actor_id` (`0` is a placeholder) in both files with the numeric ID
-   of the bypass actor (see [Bypass actor](#bypass-actor)).
+1. **Must replace:** `actor_id` is `0` in both files, which is a placeholder
+   and will not work. Set it to the numeric ID of the bypass actor (see
+   [Bypass actor](#bypass-actor)) before applying.
 2. Apply each file as an admin, using either:
    - Settings, Rules, Rulesets, New ruleset, Import a ruleset; or
    - `gh api --method POST repos/UKHSA-Internal/devops-pipeline/rulesets --input scripts/rulesets/release-tags.json`
@@ -28,7 +34,7 @@ first release.
 4. Do a release (or a test in a sandbox repository) and confirm that the
    `canary` and `promote` jobs can still push their tags.
 
-A manual bootstrap or repair of `v0-canary` needs an admin who can bypass the
+A manual bootstrap or repair of a floating tag needs an admin who can bypass the
 ruleset.
 
 ## Bypass actor

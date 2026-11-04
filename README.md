@@ -32,16 +32,35 @@ The workflow first publishes the canary alias by force-updating
 cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
 `v1-canary` are not created before version `1.0.0`.
 
-After the canary moves, a smoke test runs against it (see
+Two more checks run in `prepare`:
+
+- **Downgrade guard:** the version must be higher than every existing
+  `vX.Y.Z` tag with the same major. A lower version fails the release.
+- **Concurrency:** pushes to `main` share one `release-platform` queue and never
+  cancel a running release. GitHub keeps only the latest queued run, so if
+  several releases queue behind a running one, only the newest runs. Skipped
+  intermediate versions are never tagged. Dry runs use a separate group per
+  ref (`release-platform-dry-run-<ref>`), so a pull request can never displace
+  a pending release.
+
+After the canary moves, a smoke test runs against the release commit (see
 [Canary smoke test](#canary-smoke-test)). If it passes, the release is promoted
 automatically (see [Promotion](#promotion)).
 
 ### Promotion
 
 There is no manual approval step. When the smoke test passes, the `promote` job
-creates `vX.Y.Z` on the release commit, then force-moves `v<MAJOR>` to the same
-commit.
+first asserts that `v<MAJOR>-canary` points at the release commit, and fails if
+it does not (for example, if a newer release moved it). It then creates
+`vX.Y.Z` on the release commit, then force-moves `v<MAJOR>` to the same commit.
 
+- **Idempotent:** if `vX.Y.Z` already exists and points at the release commit,
+  it is not recreated and `v<MAJOR>` is still moved. If it exists and points at
+  a different commit, the job fails.
+- **Recovering a partial promotion** (for example `vX.Y.Z` was pushed but
+  moving `v<MAJOR>` failed): use "Re-run failed jobs" on the run, which re-runs
+  only `promote`. Do not use "Re-run all jobs": `prepare` would reject the
+  already existing `vX.Y.Z`.
 - **Smoke test fails:** nothing is promoted. No `vX.Y.Z` is created and
   `v<MAJOR>` does not move. `v<MAJOR>-canary` has already moved to the commit.
   Releases trigger only when `VERSION` changes, so ship the fix under a new
@@ -61,39 +80,50 @@ the 1.0.0 cut-over.
 - **Release tags (`v*.*.*`):** cannot be updated or deleted, and only the
   release workflow's identity can create them. A released version never changes.
 - **Floating tags (`v0`, `v0-canary`, `v1`, `v1-canary`):** only the release
-  workflow's identity can move or delete them, so consumers only ever get a
-  version that passed the release process.
+  workflow's identity can create, move or delete them, so consumers only ever
+  get a version that passed the release process.
 
 Open question: whether `GITHUB_TOKEN` can be a bypass actor, or a GitHub App is
 needed (see the ruleset README).
 
 ### Reading the release summary
 
-Every non-dry run ends with a `Release summary` job, which also runs when an
-earlier job fails. It lists:
+The `Release summary` job runs only once a release was attempted: on a push to
+`main` where `prepare` succeeded and found a changed `VERSION`. It still runs
+if `canary`, `smoke-test` or `promote` fails or is skipped. It does not run in
+a dry run, when `VERSION` is unchanged, or when `prepare` fails (the failed
+`prepare` job is then the report). It lists:
 
 - the version and commit;
 - the canary, smoke test and promotion results;
 - for `v<MAJOR>-canary`, `vX.Y.Z` and `v<MAJOR>`, whether each tag points at the
-  release commit or is "not moved".
+  release commit, exists elsewhere, or does not exist. A failed tag lookup fails
+  the job rather than being reported as a tag state.
 
 ### Canary smoke test
 
-`smoke-test-pipeline.yml` calls the reusable `standard-pipeline.yml` at
-`@v0-canary` (the canary alias for the current major version) with the sample
-app's settings. It passes only if every pipeline stage passes, so it proves that
-the canary commit loads its own actions and runs the full pipeline end to end.
-It passes no token, so the optional `platform_token` uses its default.
+The release's `smoke-test` job calls the local `standard-pipeline.yml` with the
+sample app's settings (`sample-app/.github/pipeline-settings.yml`). GitHub
+resolves that to the triggering commit, so the release commit's own pipeline
+and actions are tested. The reference is deliberately not `@v0-canary`: GitHub
+resolves every referenced workflow when the run is created, so a canary ref
+would test the previous canary and fail at startup if the tag were missing.
+`promote` then asserts that `v<MAJOR>-canary` points at the release commit.
+The smoke test passes only if every pipeline stage passes, so it proves that
+the commit loads its own actions and runs the full pipeline end to end. It
+passes no token, so the optional `platform_token` uses its default.
 
 - **In a release:** the `smoke-test` job runs after `canary` succeeds.
 - **Manually:** run `smoke-test-pipeline.yml` with `workflow_dispatch` (Actions
-  tab, or `gh workflow run smoke-test-pipeline.yml`) to test the current
-  canary at any time. It also runs when a GitHub release is published.
+  tab, or `gh workflow run smoke-test-pipeline.yml`). Unlike the release's
+  smoke test, this calls `standard-pipeline.yml@v0-canary`, so it tests the
+  published canary at any time. It has no other trigger.
 - **Limitation:** it runs inside the platform repository, so it cannot catch
   every cross-repository problem, such as a consumer's own token or
   permissions.
-- **Dry run:** it is skipped, because the canary has not moved and it would only
-  test previously released code. The dry-run summary says what would run.
+- **Dry run:** it is skipped, because it needs `canary`, which runs only on a
+  push to `main`. The dry-run summary says what would run. `pre-gate.yml`
+  covers the PR's own pipeline code.
 
 ### Release dry run
 
@@ -107,10 +137,11 @@ A dry run, with read-only (`contents: read`) permissions:
 - Validates the version with the same rules as a real release.
 - Compares the PR head's `VERSION` with the base branch's. If it is unchanged,
   it reports "no release would run" and passes.
-- Checks that the `vX.Y.Z` tag does not already exist (read-only).
+- Checks that the `vX.Y.Z` tag does not already exist, and that the version is
+  not lower than an existing release of the same major (read-only).
 - Derives the aliases and applies the pre-1.0 safety check.
-- Writes the exact tag commands it would run, that the smoke test would run
-  against `v<MAJOR>-canary`, and the planned promotion (`vX.Y.Z` and
+- Writes the exact tag commands it would run, that the smoke test would run the
+  release commit's pipeline, and the planned promotion (`vX.Y.Z` and
   `v<MAJOR>` on the commit, if the smoke test passes), to the job summary.
 
 A dry run does not:
