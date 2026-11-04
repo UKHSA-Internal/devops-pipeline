@@ -21,8 +21,9 @@ concurrency:
 permissions:
   contents: read
 
-# TODO: The promote job (a later sub-task) must also skip when
-# needs.prepare.outputs.dry_run is 'true'. The smoke-test job skips with canary.
+# Dry runs stop after prepare: canary is skipped, so smoke-test, promote and
+# the tag steps never run. Promotion is automatic once the smoke test passes.
+# TODO: Decide whether promote should also create a GitHub Release.
 jobs:
   prepare:
     name: Prepare release
@@ -150,6 +151,13 @@ jobs:
               printf 'git push --force origin refs/tags/%s\n' "$canary_alias"
               printf '```\n'
               printf '\nThe smoke test would then run against `%s`.\n' "$canary_alias"
+              printf '\nIf the smoke test passes, promotion would run:\n\n'
+              printf '```\n'
+              printf 'git tag v%s %s\n' "$version" "$COMMIT_SHA"
+              printf 'git push origin refs/tags/v%s\n' "$version"
+              printf 'git tag --force %s %s\n' "$major_alias" "$COMMIT_SHA"
+              printf 'git push --force origin refs/tags/%s\n' "$major_alias"
+              printf '```\n'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -197,3 +205,81 @@ jobs:
       id-token: write
       packages: write
     uses: ./.github/workflows/smoke-test-pipeline.yml
+
+  promote:
+    name: Promote release
+    needs: [prepare, canary, smoke-test]
+    if: ${{ needs.prepare.outputs.dry_run == 'false' && needs.smoke-test.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Create version tag and move major alias
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
+          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          version_tag="v${VERSION}"
+
+          git tag "$version_tag" "$COMMIT_SHA"
+          git push origin "refs/tags/${version_tag}"
+
+          git tag --force "$MAJOR_ALIAS" "$COMMIT_SHA"
+          git push --force origin "refs/tags/${MAJOR_ALIAS}"
+
+  summary:
+    name: Release summary
+    needs: [prepare, canary, smoke-test, promote]
+    if: ${{ always() && needs.prepare.outputs.dry_run == 'false' && needs.prepare.outputs.release_needed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write release summary
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
+          CANARY_RESULT: ${{ needs.canary.result }}
+          SMOKE_RESULT: ${{ needs.smoke-test.result }}
+          PROMOTE_RESULT: ${{ needs.promote.result }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+
+          tag_state() {
+            local sha
+            sha="$(git ls-remote "$REPO_URL" "refs/tags/$1^{}" "refs/tags/$1" | awk 'END {print $1}')"
+            if [[ "$sha" == "$COMMIT_SHA" ]]; then
+              echo "points at the release commit"
+            else
+              echo "not moved"
+            fi
+          }
+
+          {
+            printf '## Release summary\n\n'
+            printf -- '- Version: `%s`\n' "$VERSION"
+            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
+            printf -- '- Canary: %s\n' "$CANARY_RESULT"
+            printf -- '- Smoke test: %s\n' "$SMOKE_RESULT"
+            printf -- '- Promotion: %s\n' "$PROMOTE_RESULT"
+            printf '\nTags:\n\n'
+            printf -- '- `%s`: %s\n' "$CANARY_ALIAS" "$(tag_state "$CANARY_ALIAS")"
+            printf -- '- `v%s`: %s\n' "$VERSION" "$(tag_state "v${VERSION}")"
+            printf -- '- `%s`: %s\n' "$MAJOR_ALIAS" "$(tag_state "$MAJOR_ALIAS")"
+          } >> "$GITHUB_STEP_SUMMARY"

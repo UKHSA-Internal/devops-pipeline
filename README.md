@@ -33,8 +33,34 @@ cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
 `v1-canary` are not created before version `1.0.0`.
 
 After the canary moves, a smoke test runs against it (see
-[Canary smoke test](#canary-smoke-test)). The approval and stable-tag stages
-are deferred to a follow-up release-process change.
+[Canary smoke test](#canary-smoke-test)). If it passes, the release is promoted
+automatically (see [Promotion](#promotion)).
+
+### Promotion
+
+There is no manual approval step. When the smoke test passes, the `promote` job
+creates `vX.Y.Z` on the release commit, then force-moves `v<MAJOR>` to the same
+commit.
+
+- **Smoke test fails:** nothing is promoted. No `vX.Y.Z` is created and
+  `v<MAJOR>` does not move. `v<MAJOR>-canary` has already moved to the commit.
+  Releases trigger only when `VERSION` changes, so ship the fix under a new
+  version.
+- **Dry run:** `promote` never runs.
+- The tag-creating workflow token needs permission to push `v*` tags, so check
+  any tag rulesets allow it.
+
+TODO: whether promotion should also create a GitHub Release is undecided.
+
+### Reading the release summary
+
+Every non-dry run ends with a `Release summary` job, which also runs when an
+earlier job fails. It lists:
+
+- the version and commit;
+- the canary, smoke test and promotion results;
+- for `v<MAJOR>-canary`, `vX.Y.Z` and `v<MAJOR>`, whether each tag points at the
+  release commit or is "not moved".
 
 ### Canary smoke test
 
@@ -68,15 +94,16 @@ A dry run, with read-only (`contents: read`) permissions:
   it reports "no release would run" and passes.
 - Checks that the `vX.Y.Z` tag does not already exist (read-only).
 - Derives the aliases and applies the pre-1.0 safety check.
-- Writes the exact tag commands it would run, and that the smoke test would run
-  against `v<MAJOR>-canary`, to the job summary.
+- Writes the exact tag commands it would run, that the smoke test would run
+  against `v<MAJOR>-canary`, and the planned promotion (`vX.Y.Z` and
+  `v<MAJOR>` on the commit, if the smoke test passes), to the job summary.
 
 A dry run does not:
 
 - Create or move any tag. Only a push to `main` runs the tag-moving `canary`
-  job.
-- Smoke-test the canary. The `smoke-test` job is skipped whenever `canary` is
-  skipped.
+  and `promote` jobs.
+- Smoke-test the canary or promote. Both `smoke-test` and `promote` are skipped
+  whenever `canary` is skipped.
 - Test the PR's own pipeline code. `pre-gate.yml` covers that.
 
 ## Local development
