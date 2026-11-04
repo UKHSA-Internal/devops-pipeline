@@ -47,10 +47,25 @@ commit.
   Releases trigger only when `VERSION` changes, so ship the fix under a new
   version.
 - **Dry run:** `promote` never runs.
-- The tag-creating workflow token needs permission to push `v*` tags, so check
-  any tag rulesets allow it.
+- **Tag protection:** see [Tag protection](#tag-protection).
 
 TODO: whether promotion should also create a GitHub Release is undecided.
+
+### Tag protection
+
+Moving a tag changes the workflows and actions that consumers run, so tags are
+protected by repository rulesets. Definitions and apply instructions are in
+[scripts/rulesets/](scripts/rulesets/README.md). An admin must apply them before
+the 1.0.0 cut-over.
+
+- **Release tags (`v*.*.*`):** cannot be updated or deleted, and only the
+  release workflow's identity can create them. A released version never changes.
+- **Floating tags (`v0`, `v0-canary`, `v1`, `v1-canary`):** only the release
+  workflow's identity can move or delete them, so consumers only ever get a
+  version that passed the release process.
+
+Open question: whether `GITHUB_TOKEN` can be a bypass actor, or a GitHub App is
+needed (see the ruleset README).
 
 ### Reading the release summary
 

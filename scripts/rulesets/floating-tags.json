@@ -1,0 +1,27 @@
+{
+  "name": "Floating tags (release workflow only)",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/tags/v0",
+        "refs/tags/v0-canary",
+        "refs/tags/v1",
+        "refs/tags/v1-canary"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_id": 0,
+      "actor_type": "Integration",
+      "bypass_mode": "always"
+    }
+  ],
+  "rules": [
+    { "type": "update" },
+    { "type": "deletion" }
+  ]
+}
