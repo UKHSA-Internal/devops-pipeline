@@ -294,6 +294,7 @@ jobs:
           git tag --force "$MAJOR_ALIAS" "$COMMIT_SHA"
           git push --force origin "refs/tags/${MAJOR_ALIAS}"
 
+  # TODO: Decide whether promote should also create a GitHub Release.
   summary:
     name: Release summary
     needs: [prepare, canary, smoke-test, promote]

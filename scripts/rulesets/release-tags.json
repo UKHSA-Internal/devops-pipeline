@@ -1,5 +1,5 @@
 {
-  "name": "Release tags (immutable)",
+  "name": "Release tags (immutable) - REPLACE PLACEHOLDER actor_id 0 BEFORE APPLYING",
   "target": "tag",
   "enforcement": "active",
   "conditions": {

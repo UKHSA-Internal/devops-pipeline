@@ -1,5 +1,5 @@
 {
-  "name": "Floating tags (release workflow only)",
+  "name": "Floating tags (release workflow only) - REPLACE PLACEHOLDER actor_id 0 BEFORE APPLYING",
   "target": "tag",
   "enforcement": "active",
   "conditions": {

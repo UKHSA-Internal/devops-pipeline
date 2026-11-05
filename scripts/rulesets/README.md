@@ -24,7 +24,8 @@ first release.
 
 1. **Must replace:** `actor_id` is `0` in both files, which is a placeholder
    and will not work. Set it to the numeric ID of the bypass actor (see
-   [Bypass actor](#bypass-actor)) before applying.
+   [Bypass actor](#bypass-actor)) before applying. Also remove the
+   "REPLACE PLACEHOLDER" text from each ruleset's `name`.
 2. Apply each file as an admin, using either:
    - Settings, Rules, Rulesets, New ruleset, Import a ruleset; or
    - `gh api --method POST repos/UKHSA-Internal/devops-pipeline/rulesets --input scripts/rulesets/release-tags.json`
