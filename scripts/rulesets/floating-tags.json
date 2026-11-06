@@ -1,5 +1,5 @@
 {
-  "name": "Floating tags (release workflow only) - REPLACE PLACEHOLDER actor_id 0 BEFORE APPLYING",
+  "name": "Floating tags (release only) - MUST SET bypass actor_id BEFORE APPLYING",
   "target": "tag",
   "enforcement": "active",
   "conditions": {
@@ -16,7 +16,7 @@
   "bypass_actors": [
     {
       "actor_id": 0,
-      "actor_type": "Integration",
+      "actor_type": "Team",
       "bypass_mode": "always"
     }
   ],
