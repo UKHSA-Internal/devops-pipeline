@@ -86,19 +86,43 @@ TODO: whether promotion should also create a GitHub Release is undecided.
 
 ### Tag protection
 
-Moving a tag changes the workflows and actions that consumers run, so tags are
-protected by repository rulesets. Definitions and apply instructions are in
-[scripts/rulesets/](scripts/rulesets/README.md). An admin must apply them before
-the 1.0.0 cut-over.
+Tags are protected by two repository rulesets. Definitions and apply
+instructions are in [scripts/rulesets/](scripts/rulesets/README.md).
 
-- **Release tags (`v*.*.*`):** cannot be updated or deleted, and only the
-  release workflow's identity can create them. A released version never changes.
-- **Floating tags (`v0`, `v0-canary`, `v1`, `v1-canary`):** only the release
-  workflow's identity can create, move or delete them, so consumers only ever
-  get a version that passed the release process.
+- **Release tags (`v*.*.*`):** immutable. Once created, a version tag can't be
+  moved or deleted; anyone with write access can create one. If a version tag is
+  created outside a release, the release's duplicate-tag check will fail; a
+  repository admin must disable the ruleset temporarily to remove the tag. This
+  ruleset can be applied now without blocking releases.
+- **Floating tags (`v0`, `v0-canary`, `v1`, `v1-canary`):** protected by a
+  second ruleset. Only the release, and the small team set as that ruleset's
+  bypass actor, can create, move or delete them. The release token's owner must
+  be a member of that team, or releases cannot move the floating tags.
 
-Open question: whether `GITHUB_TOKEN` can be a bypass actor, or a GitHub App is
-needed (see the ruleset README).
+Consumers use the floating major tag (for example `@v0`, later `@v1`) for
+automatic updates. They may pin to an exact version (for example `@v0.1.1`) if
+they need to.
+
+### Release token
+
+`RELEASE_TOKEN` is the permanent release identity. It is a classic personal
+access token with the `repo` and `workflow` scopes, authorised for SSO, and
+stored only in the `release` environment. That environment is restricted to
+`main`, so only a push to `main` can read it.
+
+The pinned release commit changes a workflow file, and `GITHUB_TOKEN` can never
+push such a commit. The `canary` and `promote` jobs therefore push with
+`RELEASE_TOKEN`. Both jobs fail early with a clear error if the token is empty.
+No other job, and no dry run, uses the environment or the token.
+
+- **Owner:** owned by chrisp-burendo on behalf of the Platform Team. The
+  Platform Team is responsible for rotating it before expiry and replacing it
+  if the owner leaves.
+- **Rotation:** rotate the token before it expires, or releases will fail at
+  the first push.
+- **Owner leaves or token expires:** create a new classic token with the same
+  scopes, authorise it for SSO, and replace the `RELEASE_TOKEN` secret in the
+  `release` environment with it.
 
 ### Reading the release summary
 
