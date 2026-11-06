@@ -1,12 +1,22 @@
 name: Release Smoke Test
 
+# Manual check against the published canary. The release workflow smoke-tests
+# the release commit directly and does not call this workflow.
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
 
 jobs:
   pipeline:
     name: 'Release Smoke Test'
-    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
+    # TODO: Switch to @v1-canary at the 1.0.0 cut-over.
+    # TODO: Running inside the platform repository cannot catch every
+    # cross-repository problem, for example a consumer's own token or
+    # permissions.
+    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v0-canary
     with:
       settings_path: sample-app/.github/pipeline-settings.yml
-    secrets: inherit

@@ -1,0 +1,414 @@
+name: Release CI/CD Platform Workflows
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/shared-workflows/VERSION
+  pull_request:
+    paths:
+      - packages/shared-workflows/VERSION
+      - .github/workflows/release-cicd-platform.yml
+      - .github/workflows/smoke-test-pipeline.yml
+
+# Pushes to main share one release queue. Dry runs use per-ref groups so a pull
+# request run can never displace a pending release.
+concurrency:
+  group: ${{ github.event_name == 'push' && 'release-platform' || format('release-platform-dry-run-{0}', github.ref) }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# Dry runs stop after prepare: canary is skipped, so smoke-test, promote and
+# the tag steps never run. Promotion is automatic once the smoke test passes.
+# TODO: Decide whether promote should also create a GitHub Release.
+# The smoke test calls the local standard-pipeline.yml, which resolves to the
+# triggering commit when the run is created. Calling a canary tag ref here
+# would test the previous canary and fail at startup if the tag is missing.
+jobs:
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      dry_run: ${{ steps.mode.outputs.dry_run }}
+      release_needed: ${{ steps.prepare.outputs.release_needed }}
+      version: ${{ steps.prepare.outputs.version }}
+      commit_sha: ${{ steps.prepare.outputs.commit_sha }}
+      major_alias: ${{ steps.prepare.outputs.major_alias }}
+      canary_alias: ${{ steps.prepare.outputs.canary_alias }}
+    steps:
+      - name: Check out triggering commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Determine release mode
+        id: mode
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/main" ]]; then
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate release version
+        id: prepare
+        shell: bash
+        env:
+          DRY_RUN: ${{ steps.mode.outputs.dry_run }}
+          BEFORE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          version_file="packages/shared-workflows/VERSION"
+          version="$(< "$version_file")"
+
+          if [[ ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            git cat-file -e "${BEFORE_SHA}^{commit}"
+            if git cat-file -e "${BEFORE_SHA}:${version_file}" 2>/dev/null; then
+              previous_version="$(git show "${BEFORE_SHA}:${version_file}")"
+              if [[ "$version" == "$previous_version" ]]; then
+                echo "release_needed=false" >> "$GITHUB_OUTPUT"
+                if [[ "$DRY_RUN" == "true" ]]; then
+                  echo "No release would run: $version is unchanged against the base." >> "$GITHUB_STEP_SUMMARY"
+                else
+                  echo "No release needed: $version is unchanged." >> "$GITHUB_STEP_SUMMARY"
+                fi
+                exit 0
+              fi
+            fi
+          fi
+
+          if [[ "$version" == *"+"* ]]; then
+            echo "ERROR: Build metadata is not allowed in release versions." >&2
+            exit 1
+          fi
+
+          # TODO: pre-release support: future work, not DP-218.
+          if [[ "$version" == *"-"* ]]; then
+            echo "ERROR: Pre-release versions are deferred." >&2
+            exit 1
+          fi
+
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "ERROR: VERSION must contain a strict SemVer major.minor.patch version." >&2
+            exit 1
+          fi
+
+          major="${version%%.*}"
+          version_tag="v${version}"
+          if existing_tag="$(git ls-remote --refs --tags origin "refs/tags/${version_tag}")"; then
+            if [[ -n "$existing_tag" ]]; then
+              printf 'ERROR: Release tag %s already exists on the remote.\n' "$version_tag" >&2
+              exit 1
+            fi
+          else
+            echo "ERROR: Could not check remote tags." >&2
+            exit 1
+          fi
+
+          major_alias="v${major}"
+          canary_alias="${major_alias}-canary"
+
+          # Downgrade guard: the new version must be higher than every existing
+          # tag with the same major. Read-only lookup.
+          if ! major_tags="$(git ls-remote --refs --tags origin "refs/tags/v${major}.*.*")"; then
+            echo "ERROR: Could not list remote tags." >&2
+            exit 1
+          fi
+          highest="$(printf '%s\n' "$major_tags" | awk '{sub("refs/tags/v", "", $2); print $2}' | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -n 1)"
+          if [[ -n "$highest" && "$(printf '%s\n%s\n' "$highest" "$version" | sort -V | head -n 1)" != "$highest" ]]; then
+            printf 'ERROR: Version %s is lower than the existing release v%s.\n' "$version" "$highest" >&2
+            exit 1
+          fi
+
+          # TODO: Remove this guard at the deliberate 1.0.0 cut-over.
+          if [[ "$major_alias" != "v0" ]]; then
+            printf 'ERROR: Releases before the 1.0.0 cut-over must use v0 aliases; got %s.\n' "$major_alias" >&2
+            exit 1
+          fi
+
+          {
+            printf 'release_needed=true\n' >> "$GITHUB_OUTPUT"
+            printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+            printf 'commit_sha=%s\n' "$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+            printf 'major_alias=%s\n' "$major_alias" >> "$GITHUB_OUTPUT"
+            printf 'canary_alias=%s\n' "$canary_alias" >> "$GITHUB_OUTPUT"
+          }
+
+          {
+            if [[ "$DRY_RUN" == "true" ]]; then
+              printf '## Release dry run\n\n'
+            else
+              printf '## Release preparation\n\n'
+            fi
+            printf -- '- Version: `%s`\n' "$version"
+            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
+            printf -- '- Major alias: `%s`\n' "$major_alias"
+            printf -- '- Canary alias: `%s`\n' "$canary_alias"
+            if [[ "$DRY_RUN" == "true" ]]; then
+              printf '\nPlanned tag operations (not executed in dry run):\n\n'
+              printf '```\n'
+              printf 'git tag --force %s %s\n' "$canary_alias" "$COMMIT_SHA"
+              printf 'git push --force origin refs/tags/%s\n' "$canary_alias"
+              printf '```\n'
+              printf '\nThe smoke test would then run the release commit'"'"'s pipeline, and promotion would assert that `%s` points at the commit.\n' "$canary_alias"
+              printf '\nIf the smoke test passes, promotion would run:\n\n'
+              printf '```\n'
+              printf 'git tag v%s %s\n' "$version" "$COMMIT_SHA"
+              printf 'git push origin refs/tags/v%s\n' "$version"
+              printf 'git tag --force %s %s\n' "$major_alias" "$COMMIT_SHA"
+              printf 'git push --force origin refs/tags/%s\n' "$major_alias"
+              printf '```\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  canary:
+    name: Publish canary
+    needs: prepare
+    if: ${{ needs.prepare.outputs.dry_run == 'false' && needs.prepare.outputs.release_needed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      pinned_sha: ${{ steps.pin.outputs.pinned_sha }}
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Pin composite action references
+        id: pin
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          git checkout --detach "$SOURCE_SHA"
+
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path(".github/workflows/standard-pipeline.yml")
+          original = path.read_text(encoding="utf-8")
+          source_sha = os.environ["SOURCE_SHA"]
+          repository = os.environ["REPOSITORY"]
+          pattern = re.compile(
+              r"^([ \t]*uses:[ \t]*)\./packages/shared-workflows/actions/([^\s@]+)[ \t]*$",
+              re.MULTILINE,
+          )
+          updated, replacements = pattern.subn(
+              lambda match: (
+                  match.group(1)
+                  + repository
+                  + "/"
+                  + f"packages/shared-workflows/actions/{match.group(2)}@{source_sha}"
+              ),
+              original,
+          )
+          if replacements == 0:
+              raise SystemExit("ERROR: No relative composite action references were found.")
+
+          path.write_text(updated, encoding="utf-8")
+          if re.search(r"^\s*uses:\s*\./packages/shared-workflows/actions/", updated, re.MULTILINE):
+              raise SystemExit("ERROR: A relative composite action reference remains.")
+          PY
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/standard-pipeline.yml
+          git commit \
+            --author="github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" \
+            -m "Pin workflow actions for release ${VERSION}"
+          pinned_sha="$(git rev-parse HEAD)"
+          printf 'pinned_sha=%s\n' "$pinned_sha" >> "$GITHUB_OUTPUT"
+
+      # The job-level condition already excludes dry runs; this repeated guard
+      # is deliberate defence in depth so a tag can only move on a push to main.
+      - name: Move canary alias
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          PINNED_SHA: ${{ steps.pin.outputs.pinned_sha }}
+        run: |
+          set -euo pipefail
+
+          git tag --force "$CANARY_ALIAS" "$PINNED_SHA"
+          git push --force origin "${PINNED_SHA}:refs/tags/${CANARY_ALIAS}"
+
+          {
+            printf '## Canary published\n\n'
+            printf -- '- Canary alias published: `%s`\n' "$CANARY_ALIAS"
+            printf -- '- Pinned commit: `%s`\n' "$PINNED_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Smoke-tests the release commit: the local reference resolves to the
+  # triggering commit when the run is created. Skipped whenever canary is
+  # skipped (including every dry run), because a skipped dependency skips this
+  # job. The promote job asserts the canary tag points at the same commit.
+  smoke-test:
+    name: Smoke test release commit
+    needs: canary
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/standard-pipeline.yml
+    with:
+      settings_path: sample-app/.github/pipeline-settings.yml
+
+  promote:
+    name: Promote release
+    needs: [prepare, canary, smoke-test]
+    if: ${{ needs.prepare.outputs.dry_run == 'false' && needs.smoke-test.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ needs.canary.outputs.pinned_sha }}
+          fetch-depth: 0
+
+      - name: Assert canary points at the pinned commit
+        shell: bash
+        env:
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
+        run: |
+          set -euo pipefail
+
+          if ! canary_ref="$(git ls-remote --refs origin "refs/tags/${CANARY_ALIAS}")"; then
+            echo "ERROR: Could not look up ${CANARY_ALIAS} on the remote." >&2
+            exit 1
+          fi
+          canary_sha="$(printf '%s\n' "$canary_ref" | awk '{print $1}')"
+          if [[ "$canary_sha" != "$PINNED_SHA" ]]; then
+            printf 'ERROR: %s points at "%s", not the pinned commit %s.\n' "$CANARY_ALIAS" "$canary_sha" "$PINNED_SHA" >&2
+            exit 1
+          fi
+
+      # The job-level condition already excludes dry runs; this repeated guard
+      # is deliberate defence in depth so a tag can only move on a push to main.
+      - name: Create version tag and move major alias
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
+        run: |
+          set -euo pipefail
+
+          version_tag="v${VERSION}"
+
+          # Idempotent: re-running a failed promote must not fail on a tag
+          # that an earlier attempt already created on this commit.
+          if ! existing_ref="$(git ls-remote --refs origin "refs/tags/${version_tag}")"; then
+            echo "ERROR: Could not look up ${version_tag} on the remote." >&2
+            exit 1
+          fi
+          existing_sha="$(printf '%s\n' "$existing_ref" | awk '{print $1}')"
+
+          if [[ -z "$existing_sha" ]]; then
+            git tag "$version_tag" "$PINNED_SHA"
+            git push origin "${PINNED_SHA}:refs/tags/${version_tag}"
+          elif [[ "$existing_sha" == "$PINNED_SHA" ]]; then
+            echo "${version_tag} already points at ${PINNED_SHA}; not recreating it."
+          else
+            printf 'ERROR: %s already exists and points at %s, not %s.\n' "$version_tag" "$existing_sha" "$PINNED_SHA" >&2
+            exit 1
+          fi
+
+          git tag --force "$MAJOR_ALIAS" "$PINNED_SHA"
+          git push --force origin "${PINNED_SHA}:refs/tags/${MAJOR_ALIAS}"
+
+  # TODO: Decide whether promote should also create a GitHub Release.
+  summary:
+    name: Release summary
+    needs: [prepare, canary, smoke-test, promote]
+    if: ${{ always() && needs.prepare.outputs.dry_run == 'false' && needs.prepare.outputs.release_needed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+        with:
+          ref: ${{ needs.prepare.outputs.commit_sha }}
+
+      - name: Write release summary
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
+          CANARY_RESULT: ${{ needs.canary.result }}
+          SMOKE_RESULT: ${{ needs.smoke-test.result }}
+          PROMOTE_RESULT: ${{ needs.promote.result }}
+        run: |
+          set -euo pipefail
+
+          # Uses the checkout's credentials. A failed lookup fails the job
+          # rather than being reported as "not moved".
+          tag_state() {
+            local ref sha
+            if ! ref="$(git ls-remote --refs origin "refs/tags/$1")"; then
+              echo "ERROR: Could not look up tag $1 on the remote." >&2
+              return 1
+            fi
+            sha="$(printf '%s\n' "$ref" | awk '{print $1}')"
+            if [[ -z "$sha" ]]; then
+              echo "does not exist"
+            elif [[ "$sha" == "$PINNED_SHA" ]]; then
+              echo "points at the pinned commit"
+            else
+              echo "exists, but not at the release commit"
+            fi
+          }
+
+          canary_state="$(tag_state "$CANARY_ALIAS")"
+          version_state="$(tag_state "v${VERSION}")"
+          major_state="$(tag_state "$MAJOR_ALIAS")"
+
+          {
+            printf '## Release summary\n\n'
+            printf -- '- Version: `%s`\n' "$VERSION"
+            printf -- '- Source commit: `%s`\n' "$SOURCE_SHA"
+            printf -- '- Pinned commit: `%s`\n' "$PINNED_SHA"
+            printf -- '- Canary: %s\n' "$CANARY_RESULT"
+            printf -- '- Smoke test: %s\n' "$SMOKE_RESULT"
+            printf -- '- Promotion: %s\n' "$PROMOTE_RESULT"
+            printf '\nTags:\n\n'
+            printf -- '- `%s`: %s\n' "$CANARY_ALIAS" "$canary_state"
+            printf -- '- `v%s`: %s\n' "$VERSION" "$version_state"
+            printf -- '- `%s`: %s\n' "$MAJOR_ALIAS" "$major_state"
+          } >> "$GITHUB_STEP_SUMMARY"

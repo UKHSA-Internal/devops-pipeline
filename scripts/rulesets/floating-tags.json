@@ -1,0 +1,28 @@
+{
+  "name": "Floating tags (release workflow only) - REPLACE PLACEHOLDER actor_id 0 BEFORE APPLYING",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/tags/v0",
+        "refs/tags/v0-canary",
+        "refs/tags/v1",
+        "refs/tags/v1-canary"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_id": 0,
+      "actor_type": "Integration",
+      "bypass_mode": "always"
+    }
+  ],
+  "rules": [
+    { "type": "creation" },
+    { "type": "update" },
+    { "type": "deletion" }
+  ]
+}

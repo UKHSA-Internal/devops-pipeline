@@ -4,6 +4,8 @@ service:
   name: "replace-with-service-name"
   owner_team: "replace-with-owner-team"
   language: "python"
+  # Temporary sandbox placeholder; replace with the service's real test command.
+  test_command: "echo 'sandbox: no tests'"
 
 environments: []
 

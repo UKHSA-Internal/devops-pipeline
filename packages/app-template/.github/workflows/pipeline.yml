@@ -9,6 +9,3 @@ on:
 jobs:
   pipeline:
     uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
-    secrets:
-      # Read-only access to the platform repository, used to load central actions.
-      platform_token: ${{ secrets.PLATFORM_READ_TOKEN }}
