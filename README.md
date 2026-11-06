@@ -27,10 +27,15 @@ The workflow package (root `.github/workflows/` and
 SemVer (`MAJOR.MINOR.PATCH`): build metadata and pre-release suffixes are not
 allowed, and an existing `vMAJOR.MINOR.PATCH` tag cannot be reused.
 
-The workflow first publishes the canary alias by force-updating
-`v<MAJOR>-canary` to the triggering commit. Before the deliberate 1.0.0
-cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
+The workflow pins each shared composite action reference to the release
+commit, creating a child commit without updating `main`. It then publishes the
+canary alias by force-updating `v<MAJOR>-canary` to that pinned commit. Before
+the deliberate 1.0.0 cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
 `v1-canary` are not created before version `1.0.0`.
+
+Consumers need no token to fetch the pinned actions. The platform repository's
+Actions access must be set to the organisation level so GitHub can fetch the
+actions on behalf of consumer workflows.
 
 Two more checks run in `prepare`:
 
@@ -49,18 +54,18 @@ Two more checks run in `prepare`:
   ref (`release-platform-dry-run-<ref>`), so a pull request can never displace
   a pending release.
 
-After the canary moves, a smoke test runs against the release commit (see
+After the canary moves, the smoke test runs (see
 [Canary smoke test](#canary-smoke-test)). If it passes, the release is promoted
 automatically (see [Promotion](#promotion)).
 
 ### Promotion
 
 There is no manual approval step. When the smoke test passes, the `promote` job
-first asserts that `v<MAJOR>-canary` points at the release commit, and fails if
+first asserts that `v<MAJOR>-canary` points at the pinned commit, and fails if
 it does not (for example, if a newer release moved it). It then creates
-`vX.Y.Z` on the release commit, then force-moves `v<MAJOR>` to the same commit.
+`vX.Y.Z` on the pinned commit, then force-moves `v<MAJOR>` to the same commit.
 
-- **Idempotent:** if `vX.Y.Z` already exists and points at the release commit,
+- **Idempotent:** if `vX.Y.Z` already exists and points at the pinned commit,
   it is not recreated and `v<MAJOR>` is still moved. If it exists and points at
   a different commit, the job fails.
 - **Recovering a partial promotion** (for example `vX.Y.Z` was pushed but
@@ -104,23 +109,19 @@ a dry run, when `VERSION` is unchanged, or when `prepare` fails (the failed
 `prepare` job is then the report). It lists:
 
 - the version and commit;
+- the source commit and the pinned commit;
 - the canary, smoke test and promotion results;
 - for `v<MAJOR>-canary`, `vX.Y.Z` and `v<MAJOR>`, whether each tag points at the
-  release commit, exists elsewhere, or does not exist. A failed tag lookup fails
+  pinned commit, exists elsewhere, or does not exist. A failed tag lookup fails
   the job rather than being reported as a tag state.
 
 ### Canary smoke test
 
 The release's `smoke-test` job calls the local `standard-pipeline.yml` with the
-sample app's settings (`sample-app/.github/pipeline-settings.yml`). GitHub
-resolves that to the triggering commit, so the release commit's own pipeline
-and actions are tested. The reference is deliberately not `@v0-canary`: GitHub
-resolves every referenced workflow when the run is created, so a canary ref
-would test the previous canary and fail at startup if the tag were missing.
-`promote` then asserts that `v<MAJOR>-canary` points at the release commit.
-The smoke test passes only if every pipeline stage passes, so it proves that
-the commit loads its own actions and runs the full pipeline end to end. It
-passes no token, so the optional `platform_token` uses its default.
+sample app's settings (`sample-app/.github/pipeline-settings.yml`). The canary
+tag points at a child commit whose action references are pinned to the source
+commit. Promotion asserts that `v<MAJOR>-canary` points at that pinned commit.
+The smoke test passes only if every pipeline stage passes.
 
 - **In a release:** the `smoke-test` job runs after `canary` succeeds.
 - **Manually:** run `smoke-test-pipeline.yml` with `workflow_dispatch` (Actions
@@ -132,7 +133,8 @@ passes no token, so the optional `platform_token` uses its default.
   permissions.
 - **Dry run:** it is skipped, because it needs `canary`, which runs only on a
   push to `main`. The dry-run summary says what would run. `pre-gate.yml`
-  covers the PR's own pipeline code.
+  and `sample-app-pipeline.yml` use relative references on the PR's own
+  checkout, so they test that PR's workflow and action code.
 
 ### Release dry run
 
@@ -268,19 +270,13 @@ make test-pregate-local ACT_EVENT_FILE=/path/to/pull-request-event.json
 To list detected workflows and jobs, run `act -l`. Verify remote GitHub
 workflow behavior and permissions in a GitHub Actions run.
 
-#### Platform checkout credential
+#### Platform action access
 
-The optional `platform_token` secret defaults to `GITHUB_TOKEN`. Consumers
-should not need to set it and should not provide a long-lived token. The
-orchestrator checks out this repository at the called workflow's own commit
-SHA, so the workflow and its central composite actions are loaded atomically
-from the same revision.
-
-If the platform repository is private or internal, a consumer's own
-`GITHUB_TOKEN` may not be able to read it, and the platform repository must
-allow access from other repositories (Settings, Actions, Access). Verify this
-from a consumer repository before telling teams they need no secret; if the
-checkout fails, they must supply `platform_token` with read access.
+Consumers do not need a token to fetch the pinned shared actions. Set this
+repository's Actions access to the organisation level (Settings, Actions,
+General, Access) so GitHub can fetch actions for consumer workflows. Each
+release pins the action references in `standard-pipeline.yml` to the release
+commit, keeping the workflow and its composite actions on the same revision.
 
 #### Pre-gate limitation: existence-only Check
 

@@ -183,6 +183,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      pinned_sha: ${{ steps.pin.outputs.pinned_sha }}
     steps:
       - name: Check out release commit
         uses: actions/checkout@v7
@@ -191,6 +193,58 @@ jobs:
           ref: ${{ needs.prepare.outputs.commit_sha }}
           fetch-depth: 0
 
+      - name: Pin composite action references
+        id: pin
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          git checkout --detach "$SOURCE_SHA"
+
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path(".github/workflows/standard-pipeline.yml")
+          original = path.read_text(encoding="utf-8")
+          source_sha = os.environ["SOURCE_SHA"]
+          repository = os.environ["REPOSITORY"]
+          pattern = re.compile(
+              r"^([ \t]*uses:[ \t]*)\./packages/shared-workflows/actions/([^\s@]+)[ \t]*$",
+              re.MULTILINE,
+          )
+          updated, replacements = pattern.subn(
+              lambda match: (
+                  match.group(1)
+                  + repository
+                  + "/"
+                  + f"packages/shared-workflows/actions/{match.group(2)}@{source_sha}"
+              ),
+              original,
+          )
+          if replacements == 0:
+              raise SystemExit("ERROR: No relative composite action references were found.")
+
+          path.write_text(updated, encoding="utf-8")
+          if re.search(r"^\s*uses:\s*\./packages/shared-workflows/actions/", updated, re.MULTILINE):
+              raise SystemExit("ERROR: A relative composite action reference remains.")
+          PY
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/standard-pipeline.yml
+          git commit \
+            --author="github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" \
+            -m "Pin workflow actions for release ${VERSION}"
+          pinned_sha="$(git rev-parse HEAD)"
+          printf 'pinned_sha=%s\n' "$pinned_sha" >> "$GITHUB_OUTPUT"
+
       # The job-level condition already excludes dry runs; this repeated guard
       # is deliberate defence in depth so a tag can only move on a push to main.
       - name: Move canary alias
@@ -198,17 +252,17 @@ jobs:
         shell: bash
         env:
           CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
-          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          PINNED_SHA: ${{ steps.pin.outputs.pinned_sha }}
         run: |
           set -euo pipefail
 
-          git tag --force "$CANARY_ALIAS" "$COMMIT_SHA"
-          git push --force origin "refs/tags/${CANARY_ALIAS}"
+          git tag --force "$CANARY_ALIAS" "$PINNED_SHA"
+          git push --force origin "${PINNED_SHA}:refs/tags/${CANARY_ALIAS}"
 
           {
             printf '## Canary published\n\n'
             printf -- '- Canary alias published: `%s`\n' "$CANARY_ALIAS"
-            printf -- '- Canary commit: `%s`\n' "$COMMIT_SHA"
+            printf -- '- Pinned commit: `%s`\n' "$PINNED_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Smoke-tests the release commit: the local reference resolves to the
@@ -238,14 +292,14 @@ jobs:
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
-          ref: ${{ needs.prepare.outputs.commit_sha }}
+          ref: ${{ needs.canary.outputs.pinned_sha }}
           fetch-depth: 0
 
-      - name: Assert canary points at the release commit
+      - name: Assert canary points at the pinned commit
         shell: bash
         env:
           CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
-          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
         run: |
           set -euo pipefail
 
@@ -254,8 +308,8 @@ jobs:
             exit 1
           fi
           canary_sha="$(printf '%s\n' "$canary_ref" | awk '{print $1}')"
-          if [[ "$canary_sha" != "$COMMIT_SHA" ]]; then
-            printf 'ERROR: %s points at "%s", not the release commit %s.\n' "$CANARY_ALIAS" "$canary_sha" "$COMMIT_SHA" >&2
+          if [[ "$canary_sha" != "$PINNED_SHA" ]]; then
+            printf 'ERROR: %s points at "%s", not the pinned commit %s.\n' "$CANARY_ALIAS" "$canary_sha" "$PINNED_SHA" >&2
             exit 1
           fi
 
@@ -267,7 +321,7 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
-          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
         run: |
           set -euo pipefail
 
@@ -282,17 +336,17 @@ jobs:
           existing_sha="$(printf '%s\n' "$existing_ref" | awk '{print $1}')"
 
           if [[ -z "$existing_sha" ]]; then
-            git tag "$version_tag" "$COMMIT_SHA"
-            git push origin "refs/tags/${version_tag}"
-          elif [[ "$existing_sha" == "$COMMIT_SHA" ]]; then
-            echo "${version_tag} already points at ${COMMIT_SHA}; not recreating it."
+            git tag "$version_tag" "$PINNED_SHA"
+            git push origin "${PINNED_SHA}:refs/tags/${version_tag}"
+          elif [[ "$existing_sha" == "$PINNED_SHA" ]]; then
+            echo "${version_tag} already points at ${PINNED_SHA}; not recreating it."
           else
-            printf 'ERROR: %s already exists and points at %s, not %s.\n' "$version_tag" "$existing_sha" "$COMMIT_SHA" >&2
+            printf 'ERROR: %s already exists and points at %s, not %s.\n' "$version_tag" "$existing_sha" "$PINNED_SHA" >&2
             exit 1
           fi
 
-          git tag --force "$MAJOR_ALIAS" "$COMMIT_SHA"
-          git push --force origin "refs/tags/${MAJOR_ALIAS}"
+          git tag --force "$MAJOR_ALIAS" "$PINNED_SHA"
+          git push --force origin "${PINNED_SHA}:refs/tags/${MAJOR_ALIAS}"
 
   # TODO: Decide whether promote should also create a GitHub Release.
   summary:
@@ -313,7 +367,8 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
-          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
           CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
           MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
           CANARY_RESULT: ${{ needs.canary.result }}
@@ -333,8 +388,8 @@ jobs:
             sha="$(printf '%s\n' "$ref" | awk '{print $1}')"
             if [[ -z "$sha" ]]; then
               echo "does not exist"
-            elif [[ "$sha" == "$COMMIT_SHA" ]]; then
-              echo "points at the release commit"
+            elif [[ "$sha" == "$PINNED_SHA" ]]; then
+              echo "points at the pinned commit"
             else
               echo "exists, but not at the release commit"
             fi
@@ -347,7 +402,8 @@ jobs:
           {
             printf '## Release summary\n\n'
             printf -- '- Version: `%s`\n' "$VERSION"
-            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
+            printf -- '- Source commit: `%s`\n' "$SOURCE_SHA"
+            printf -- '- Pinned commit: `%s`\n' "$PINNED_SHA"
             printf -- '- Canary: %s\n' "$CANARY_RESULT"
             printf -- '- Smoke test: %s\n' "$SMOKE_RESULT"
             printf -- '- Promotion: %s\n' "$PROMOTE_RESULT"
