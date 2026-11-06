@@ -169,23 +169,25 @@ Run `make help` to see the available local commands.
 
 ### Check settings
 
-Check that the sample app's settings file is present and readable:
+Install the settings checker's pinned dependencies, then validate the sample
+app's settings with `--strict` (any violation fails):
 
 ```bash
+pip install -r packages/settings-checker/requirements.txt
 make check-settings
 ```
 
-You can check either fixture as well:
+To check another file, such as a fixture:
 
 ```bash
-make check-settings SETTINGS=tests/fixtures/valid-settings.yml
-make check-settings SETTINGS=tests/fixtures/invalid-settings.yml
+make check-settings SETTINGS=tests/fixtures/settings/compliant.yml
+make check-settings SETTINGS=tests/fixtures/settings/advisory-only.yml  # fails: --strict
 ```
 
-> **Current limitation:** this command checks file readability only. YAML
-> parsing and schema validation are not implemented yet, so both fixtures can
-> pass. Missing or unreadable files return a non-zero exit code. Paths are
-> relative to the repository root.
+Set `PYTHON=/path/to/python` to use a virtual environment. Paths are relative
+to the repository root. The settings contract, rule IDs, severities and exit
+codes are described in
+[`packages/settings-checker/README.md`](packages/settings-checker/README.md).
 
 ### Run the standard pipeline locally
 
@@ -203,12 +205,13 @@ the called workflow.
 The sample caller, `.github/workflows/sample-app-pipeline.yml`, runs on pushes
 to `main` and pull requests. Its pipeline:
 
+- Validates the settings file in the Check stage with the settings checker in
+  `pr` mode. Blocking violations fail Check; every violation, including
+  Advisory ones, is listed in the job summary.
 - Runs the service test command from `service.test_command` in the settings
-  file, from the service directory. The app-template settings include
-  `echo 'sandbox: no tests'` only as a temporary placeholder because the
-  resolver requires a non-empty command; replace it with the service's real
-  test command when adding the template to a repository. The sample app already
-  demonstrates a real command: `python3 -m unittest discover -s tests -v`.
+  file, from the service directory. The sample app and the app-template both
+  use `python3 -m unittest discover -s tests -v`; the template's
+  `tests/test_placeholder.py` should be replaced with the service's real tests.
 - Runs the placeholder scan and deploy steps.
 - Builds a local image and records a run report. The full-commit-SHA image tag
   is passed unchanged to each deployment.
@@ -217,14 +220,15 @@ to `main` and pull requests. Its pipeline:
   deployments, run one at a time in settings order. Every deployment is
   followed by `verify-app` against `verification.health_endpoint`.
 
-Check fails if a category has no deployments. Pull requests deploy to
+Check fails if a category has no deployments (`CHK-04`). Pull requests deploy to
 Development only; Pre-production and Production deploy only on pushes to
 `main`. To smoke-test the published canary alias, manually run
 `.github/workflows/smoke-test-pipeline.yml`.
 
-Approval modes are `all-approvers` (default; every listed approval group must
-approve), `single-approver` (any one listed group), and `unattended` (no
-approver). The approval gate is managed separately from this workflow.
+`deploy.production.approval_mode` is required: `all-approvers` (every listed
+approval group must approve), `single-approver` (any one listed group), or
+`unattended` (no approver; requires `deploy.production.exception_id`). The
+approval gate is managed separately from this workflow.
 
 For `act` runs, generated build files and `run-record.json` are saved under the
 ignored `.act-artifacts/` directory.
@@ -237,7 +241,8 @@ make test-pipeline-failing-test   # injected unit-test failure: test FAILED
 make test-pipeline-failing-check  # missing settings file: check FAILED
 ```
 
-The run-record structure is covered by:
+The settings checker, deployment resolver and run-record structure are
+covered by (with the settings checker's requirements installed):
 
 ```bash
 python3 -m unittest discover -s tests
@@ -282,23 +287,18 @@ General, Access) so GitHub can fetch actions for consumer workflows. Each
 release pins the action references in `standard-pipeline.yml` to the release
 commit, keeping the workflow and its composite actions on the same revision.
 
-#### Pre-gate limitation: existence-only Check
+#### Pre-gate settings checks
 
 The pre-gate validates the repository; the sample-app pipeline exercises the
-workflow end to end. The pre-gate's settings self-test runs
-`checker.py --strict` against `sample-app/.github/pipeline-settings.yml`.
-Currently, Check only confirms that the settings file exists and is readable.
-As a result:
+workflow end to end. Besides the contribution rules for commits, branches, PR
+titles and the ADR gate, the pre-gate:
 
-- The self-test fails only if that file is missing or unreadable; it does not
-  detect non-compliant settings. `tests/fixtures/invalid-settings.yml` passes
-  the checker and is not checked by the pre-gate.
-- `--strict` remains for compatibility but has no effect.
-- The pre-gate still enforces contribution rules for commits, branches, PR
-  titles, and the ADR gate.
-
-Settings enforcement will return when schema validation is implemented in the
-settings checker story.
+- runs `checker.py --mode pr --strict` against the sample app and app-template
+  settings, which must have no violations;
+- runs the checker against every fixture in `tests/fixtures/settings/` and
+  asserts the exit codes: the compliant file passes, each `blocking-chk-NN.yml`
+  fails in `pr` mode, `advisory-only.yml` passes in `pr` mode and fails with
+  `--strict`, and `unparseable.yml` fails in every mode.
 
 ### Git hooks
 

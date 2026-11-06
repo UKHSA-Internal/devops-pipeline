@@ -1,4 +1,5 @@
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -89,33 +90,24 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual(plan["health_endpoint"], "/health")
         self.assertEqual(plan["timeout_seconds"], 60)
 
-    def test_rejects_invalid_settings(self):
-        cases = {
-            "no environments": {"environments": []},
-            "missing category": settings(
-                environment("dev-env-1", "Development"), environment("preprod-env-1", "Pre-production")
-            ),
-            "unknown category": settings(environment("dev-env-1", "Staging")),
-            "duplicate name": settings(
-                environment("same", "Development"),
-                environment("same", "Pre-production"),
-                environment("prod", "Production"),
-            ),
-            "unsafe name": settings(environment("../dev", "Development")),
-            "missing field": settings(environment("dev-env-1", "Development") | {"role_name": ""}),
-            "relative health endpoint": settings(
-                verification={"health_endpoint": "health", "timeout_seconds": 60}
-            ),
-            "missing test command": settings(service={"name": "sample-app"}),
-            "blank test command": settings(service={"test_command": "  "}),
-            "multiline test command": settings(service={"test_command": "a\nb"}),
-            "bad timeout": settings(
-                verification={"health_endpoint": "/health", "timeout_seconds": 0}
-            ),
-        }
-        for label, invalid in cases.items():
-            with self.subTest(label), self.assertRaises(RESOLVER.SettingsError):
-                RESOLVER.resolve(invalid)
+    def test_tolerates_malformed_advisory_verification(self):
+        plan = RESOLVER.resolve(settings(verification="none"))
+
+        self.assertEqual(plan["health_endpoint"], "/health")
+        self.assertEqual(plan["timeout_seconds"], 60)
+
+    def test_outputs_are_delimited_so_values_cannot_add_outputs(self):
+        plan = RESOLVER.resolve(
+            settings(verification={"health_endpoint": "/health\ntest_command=injected", "timeout_seconds": 60})
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / "output"
+            RESOLVER.write_outputs(plan, output_path)
+            lines = output_path.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(sum(line.startswith("test_command<<") for line in lines), 1)
+        self.assertIn("test_command=injected", lines)
+        self.assertTrue(lines[0].startswith("test_command<<EOF_"))
 
 
 if __name__ == "__main__":

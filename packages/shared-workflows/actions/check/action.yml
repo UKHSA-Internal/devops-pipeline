@@ -1,5 +1,5 @@
 name: Pipeline Check Action
-description: Checks that pipeline-settings.yml is readable; schema validation is pending
+description: Validates pipeline-settings.yml against the settings contract; Blocking violations fail the step
 
 inputs:
   settings_path:
@@ -20,5 +20,36 @@ runs:
       shell: bash
       env:
         SETTINGS_PATH: ${{ inputs.settings_path }}
+        CHECKER_DIRECTORY: ${{ github.action_path }}/../../../settings-checker
       run: |
-        python3 "${{ github.action_path }}/../../../settings-checker/checker.py" --config "$SETTINGS_PATH"
+        set -euo pipefail
+        python3 -m venv "$RUNNER_TEMP/settings-checker-venv"
+        "$RUNNER_TEMP/settings-checker-venv/bin/pip" install --quiet -r "$CHECKER_DIRECTORY/requirements.txt"
+
+        output_file="$RUNNER_TEMP/settings-checker-output.json"
+        status=0
+        "$RUNNER_TEMP/settings-checker-venv/bin/python" "$CHECKER_DIRECTORY/checker.py" \
+          --config "$SETTINGS_PATH" --mode pr > "$output_file" || status=$?
+        cat "$output_file"
+
+        "$RUNNER_TEMP/settings-checker-venv/bin/python" - "$output_file" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+        import json
+        import sys
+
+        report = json.load(open(sys.argv[1], encoding="utf-8"))
+        print("### Settings check\n")
+        print(f"- Status: **{report['status']}** (exit code {report['exit_code']})")
+        if "error" in report:
+            print(f"- Error: `{report['error'].splitlines()[0]}`\n")
+            raise SystemExit
+        summary = report["summary"]
+        print(f"- Blocking: **{summary['blocking']}**, Advisory: **{summary['advisory']}**\n")
+        if report["violations"]:
+            print("| Rule | Severity | Field | Message |\n| --- | --- | --- | --- |")
+            for item in report["violations"]:
+                message = item["message"].replace("|", "\\|")
+                print(f"| {item['rule']} | {item['severity']} | `{item['path']}` | {message} |")
+            print()
+        PY
+
+        exit "$status"

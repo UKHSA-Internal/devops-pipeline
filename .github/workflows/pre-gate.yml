@@ -31,15 +31,58 @@ jobs:
         run: |
           : > "$RUNNER_TEMP/standards-checker-output.txt"
 
+      - name: Install settings checker dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/settings-checker-venv"
+          "$RUNNER_TEMP/settings-checker-venv/bin/pip" install --quiet -r packages/settings-checker/requirements.txt
+
       - name: Execute Self-Test (Standards Checker)
         id: standards-checker
         run: |
           set +e
-          python3 packages/settings-checker/checker.py --config sample-app/.github/pipeline-settings.yml --strict 2>&1 \
-            | tee "$RUNNER_TEMP/standards-checker-output.txt"
-          checker_status=${PIPESTATUS[0]}
+          checker_status=0
+          for settings in sample-app/.github/pipeline-settings.yml packages/app-template/.github/pipeline-settings.yml; do
+            "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+              --config "$settings" --mode pr --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
+            status=${PIPESTATUS[0]}
+            (( status == 0 )) || checker_status=$status
+          done
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"
           exit "$checker_status"
+
+      - name: Check settings fixtures
+        run: |
+          set +e -uo pipefail
+          fixtures=tests/fixtures/settings
+          failures=0
+
+          expect() {
+            local expected=$1 config=$2
+            shift 2
+            "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+              --config "$config" "$@" > /dev/null 2>&1
+            local actual=$?
+            if (( actual == expected )); then
+              printf 'OK    exit %s: %s %s\n' "$actual" "$config" "$*"
+            else
+              printf 'FAIL  exit %s, expected %s: %s %s\n' "$actual" "$expected" "$config" "$*"
+              failures=$((failures + 1))
+            fi
+          }
+
+          expect 0 "$fixtures/compliant.yml" --mode pr --strict
+          for fixture in "$fixtures"/blocking-chk-*.yml; do
+            expect 1 "$fixture" --mode pr
+            expect 0 "$fixture" --mode audit
+          done
+          expect 0 "$fixtures/advisory-only.yml" --mode pr
+          expect 1 "$fixtures/advisory-only.yml" --mode pr --strict
+          expect 0 "$fixtures/advisory-only.yml" --mode audit
+          expect 1 "$fixtures/unparseable.yml" --mode pr
+          expect 1 "$fixtures/unparseable.yml" --mode pr --strict
+          expect 1 "$fixtures/unparseable.yml" --mode audit
+
+          (( failures == 0 ))
 
       - name: Publish checker summary
         if: always()

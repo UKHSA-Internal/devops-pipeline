@@ -110,9 +110,16 @@ Only change a version file when you intend to release.
 
 ## Testing before opening a PR
 
+- Install the settings checker's requirements and run the unit tests:
+  ```
+  pip install -r packages/settings-checker/requirements.txt
+  python3 -m unittest discover -s tests
+  ```
 - Run `checker.py` against the relevant fixtures:
   ```
-  python3 packages/settings-checker/checker.py --config tests/fixtures/<file>.yml
+  python3 packages/settings-checker/checker.py --config tests/fixtures/settings/<file>.yml --strict
   ```
 - Exercise workflow changes locally with [`act`](https://github.com/nektos/act).
-- Add or update fixtures in `tests/fixtures/` when you change settings validation rules.
+- When you change settings validation rules, update `packages/settings-checker/settings.schema.json`
+  or the cross-field checks in `checker.py`, the rule table in `packages/settings-checker/README.md`,
+  and the fixtures in `tests/fixtures/settings/`.

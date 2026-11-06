@@ -1,0 +1,4 @@
+# Unparseable: invalid YAML; fails in every mode.
+version: "1.0"
+service:
+  name: [unclosed
