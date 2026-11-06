@@ -181,17 +181,31 @@ jobs:
     needs: prepare
     if: ${{ needs.prepare.outputs.dry_run == 'false' && needs.prepare.outputs.release_needed == 'true' }}
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     outputs:
       pinned_sha: ${{ steps.pin.outputs.pinned_sha }}
     steps:
+      - name: Check release token is set
+        shell: bash
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [[ -z "$RELEASE_TOKEN" ]]; then
+            echo "ERROR: RELEASE_TOKEN is empty. Set it in the 'release' environment; canary pushes change workflow files, which GITHUB_TOKEN cannot do." >&2
+            exit 1
+          fi
+
+      # The pinned commit changes a workflow file, so GITHUB_TOKEN cannot push
+      # it. The checkout persists RELEASE_TOKEN for every later git push.
       - name: Check out release commit
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           ref: ${{ needs.prepare.outputs.commit_sha }}
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Pin composite action references
         id: pin
@@ -285,15 +299,29 @@ jobs:
     needs: [prepare, canary, smoke-test]
     if: ${{ needs.prepare.outputs.dry_run == 'false' && needs.smoke-test.result == 'success' }}
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     steps:
+      - name: Check release token is set
+        shell: bash
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [[ -z "$RELEASE_TOKEN" ]]; then
+            echo "ERROR: RELEASE_TOKEN is empty. Set it in the 'release' environment; promote pushes change workflow files, which GITHUB_TOKEN cannot do." >&2
+            exit 1
+          fi
+
+      # Tags point at the pinned commit, which changes a workflow file, so
+      # GITHUB_TOKEN cannot push them. The checkout persists RELEASE_TOKEN.
       - name: Check out release commit
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
         with:
           ref: ${{ needs.canary.outputs.pinned_sha }}
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Assert canary points at the pinned commit
         shell: bash

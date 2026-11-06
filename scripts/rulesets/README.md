@@ -1,32 +1,54 @@
 # Release tag rulesets
 
-Moving a release tag changes both the workflows and the actions that consumers
-run, so release tags are protected with repository rulesets. These files are
-definitions only; nothing applies them automatically.
+Moving a tag changes the workflows and actions that consumers run, so tags are
+protected by two repository rulesets. These files are definitions only; nothing
+applies them automatically.
 
-| File | Protects | Rules |
-| --- | --- | --- |
-| `release-tags.json` | `v*.*.*` (including `0.x`) | Block updates and deletion. Creation is limited to the bypass actor. |
-| `floating-tags.json` | `v0`, `v0-canary`, `v1`, `v1-canary` | Creation, updates and deletion are limited to the bypass actor. |
+| File | Protects | Rules | Bypass actor |
+| --- | --- | --- | --- |
+| `release-tags.json` | `v*.*.*` (including `0.x`) | Block updates and deletion. | None |
+| `floating-tags.json` | `v0`, `v0-canary`, `v1`, `v1-canary` | Block creation, updates and deletion. | A small team or role (must be set) |
 
-The bypass actor must be the identity the release workflow pushes tags with.
-Nobody else can create release tags or create, move or delete floating tags.
+The two rulesets must stay separate. A bypass actor skips every rule in its
+ruleset, so adding one to the release-tags ruleset would let it move or delete
+version tags too.
 
-The bypass actor is needed to **create** `v0` and `v0-canary` on the first
-release, and `v1` and `v1-canary` at the 1.0.0 cut-over. Without it, those
-first pushes are rejected. Until the cut-over, nobody else can create `v1` or
-`v1-canary`.
+## Release tags
 
-Apply both rulesets **before the 1.0.0 cut-over**, and preferably before the
-first release.
+Consumers that pin to an exact version (for example `@v0.1.1`) must always get
+the same workflows and actions, so release tags are immutable. The ruleset has
+no creation rule and no bypass actors:
+
+- Once created, a version tag can't be moved or deleted, by anyone.
+- Anyone with write access, including the release, can create a new version
+  tag. The ruleset can therefore be applied now without blocking releases.
+- If a version tag is created outside a release, the release's duplicate-tag
+  check will fail; a repository admin must disable the ruleset temporarily to
+  remove the tag.
+
+## Floating tags
+
+Consumers use the floating major tag (for example `@v0`, later `@v1`) for
+automatic updates, so only the release may create, move or delete floating
+tags. Every release force-moves `v<MAJOR>-canary` and `v<MAJOR>`, so the
+ruleset needs a bypass actor that the release can act as:
+
+- The bypass actor is a small team or role, for example a platform maintainers
+  team or the Repository admin role. Never use an individual user account.
+- The release pushes with `RELEASE_TOKEN`, so the token's owner must be a
+  member of that team or role. Otherwise releases cannot move the floating
+  tags.
+- Members of that team or role can also move floating tags manually, so keep
+  it small.
 
 ## Apply
 
-1. **Must replace:** `actor_id` is `0` in both files, which is a placeholder
-   and will not work. Set it to the numeric ID of the bypass actor (see
-   [Bypass actor](#bypass-actor)) before applying. Also remove the
-   "REPLACE PLACEHOLDER" text from each ruleset's `name`.
-2. Apply each file as an admin, using either:
+1. **Floating tags only, must set:** `actor_id` is `0` in
+   `floating-tags.json`, which will not work. Set `actor_type` and `actor_id`
+   to the bypass team or role (`Team` with the team's numeric ID, or
+   `RepositoryRole` with the role's ID), and remove the "MUST SET" text from
+   the ruleset's `name`. Confirm the release token's owner is a member first.
+2. A repository admin applies each file, using either:
    - Settings, Rules, Rulesets, New ruleset, Import a ruleset; or
    - `gh api --method POST repos/UKHSA-Internal/devops-pipeline/rulesets --input scripts/rulesets/release-tags.json`
      (and the same for `floating-tags.json`).
@@ -34,27 +56,3 @@ first release.
    ruleset insights after a release, then change it to `active`.
 4. Do a release (or a test in a sandbox repository) and confirm that the
    `canary` and `promote` jobs can still push their tags.
-
-A manual bootstrap or repair of a floating tag needs an admin who can bypass the
-ruleset.
-
-## Bypass actor
-
-TODO: confirm whether the default `GITHUB_TOKEN` can be a ruleset bypass actor,
-or whether a GitHub App token is needed. The bypass list only offers repository
-roles, teams, deploy keys and GitHub Apps, and the built-in `GITHUB_TOKEN`
-identity may not be selectable. Until this is confirmed, the definitions use
-`Integration` (GitHub App) with a placeholder ID.
-
-If a GitHub App is needed, the release workflow would need these changes:
-
-- Install the App on this repository with `Contents: Read and write`, and add
-  it as the bypass actor in both rulesets.
-- Store the App ID and private key as an Actions variable and secret.
-- In the `canary` and `promote` jobs, create an installation token (for
-  example with `actions/create-github-app-token`) and use it for checkout and
-  the tag pushes instead of `GITHUB_TOKEN`. Pinning third-party actions is a
-  separate piece of work.
-- Keep `prepare` and `summary` read-only.
-
-Do not use a long-lived personal access token.

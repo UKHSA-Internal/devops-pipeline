@@ -1,5 +1,5 @@
 {
-  "name": "Release tags (immutable) - REPLACE PLACEHOLDER actor_id 0 BEFORE APPLYING",
+  "name": "Release tags (immutable)",
   "target": "tag",
   "enforcement": "active",
   "conditions": {
@@ -8,15 +8,8 @@
       "exclude": []
     }
   },
-  "bypass_actors": [
-    {
-      "actor_id": 0,
-      "actor_type": "Integration",
-      "bypass_mode": "always"
-    }
-  ],
+  "bypass_actors": [],
   "rules": [
-    { "type": "creation" },
     { "type": "update" },
     { "type": "deletion" }
   ]
