@@ -204,7 +204,11 @@ The sample caller, `.github/workflows/sample-app-pipeline.yml`, runs on pushes
 to `main` and pull requests. Its pipeline:
 
 - Runs the service test command from `service.test_command` in the settings
-  file, from the service directory.
+  file, from the service directory. The app-template settings include
+  `echo 'sandbox: no tests'` only as a temporary placeholder because the
+  resolver requires a non-empty command; replace it with the service's real
+  test command when adding the template to a repository. The sample app already
+  demonstrates a real command: `python3 -m unittest discover -s tests -v`.
 - Runs the placeholder scan and deploy steps.
 - Builds a local image and records a run report. The full-commit-SHA image tag
   is passed unchanged to each deployment.
