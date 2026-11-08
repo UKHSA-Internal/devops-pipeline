@@ -65,6 +65,7 @@ runs:
         REF: ${{ github.ref }}
         WORKFLOW_REF: ${{ github.workflow_ref }}
         WORKFLOW_SHA: ${{ github.workflow_sha }}
+        VERSION_FILE: ${{ github.action_path }}/../../VERSION
         TRIGGER_TYPE: ${{ inputs.trigger_type }}
         START_TIME: ${{ inputs.start_time }}
         DEPLOYMENTS: ${{ inputs.deployments }}

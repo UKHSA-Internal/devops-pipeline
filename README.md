@@ -29,9 +29,11 @@ allowed, and an existing `vMAJOR.MINOR.PATCH` tag cannot be reused.
 
 The workflow pins each shared composite action reference to the release
 commit, creating a child commit without updating `main`. It then publishes the
-canary alias by force-updating `v<MAJOR>-canary` to that pinned commit. Before
-the deliberate 1.0.0 cut-over, the floating aliases are `v0` and `v0-canary`; `v1` and
-`v1-canary` are not created before version `1.0.0`.
+canary alias by force-updating `v<MAJOR>-canary` to that pinned commit. The
+canary exists during a release and is deleted after successful promotion; a
+failed candidate remains until the next release replaces it. Consumers never
+use the canary. Before the deliberate 1.0.0 cut-over, the aliases are `v0` and
+`v0-canary`; `v1` and `v1-canary` are not created before version `1.0.0`.
 
 Consumers need no token to fetch the pinned actions. The platform repository's
 Actions access must be set to the organisation level so GitHub can fetch the
@@ -63,11 +65,13 @@ automatically (see [Promotion](#promotion)).
 There is no manual approval step. When the smoke test passes, the `promote` job
 first asserts that `v<MAJOR>-canary` points at the pinned commit, and fails if
 it does not (for example, if a newer release moved it). It then creates
-`vX.Y.Z` on the pinned commit, then force-moves `v<MAJOR>` to the same commit.
+`vX.Y.Z` on the pinned commit, force-moves `v<MAJOR>` to the same commit,
+and deletes `v<MAJOR>-canary`.
 
 - **Idempotent:** if `vX.Y.Z` already exists and points at the pinned commit,
   it is not recreated and `v<MAJOR>` is still moved. If it exists and points at
-  a different commit, the job fails.
+  a different commit, the job fails. If the canary is already absent, a re-run
+  succeeds only if both promotion tags still point at the pinned commit.
 - **Recovering a partial promotion** (for example `vX.Y.Z` was pushed but
   moving `v<MAJOR>` failed): use "Re-run failed jobs" on the run, which re-runs
   only `promote`. Do not use "Re-run all jobs": `prepare` would reject the
@@ -76,7 +80,7 @@ it does not (for example, if a newer release moved it). It then creates
   design.
 - **Smoke test fails:** nothing is promoted. No `vX.Y.Z` is created and
   `v<MAJOR>` does not move. `v<MAJOR>-canary` has already moved to the commit
-  and stays on that failing commit until the next successful release.
+  and stays on that failing commit until the next release replaces it.
   Releases trigger only when `VERSION` changes, so ship the fix under a new
   version.
 - **Dry run:** `promote` never runs.
@@ -135,8 +139,9 @@ a dry run, when `VERSION` is unchanged, or when `prepare` fails (the failed
 - the version and commit;
 - the source commit and the pinned commit;
 - the canary, smoke test and promotion results;
-- for `v<MAJOR>-canary`, `vX.Y.Z` and `v<MAJOR>`, whether each tag points at the
-  pinned commit, exists elsewhere, or does not exist. A failed tag lookup fails
+- the canary's state, including whether it was deleted after promotion or left
+  on the failed candidate, and whether `vX.Y.Z` and `v<MAJOR>` point at the
+  pinned commit, exist elsewhere, or do not exist. A failed tag lookup fails
   the job rather than being reported as a tag state.
 
 ### Canary smoke test
@@ -151,7 +156,8 @@ The smoke test passes only if every pipeline stage passes.
 - **Manually:** run `smoke-test-pipeline.yml` with `workflow_dispatch` (Actions
   tab, or `gh workflow run smoke-test-pipeline.yml`). Unlike the release's
   smoke test, this calls `standard-pipeline.yml@v0-canary`, so it tests the
-  published canary at any time. It has no other trigger.
+  published canary only while the tag exists, during a release or after a
+  failed candidate. It has no other trigger.
 - **Limitation:** it runs inside the platform repository, so it cannot catch
   every cross-repository problem, such as a consumer's own token or
   permissions.
@@ -175,9 +181,10 @@ A dry run, with read-only (`contents: read`) permissions:
 - Checks that the `vX.Y.Z` tag does not already exist, and that the version is
   not lower than an existing release of the same major (read-only).
 - Derives the aliases and applies the pre-1.0 safety check.
-- Writes the exact tag commands it would run, that the smoke test would run the
+- Writes the planned tag operations, that the smoke test would run the
   release commit's pipeline, and the planned promotion (`vX.Y.Z` and
-  `v<MAJOR>` on the commit, if the smoke test passes), to the job summary.
+  `v<MAJOR>` on the commit and canary deletion, if the smoke test passes), to
+  the job summary.
 
 A dry run does not:
 
@@ -243,7 +250,7 @@ to `main` and pull requests. Its pipeline:
 
 Check fails if a category has no deployments. Pull requests deploy to
 Development only; Pre-production and Production deploy only on pushes to
-`main`. To smoke-test the published canary alias, manually run
+`main`. To smoke-test the canary alias while it exists, manually run
 `.github/workflows/smoke-test-pipeline.yml`.
 
 Approval modes are `all-approvers` (default; every listed approval group must
@@ -252,6 +259,11 @@ approver). The approval gate is managed separately from this workflow.
 
 For `act` runs, generated build files and `run-record.json` are saved under the
 ignored `.act-artifacts/` directory.
+
+The run record's `context.workflow_package_version` is read from the executing
+report action's workflow-package `VERSION` file, including for consumers using a
+floating major alias. On local or unreleased runs it identifies the source
+version and does not prove that version has been published.
 
 Two failure scenarios can be exercised locally; each asserts a non-zero run and
 that the run record marks downstream steps `SKIPPED`:
