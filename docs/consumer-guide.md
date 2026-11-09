@@ -10,9 +10,9 @@ The platform repository's Actions access must be set to organisation level
 (Settings, Actions, General, Access). GitHub can then fetch the release's
 pinned composite actions for consumers without a separate checkout token.
 
-Use the floating major tag for automatic updates, or an exact version tag for a
-fixed release. Before the deliberate 1.0.0 cut-over, use `@v0` or an existing
-`@v0.x.y` release; `@v1` is not available until that cut-over.
+Use the floating major tag (`@v1`) for automatic updates, or an exact version
+tag (for example `@v1.0.0`) for a fixed release. `@v0` stays on the last 0.x
+release and no longer receives updates; callers on `@v0` should move to `@v1`.
 
 ## Add a caller
 
@@ -29,12 +29,11 @@ on:
 
 jobs:
   pipeline:
-    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v0
+    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
 ```
 
 The [app-template caller](../packages/app-template/.github/workflows/pipeline.yml)
-currently uses `@v1`; change it to `@v0` or an existing exact release until
-the 1.0.0 cut-over. The workflow reference must be literal.
+uses the same reference. The workflow reference must be literal.
 
 ## Configure the service
 
