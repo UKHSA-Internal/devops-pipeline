@@ -25,10 +25,14 @@ environments:
 
 governance:
   retention_days: 30
-  shared_workflow_ref: "v1"
-  approvers: []
+  approvers:
+    - "platform-leads"
 
 verification:
   health_endpoint: "/health"
   timeout_seconds: 60
   db_check_required: false
+
+deploy:
+  production:
+    approval_mode: "all-approvers"

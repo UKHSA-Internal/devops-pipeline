@@ -1,0 +1,44 @@
+# Error: governance.approvers is empty (CHK-05).
+version: "1.0"
+
+service:
+  name: "fixture-service"
+  owner_team: "platform-team"
+  language: "python"
+  test_command: "python3 -m unittest discover -s tests -v"
+
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "123456789012"
+    role_name: pipeline-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
+    region: eu-west-2
+
+governance:
+  retention_days: 30
+  approvers: []
+
+verification:
+  health_endpoint: "/health"
+  timeout_seconds: 60
+  db_check_required: false
+  custom_checks:
+    - name: "smoke"
+      command: "curl --fail http://localhost/health"
+      timeout_seconds: 30
+      allow_failure: false
+
+deploy:
+  production:
+    approval_mode: "unattended"
+    exception_id: "EXC-0001"

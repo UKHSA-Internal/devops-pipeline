@@ -23,6 +23,16 @@ environments:
     role_name: pipeline-prod-role
     region: eu-west-2
 
+governance:
+  retention_days: 30
+  approvers:
+    - "platform-leads"
+
 verification:
   health_endpoint: "/health"
   timeout_seconds: 60
+  db_check_required: false
+
+deploy:
+  production:
+    approval_mode: "all-approvers"
