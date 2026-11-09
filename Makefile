@@ -1,4 +1,4 @@
-.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings install-hooks
 
 ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:act-latest
 ACT_EVENT_FILE ?=
@@ -32,6 +32,16 @@ test-pipeline-failing-check: ## Run the pipeline with a missing settings file; e
 	@rm -f .act-artifacts/run-record.json
 	@! ./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/does-not-exist.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 	@grep -q '"check": "FAILED"' .act-artifacts/run-record.json && grep -q '"test": "SKIPPED"' .act-artifacts/run-record.json && echo "OK: check FAILED, downstream SKIPPED"
+
+test-pipeline-settings-errors: ## Run the pipeline with settings that have an error; expects check FAILED and downstream skipped
+	@rm -f .act-artifacts/run-record.json
+	@! ./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/settings/errors/missing-test-command.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"check": "FAILED"' .act-artifacts/run-record.json && grep -q '"test": "SKIPPED"' .act-artifacts/run-record.json && echo "OK: check FAILED on a settings error, downstream SKIPPED"
+
+test-pipeline-settings-warnings: ## Run the pipeline with settings that have only warnings; expects every stage to pass
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/warnings-only-service/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"check": "PASSED"' .act-artifacts/run-record.json && grep -q '"test": "PASSED"' .act-artifacts/run-record.json && grep -q '"deploy": "PASSED"' .act-artifacts/run-record.json && echo "OK: check PASSED with warnings, later stages PASSED"
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks

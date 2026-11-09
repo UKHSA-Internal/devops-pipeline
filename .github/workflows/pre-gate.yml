@@ -36,6 +36,10 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/settings-checker-venv"
           "$RUNNER_TEMP/settings-checker-venv/bin/pip" install --quiet -r packages/settings-checker/requirements.txt
 
+      - name: Run unit tests
+        run: |
+          "$RUNNER_TEMP/settings-checker-venv/bin/python" -m unittest discover -s tests
+
       - name: Execute Self-Test (Standards Checker)
         id: standards-checker
         run: |

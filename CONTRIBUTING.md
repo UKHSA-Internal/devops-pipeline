@@ -110,7 +110,7 @@ Only change a version file when you intend to release.
 
 ## Testing before opening a PR
 
-- Install the settings checker's requirements and run the unit tests:
+- Install the settings checker's requirements and run the unit tests (the pre-gate also runs them):
   ```
   pip install -r packages/settings-checker/requirements.txt
   python3 -m unittest discover -s tests

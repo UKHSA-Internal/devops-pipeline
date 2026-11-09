@@ -36,8 +36,8 @@ python3 packages/settings-checker/checker.py --settings tests/fixtures/settings/
 | `--strict` | Pre-gate and local runs | Any error or warning |
 | `--report-only` | Readiness reports | Never; reports everything |
 
-A settings file that is missing, cannot be parsed, or is not a YAML mapping is
-reported as an error. It fails in the default and `--strict` modes.
+A settings file that is missing, is a folder, cannot be read or parsed, or is
+not a YAML mapping is reported as an error. It fails in the default and `--strict` modes.
 
 ### Output
 
@@ -51,7 +51,10 @@ Not ready: 1 error, 1 warning
 ! governance.retention_days – must be a whole number greater than zero (CHK-06)
 ```
 
-`✗` marks an error and `!` a warning. The settings are **Ready** when there are
+`✗` marks an error and `!` a warning. When several rules report the same
+problem, such as a missing `service` or `governance` section, it is shown once,
+with the highest severity of those rules and their IDs together, for example
+`✗ service – is required (CHK-02, CHK-11)`. The settings are **Ready** when there are
 no errors; warnings don't stop onboarding.
 
 `markdown` writes the same report as a table; the Check stage adds it to the
@@ -75,7 +78,8 @@ job summary. `json` is for scripts:
 ```
 
 A problem with the file itself has the file path as its `field`, and `rule` is
-`null`.
+`null`. A problem reported by several rules has their IDs in one `rule` string,
+for example `"CHK-02, CHK-11"`.
 
 ## Settings contract
 
@@ -151,8 +155,16 @@ approver config, once that config exists.
   `missing-test-command.yml`). A unit test checks that each one reports only
   its expected rule.
 
-The pre-gate runs the checker against each of them. Unit tests:
+The pre-gate runs the unit tests, and runs the checker against each fixture
+to check its exit code. The unit tests also run `checker.py` as a script,
+including on a terminal that can't show `✗`. There, the checker falls back to
+`x` and `-`. To run them:
 
 ```bash
 python3 -m unittest discover -s tests
 ```
+
+Two `act` targets run the whole pipeline against settings problems:
+`make test-pipeline-settings-errors` (an error fails Check) and
+`make test-pipeline-settings-warnings` (warnings don't stop the run; uses
+`tests/fixtures/warnings-only-service/`).

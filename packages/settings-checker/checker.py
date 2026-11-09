@@ -7,6 +7,7 @@ uses the same tool. The rules themselves are in rules.py.
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import yaml
@@ -15,6 +16,8 @@ from rules import ERROR, WARNING, check
 
 DEFAULT_SETTINGS = Path(".github") / "pipeline-settings.yml"
 SYMBOLS = {ERROR: "✗", WARNING: "!"}
+# Used when the terminal can't show the symbols above, such as a Windows console.
+PLAIN = str.maketrans({"✗": "x", "–": "-"})
 
 
 def file_problem(path: Path, message: str) -> dict:
@@ -23,6 +26,8 @@ def file_problem(path: Path, message: str) -> dict:
 
 def load_settings(path: Path):
     """Return (settings, None), or (None, problem) if the file can't be used."""
+    if path.is_dir():
+        return None, file_problem(path, "is a folder, not a settings file")
     if not path.is_file():
         return None, file_problem(path, "file not found")
     try:
@@ -106,6 +111,15 @@ def as_json(report: dict) -> str:
 FORMATS = {"text": as_text, "json": as_json, "markdown": as_markdown}
 
 
+def printable(text: str, encoding: str) -> str:
+    """Return text that the output stream can encode, using plain symbols if needed."""
+    try:
+        text.encode(encoding)
+        return text
+    except UnicodeEncodeError:
+        return text.translate(PLAIN).encode(encoding, errors="replace").decode(encoding)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Check a repository's pipeline settings and report whether it is ready to onboard to the shared pipeline."
@@ -124,7 +138,7 @@ def main(argv=None) -> int:
     settings, problem = load_settings(path)
     problems = [problem] if problem else sorted(check(settings), key=lambda item: item["severity"] != ERROR)
     report = create_report(path, problems, exit_code(problems, args.strict, args.report_only))
-    print(FORMATS[args.format](report))
+    print(printable(FORMATS[args.format](report), sys.stdout.encoding or "utf-8"))
     return report["exit_code"]
 
 

@@ -128,13 +128,26 @@ class Report:
 
 
 def check(settings: dict) -> list:
-    """Return every problem the rules find, in rule order."""
-    problems = []
+    """Return every problem the rules find, in rule order.
+
+    When several rules report the same problem, such as a missing section that
+    each of them needs, it is reported once: with the highest severity and the
+    rule IDs listed together, for example "CHK-02, CHK-11".
+    """
+    problems = {}
     for each in RULES:
         report = Report(each)
         each.check(settings, report)
-        problems.extend(report.problems)
-    return problems
+        for problem in report.problems:
+            key = (problem["field"], problem["message"])
+            if key not in problems:
+                problems[key] = problem
+                continue
+            existing = problems[key]
+            existing["rule"] = ", ".join(sorted({*existing["rule"].split(", "), problem["rule"]}))
+            if problem["severity"] == ERROR:
+                existing["severity"] = ERROR
+    return list(problems.values())
 
 
 # version

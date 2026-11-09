@@ -264,12 +264,23 @@ approval gate is managed separately from this workflow.
 For `act` runs, generated build files and `run-record.json` are saved under the
 ignored `.act-artifacts/` directory.
 
-Two failure scenarios can be exercised locally; each asserts a non-zero run and
-that the run record marks downstream steps `SKIPPED`:
+Three failure scenarios can be exercised locally; each asserts a non-zero run
+and that the run record marks downstream steps `SKIPPED`:
 
 ```bash
-make test-pipeline-failing-test   # injected unit-test failure: test FAILED
-make test-pipeline-failing-check  # missing settings file: check FAILED
+make test-pipeline-failing-test     # injected unit-test failure: test FAILED
+make test-pipeline-failing-check    # missing settings file: check FAILED before the checker runs
+make test-pipeline-settings-errors  # settings with an error: the checker fails check
+```
+
+One scenario checks that warnings don't stop a run. It asserts that Check,
+Test and Deploy pass for a service whose settings have only warnings
+(`tests/fixtures/warnings-only-service/`). The verify step is still a
+placeholder, so this shows the later stages run with malformed warning-only
+values, not that they handle them correctly:
+
+```bash
+make test-pipeline-settings-warnings
 ```
 
 The settings checker, deployment resolver and run-record structure are
@@ -324,6 +335,7 @@ The pre-gate validates the repository; the sample-app pipeline exercises the
 workflow end to end. Besides the contribution rules for commits, branches, PR
 titles and the ADR gate, the pre-gate:
 
+- runs the unit tests (`python3 -m unittest discover -s tests`);
 - runs `checker.py --strict` against the sample app and app-template, which
   must have no errors or warnings;
 - runs the checker against every fixture in `tests/fixtures/settings/` and
