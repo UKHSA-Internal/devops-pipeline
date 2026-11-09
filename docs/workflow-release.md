@@ -77,8 +77,8 @@ push. The `canary` and `promote` jobs therefore push with `RELEASE_TOKEN` and
 fail early if it is empty. No other job or dry run uses the environment or
 token.
 
-The token is owned by chrisp-burendo on behalf of the Platform Team. The team
-must rotate it before expiry and replace it if the owner leaves: create a
+The token is owned by the Platform Team. The team must rotate it before expiry
+and replace it if the owner leaves: create a
 classic token with the same scopes, authorise it for SSO and replace the
 environment secret.
 
