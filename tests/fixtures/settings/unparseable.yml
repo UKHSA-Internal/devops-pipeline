@@ -1,4 +1,4 @@
-# Unparseable: invalid YAML; fails in every mode.
+# Unparseable: invalid YAML; reported as an error, so it fails unless --report-only is used.
 version: "1.0"
 service:
   name: [unclosed

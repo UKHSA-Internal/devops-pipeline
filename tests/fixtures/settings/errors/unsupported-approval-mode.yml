@@ -1,4 +1,4 @@
-# Blocking CHK-10: approval_mode is unattended but exception_id is empty.
+# Error: deploy.production.approval_mode is not a supported value (CHK-09).
 version: "1.0"
 
 service:
@@ -41,5 +41,4 @@ verification:
 
 deploy:
   production:
-    approval_mode: "unattended"
-    exception_id: ""
+    approval_mode: "standard"

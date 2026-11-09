@@ -1,11 +1,11 @@
-# Blocking CHK-03: an environment has no role_name.
+# Error: service.test_command is empty (CHK-11).
 version: "1.0"
 
 service:
   name: "fixture-service"
   owner_team: "platform-team"
   language: "python"
-  test_command: "python3 -m unittest discover -s tests -v"
+  test_command: ""
 
 environments:
   - name: dev-env-1
@@ -16,6 +16,7 @@ environments:
   - name: preprod-env-1
     category: Pre-production
     account_id: "123456789012"
+    role_name: pipeline-preprod-role
     region: eu-west-2
   - name: prod
     category: Production

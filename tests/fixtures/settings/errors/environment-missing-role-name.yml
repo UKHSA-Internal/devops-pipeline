@@ -1,4 +1,4 @@
-# Blocking CHK-04: no environment is mapped to the Production category.
+# Error: an environment has no role_name (CHK-03).
 version: "1.0"
 
 service:
@@ -16,7 +16,11 @@ environments:
   - name: preprod-env-1
     category: Pre-production
     account_id: "123456789012"
-    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
     region: eu-west-2
 
 governance:

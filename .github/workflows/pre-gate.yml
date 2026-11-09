@@ -41,9 +41,9 @@ jobs:
         run: |
           set +e
           checker_status=0
-          for settings in sample-app/.github/pipeline-settings.yml packages/app-template/.github/pipeline-settings.yml; do
+          for repository in sample-app packages/app-template; do
             "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
-              --config "$settings" --mode pr --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
+              "$repository" --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
             status=${PIPESTATUS[0]}
             (( status == 0 )) || checker_status=$status
           done
@@ -60,7 +60,7 @@ jobs:
             local expected=$1 config=$2
             shift 2
             "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
-              --config "$config" "$@" > /dev/null 2>&1
+              --settings "$config" "$@" > /dev/null 2>&1
             local actual=$?
             if (( actual == expected )); then
               printf 'OK    exit %s: %s %s\n' "$actual" "$config" "$*"
@@ -70,17 +70,17 @@ jobs:
             fi
           }
 
-          expect 0 "$fixtures/compliant.yml" --mode pr --strict
-          for fixture in "$fixtures"/blocking-chk-*.yml; do
-            expect 1 "$fixture" --mode pr
-            expect 0 "$fixture" --mode audit
+          expect 0 "$fixtures/compliant.yml" --strict
+          for fixture in "$fixtures"/errors/*.yml; do
+            expect 1 "$fixture"
+            expect 0 "$fixture" --report-only
           done
-          expect 0 "$fixtures/advisory-only.yml" --mode pr
-          expect 1 "$fixtures/advisory-only.yml" --mode pr --strict
-          expect 0 "$fixtures/advisory-only.yml" --mode audit
-          expect 1 "$fixtures/unparseable.yml" --mode pr
-          expect 1 "$fixtures/unparseable.yml" --mode pr --strict
-          expect 1 "$fixtures/unparseable.yml" --mode audit
+          expect 0 "$fixtures/warnings-only.yml"
+          expect 1 "$fixtures/warnings-only.yml" --strict
+          expect 0 "$fixtures/warnings-only.yml" --report-only
+          expect 1 "$fixtures/unparseable.yml"
+          expect 1 "$fixtures/unparseable.yml" --strict
+          expect 0 "$fixtures/unparseable.yml" --report-only
 
           (( failures == 0 ))
 

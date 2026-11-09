@@ -193,8 +193,9 @@ Run `make help` to see the available local commands.
 
 ### Check settings
 
-Install the settings checker's pinned dependencies, then validate the sample
-app's settings with `--strict` (any violation fails):
+The settings checker reports whether a repository's settings are ready to
+onboard to the shared pipeline. Install its pinned dependencies, then check the
+sample app's settings with `--strict` (any error or warning fails):
 
 ```bash
 pip install -r packages/settings-checker/requirements.txt
@@ -205,12 +206,18 @@ To check another file, such as a fixture:
 
 ```bash
 make check-settings SETTINGS=tests/fixtures/settings/compliant.yml
-make check-settings SETTINGS=tests/fixtures/settings/advisory-only.yml  # fails: --strict
+make check-settings SETTINGS=tests/fixtures/settings/warnings-only.yml  # fails: --strict
+```
+
+To check another repository on your machine, point the checker at its folder:
+
+```bash
+python3 packages/settings-checker/checker.py ../my-service
 ```
 
 Set `PYTHON=/path/to/python` to use a virtual environment. Paths are relative
-to the repository root. The settings contract, rule IDs, severities and exit
-codes are described in
+to the repository root. The settings contract, rules, modes and output formats
+are described in
 [`packages/settings-checker/README.md`](packages/settings-checker/README.md).
 
 ### Run the standard pipeline locally
@@ -229,9 +236,9 @@ the called workflow.
 The sample caller, `.github/workflows/sample-app-pipeline.yml`, runs on pushes
 to `main` and pull requests. Its pipeline:
 
-- Validates the settings file in the Check stage with the settings checker in
-  `pr` mode. Blocking violations fail Check; every violation, including
-  Advisory ones, is listed in the job summary.
+- Checks the settings file in the Check stage with the settings checker in its
+  default mode. Errors fail Check; every error and warning is listed in the
+  job summary.
 - Runs the service test command from `service.test_command` in the settings
   file, from the service directory. The sample app and the app-template both
   use `python3 -m unittest discover -s tests -v`; the template's
@@ -244,7 +251,7 @@ to `main` and pull requests. Its pipeline:
   deployments, run one at a time in settings order. Every deployment is
   followed by `verify-app` against `verification.health_endpoint`.
 
-Check fails if a category has no deployments (`CHK-04`). Pull requests deploy to
+Check fails if a category has no deployments. Pull requests deploy to
 Development only; Pre-production and Production deploy only on pushes to
 `main`. To smoke-test the published canary alias, manually run
 `.github/workflows/smoke-test-pipeline.yml`.
@@ -317,12 +324,13 @@ The pre-gate validates the repository; the sample-app pipeline exercises the
 workflow end to end. Besides the contribution rules for commits, branches, PR
 titles and the ADR gate, the pre-gate:
 
-- runs `checker.py --mode pr --strict` against the sample app and app-template
-  settings, which must have no violations;
+- runs `checker.py --strict` against the sample app and app-template, which
+  must have no errors or warnings;
 - runs the checker against every fixture in `tests/fixtures/settings/` and
-  asserts the exit codes: the compliant file passes, each `blocking-chk-NN.yml`
-  fails in `pr` mode, `advisory-only.yml` passes in `pr` mode and fails with
-  `--strict`, and `unparseable.yml` fails in every mode.
+  asserts the exit codes: the compliant file passes with `--strict`, each file
+  in `errors/` fails by default, `warnings-only.yml` passes by default and fails
+  with `--strict`, `unparseable.yml` fails unless `--report-only` is used, and
+  every file passes with `--report-only`.
 
 ### Git hooks
 

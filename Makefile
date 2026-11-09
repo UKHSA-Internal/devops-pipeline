@@ -8,7 +8,7 @@ help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 check-settings: ## Validate a settings file with --strict (SETTINGS=path/to/pipeline-settings.yml)
-	@$(PYTHON) packages/settings-checker/checker.py --config "$(or $(SETTINGS),sample-app/.github/pipeline-settings.yml)" --mode pr --strict
+	@$(PYTHON) packages/settings-checker/checker.py --settings "$(or $(SETTINGS),sample-app/.github/pipeline-settings.yml)" --strict
 
 test-pregate-local: ## Run the platform pull-request pre-gate with act
 	@if [ -n "$(ACT_EVENT_FILE)" ]; then \

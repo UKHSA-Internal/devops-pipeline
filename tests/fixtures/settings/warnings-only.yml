@@ -1,9 +1,8 @@
-# Blocking CHK-05: governance.approvers is empty.
-version: "1.0"
+# Warnings only (CHK-01, CHK-02, CHK-06, CHK-07): passes by default, fails with --strict.
+version: 1.0
 
 service:
   name: "fixture-service"
-  owner_team: "platform-team"
   language: "python"
   test_command: "python3 -m unittest discover -s tests -v"
 
@@ -25,13 +24,13 @@ environments:
     region: eu-west-2
 
 governance:
-  retention_days: 30
-  approvers: []
+  retention_days: 0
+  approvers:
+    - "platform-leads"
 
 verification:
-  health_endpoint: "/health"
+  health_endpoint: "health"
   timeout_seconds: 60
-  db_check_required: false
   custom_checks:
     - name: "smoke"
       command: "curl --fail http://localhost/health"

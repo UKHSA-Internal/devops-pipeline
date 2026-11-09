@@ -117,9 +117,10 @@ Only change a version file when you intend to release.
   ```
 - Run `checker.py` against the relevant fixtures:
   ```
-  python3 packages/settings-checker/checker.py --config tests/fixtures/settings/<file>.yml --strict
+  python3 packages/settings-checker/checker.py --settings tests/fixtures/settings/<file>.yml --strict
   ```
 - Exercise workflow changes locally with [`act`](https://github.com/nektos/act).
-- When you change settings validation rules, update `packages/settings-checker/settings.schema.json`
-  or the cross-field checks in `checker.py`, the rule table in `packages/settings-checker/README.md`,
-  and the fixtures in `tests/fixtures/settings/`.
+- When you add or change a settings rule, edit it in `packages/settings-checker/rules.py`, update
+  its cases in `tests/test_settings_checker.py` and the rules table in
+  `packages/settings-checker/README.md`. For a new error rule, add a fixture in
+  `tests/fixtures/settings/errors/`, named after the problem, and its expected rule ID in the test.

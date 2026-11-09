@@ -1,21 +1,32 @@
 import contextlib
 import copy
-import importlib.util
 import io
 import json
+import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-CHECKER_PATH = REPOSITORY_ROOT / "packages" / "settings-checker" / "checker.py"
+sys.path.insert(0, str(REPOSITORY_ROOT / "packages" / "settings-checker"))
+
+import checker as CHECKER  # noqa: E402
+import rules as RULES  # noqa: E402
+
 FIXTURES = REPOSITORY_ROOT / "tests" / "fixtures" / "settings"
-CHECKER_SPEC = importlib.util.spec_from_file_location("settings_checker", CHECKER_PATH)
-if CHECKER_SPEC is None or CHECKER_SPEC.loader is None:
-    raise ImportError(f"Unable to load settings checker from {CHECKER_PATH}")
-CHECKER = importlib.util.module_from_spec(CHECKER_SPEC)
-CHECKER_SPEC.loader.exec_module(CHECKER)
-SCHEMA = CHECKER.load_schema()
+ERROR_FIXTURES = FIXTURES / "errors"
+
+# Error fixture -> the only rule it may report.
+EXPECTED_FIXTURE_RULES = {
+    "custom-check-missing-allow-failure.yml": "CHK-08",
+    "environment-missing-role-name.yml": "CHK-03",
+    "missing-test-command.yml": "CHK-11",
+    "no-approvers.yml": "CHK-05",
+    "no-production-environment.yml": "CHK-04",
+    "unattended-without-exception-id.yml": "CHK-10",
+    "unsupported-approval-mode.yml": "CHK-09",
+}
 
 
 def environment(name, category):
@@ -60,7 +71,7 @@ def settings(change):
 
 
 def rules(values):
-    return {item["rule"] for item in CHECKER.check(values, SCHEMA)}
+    return {item["rule"] for item in RULES.check(values)}
 
 
 def set_path(path, value):
@@ -193,24 +204,31 @@ def run_cli(*args):
     stdout = io.StringIO()
     with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
         status = CHECKER.main(list(args))
-    return status, json.loads(stdout.getvalue())
+    return status, stdout.getvalue()
 
 
-class SchemaTests(unittest.TestCase):
-    def test_schema_is_valid_json_schema(self):
-        from jsonschema import Draft202012Validator
+def run_json(*args):
+    status, output = run_cli(*args, "--format", "json")
+    return status, json.loads(output)
 
-        Draft202012Validator.check_schema(SCHEMA)
 
-    def test_every_rule_has_a_severity(self):
-        self.assertEqual(sorted(CHECKER.RULES), [f"CHK-{number:02d}" for number in range(1, 12)])
-        for rule, (severity, _) in CHECKER.RULES.items():
-            self.assertIn(severity, (CHECKER.BLOCKING, CHECKER.ADVISORY), rule)
+def rule_ids():
+    return {rule.id for rule in RULES.RULES}
 
 
 class RuleTests(unittest.TestCase):
-    def test_compliant_settings_have_no_violations(self):
-        self.assertEqual(CHECKER.check(copy.deepcopy(COMPLIANT), SCHEMA), [])
+    def test_rule_ids_are_unique_and_complete(self):
+        ids = [rule.id for rule in RULES.RULES]
+        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 12)])
+
+    def test_severities_match_contract(self):
+        errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
+        for rule in RULES.RULES:
+            with self.subTest(rule.id):
+                self.assertEqual(rule.severity, RULES.ERROR if rule.id in errors else RULES.WARNING)
+
+    def test_compliant_settings_have_no_problems(self):
+        self.assertEqual(RULES.check(copy.deepcopy(COMPLIANT)), [])
 
     def test_failing_cases_report_only_their_rule(self):
         for rule, cases in FAILING_CASES.items():
@@ -218,128 +236,163 @@ class RuleTests(unittest.TestCase):
                 with self.subTest(rule=rule, case=label):
                     self.assertEqual(rules(settings(change)), {rule})
 
-    def test_passing_cases_have_no_violations(self):
+    def test_passing_cases_have_no_problems(self):
         for rule, cases in PASSING_CASES.items():
             for label, change in cases.items():
                 with self.subTest(rule=rule, case=label):
                     self.assertEqual(rules(settings(change)), set())
 
     def test_every_rule_has_passing_and_failing_cases(self):
-        self.assertEqual(set(FAILING_CASES), set(CHECKER.RULES))
-        self.assertEqual(set(PASSING_CASES), set(CHECKER.RULES))
+        self.assertEqual(set(FAILING_CASES), rule_ids())
+        self.assertEqual(set(PASSING_CASES), rule_ids())
 
-    def test_missing_service_reports_advisory_and_blocking_rules(self):
+    def test_missing_service_reports_both_service_rules(self):
         self.assertEqual(rules(settings(delete_path(["service"]))), {"CHK-02", "CHK-11"})
 
-    def test_missing_or_malformed_environments_report_structure_and_categories(self):
+    def test_missing_or_malformed_environments_report_fields_and_categories(self):
         for change in (delete_path(["environments"]), set_path(["environments"], "dev")):
             with self.subTest(change=change):
                 self.assertEqual(rules(settings(change)), {"CHK-03", "CHK-04"})
 
-    def test_violation_reports_rule_severity_message_and_path(self):
-        violations = CHECKER.check(settings(delete_path(["environments", 1, "role_name"])), SCHEMA)
+    def test_problem_reports_field_severity_message_and_rule(self):
+        problems = RULES.check(settings(delete_path(["environments", 1, "role_name"])))
 
         self.assertEqual(
-            violations,
+            problems,
             [
                 {
+                    "field": "environments[1].role_name",
+                    "severity": "Error",
+                    "message": "is required",
                     "rule": "CHK-03",
-                    "severity": "Blocking",
-                    "path": "environments[1].role_name",
-                    "message": "environments[1].role_name is required",
                 }
             ],
         )
 
-    def test_severities_match_contract(self):
-        blocking = {"CHK-03", "CHK-04", "CHK-05", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
-        for rule, (severity, _) in CHECKER.RULES.items():
-            with self.subTest(rule):
-                self.assertEqual(severity, "Blocking" if rule in blocking else "Advisory")
-
 
 class ExitCodeTests(unittest.TestCase):
-    ADVISORY = [{"severity": "Advisory"}]
-    BLOCKING = [{"severity": "Blocking"}, {"severity": "Advisory"}]
+    WARNING = [{"severity": "Warning"}]
+    ERROR = [{"severity": "Error"}, {"severity": "Warning"}]
 
     def test_exit_codes(self):
+        # problems, strict, report_only, expected
         cases = [
-            ([], "pr", False, 0),
-            ([], "pr", True, 0),
-            (self.ADVISORY, "pr", False, 0),
-            (self.ADVISORY, "pr", True, 1),
-            (self.BLOCKING, "pr", False, 1),
-            (self.BLOCKING, "pr", True, 1),
-            (self.BLOCKING, "audit", False, 0),
-            (self.BLOCKING, "audit", True, 0),
+            ([], False, False, 0),
+            ([], True, False, 0),
+            (self.WARNING, False, False, 0),
+            (self.WARNING, True, False, 1),
+            (self.ERROR, False, False, 1),
+            (self.ERROR, True, False, 1),
+            (self.ERROR, False, True, 0),
         ]
-        for violations, mode, strict, expected in cases:
-            with self.subTest(severities=[item["severity"] for item in violations], mode=mode, strict=strict):
-                self.assertEqual(CHECKER.exit_code(violations, mode, strict), expected)
+        for problems, strict, report_only, expected in cases:
+            with self.subTest(severities=[item["severity"] for item in problems], strict=strict, report_only=report_only):
+                self.assertEqual(CHECKER.exit_code(problems, strict, report_only), expected)
 
 
 class CliTests(unittest.TestCase):
-    MODES = (("--mode", "pr"), ("--mode", "pr", "--strict"), ("--mode", "audit"))
+    MODES = ((), ("--strict",), ("--report-only",))
 
     def expected_exit(self, fixture, mode):
-        if fixture == "unparseable.yml":
-            return 1
-        if "audit" in mode or fixture == "compliant.yml":
+        if "--report-only" in mode or fixture.name == "compliant.yml":
             return 0
-        if fixture == "advisory-only.yml":
+        if fixture.name == "warnings-only.yml":
             return 1 if "--strict" in mode else 0
         return 1
 
-    def test_every_fixture_in_every_mode(self):
-        fixtures = sorted(path.name for path in FIXTURES.glob("*.yml"))
-        blocking_fixtures = [f"blocking-chk-{rule[-2:]}.yml" for rule, (severity, _) in CHECKER.RULES.items()
-                             if severity == CHECKER.BLOCKING]
+    def test_fixtures_are_the_expected_set(self):
         self.assertEqual(
-            set(fixtures), {"compliant.yml", "advisory-only.yml", "unparseable.yml", *blocking_fixtures}
+            {path.name for path in FIXTURES.glob("*.yml")}, {"compliant.yml", "warnings-only.yml", "unparseable.yml"}
         )
-        for fixture in fixtures:
+        self.assertEqual({path.name for path in ERROR_FIXTURES.glob("*.yml")}, set(EXPECTED_FIXTURE_RULES))
+
+    def test_every_fixture_in_every_mode(self):
+        for fixture in sorted([*FIXTURES.glob("*.yml"), *ERROR_FIXTURES.glob("*.yml")]):
             for mode in self.MODES:
-                with self.subTest(fixture=fixture, mode=" ".join(mode)):
-                    status, report = run_cli("--config", str(FIXTURES / fixture), *mode)
+                with self.subTest(fixture=fixture.name, mode=" ".join(mode) or "default"):
+                    status, report = run_json("--settings", str(fixture), *mode)
                     self.assertEqual(status, self.expected_exit(fixture, mode))
                     self.assertEqual(report["exit_code"], status)
 
-    def test_blocking_fixtures_report_only_their_rule(self):
-        for path in sorted(FIXTURES.glob("blocking-chk-*.yml")):
-            with self.subTest(path.name):
-                _, report = run_cli("--config", str(path), "--mode", "audit")
-                rule = "CHK-" + path.stem.rsplit("-", 1)[1]
-                self.assertEqual({item["rule"] for item in report["violations"]}, {rule})
+    def test_error_fixtures_report_only_their_rule(self):
+        for fixture in sorted(ERROR_FIXTURES.glob("*.yml")):
+            with self.subTest(fixture.name):
+                _, report = run_json("--settings", str(fixture), "--report-only")
+                expected = EXPECTED_FIXTURE_RULES[fixture.name]
+                self.assertEqual({item["rule"] for item in report["problems"]}, {expected})
+                self.assertEqual({item["severity"] for item in report["problems"]}, {"Error"})
+                self.assertFalse(report["ready"])
 
-    def test_advisory_fixture_reports_only_advisory_violations(self):
-        _, report = run_cli("--config", str(FIXTURES / "advisory-only.yml"))
+    def test_warnings_only_fixture_is_ready_with_warnings(self):
+        _, report = run_json("--settings", str(FIXTURES / "warnings-only.yml"))
 
-        self.assertEqual(report["status"], "NON_COMPLIANT")
-        self.assertEqual(report["summary"]["blocking"], 0)
-        self.assertGreater(report["summary"]["advisory"], 0)
+        self.assertTrue(report["ready"])
+        self.assertEqual(report["summary"]["errors"], 0)
+        self.assertGreater(report["summary"]["warnings"], 0)
 
-    def test_unreadable_files_fail_in_every_mode(self):
+    def test_unusable_files_are_errors(self):
         with tempfile.TemporaryDirectory() as directory:
             empty = Path(directory) / "empty.yml"
             empty.write_text("", encoding="utf-8")
             not_mapping = Path(directory) / "list.yml"
             not_mapping.write_text("- version\n", encoding="utf-8")
-            for path in (empty, not_mapping, Path(directory) / "missing.yml"):
+            unparseable = FIXTURES / "unparseable.yml"
+            for path in (empty, not_mapping, unparseable, Path(directory) / "missing.yml"):
                 for mode in self.MODES:
-                    with self.subTest(file=path.name, mode=" ".join(mode)):
-                        status, report = run_cli("--config", str(path), *mode)
-                        self.assertEqual(status, 1)
-                        self.assertEqual(report["status"], "ERROR")
+                    with self.subTest(file=path.name, mode=" ".join(mode) or "default"):
+                        status, report = run_json("--settings", str(path), *mode)
+                        self.assertEqual(status, 0 if "--report-only" in mode else 1)
+                        self.assertFalse(report["ready"])
+                        self.assertEqual(
+                            [(item["field"], item["severity"], item["rule"]) for item in report["problems"]],
+                            [(str(path), "Error", None)],
+                        )
+
+    def test_repository_path_finds_the_settings_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            status, report = run_json(str(repository))
+            self.assertEqual(status, 1)
+            self.assertEqual(report["problems"][0]["message"], "file not found")
+
+            (repository / ".github").mkdir()
+            shutil.copy(FIXTURES / "compliant.yml", repository / ".github" / "pipeline-settings.yml")
+            status, report = run_json(str(repository), "--strict")
+            self.assertEqual(status, 0)
+            self.assertEqual(report["settings_file"], str(repository / ".github" / "pipeline-settings.yml"))
+
+    def test_settings_option_overrides_repository_path(self):
+        fixture = ERROR_FIXTURES / "missing-test-command.yml"
+        status, report = run_json(str(REPOSITORY_ROOT / "sample-app"), "--settings", str(fixture))
+
+        self.assertEqual((status, report["settings_file"]), (1, str(fixture)))
+
+    def test_text_output_leads_with_field_and_message(self):
+        status, output = run_cli("--settings", str(ERROR_FIXTURES / "missing-test-command.yml"))
+
+        self.assertEqual(status, 1)
+        self.assertIn("Not ready: 1 error", output)
+        self.assertIn("✗ service.test_command – must be a single line, not empty (CHK-11)", output)
+
+    def test_markdown_output_has_a_problem_table(self):
+        _, output = run_cli("--settings", str(ERROR_FIXTURES / "missing-test-command.yml"), "--format", "markdown")
+
+        self.assertIn("**Not ready: 1 error**", output)
+        self.assertIn("| ✗ Error | `service.test_command` | must be a single line, not empty | CHK-11 |", output)
+
+    def test_strict_and_report_only_cannot_be_combined(self):
+        with self.assertRaises(SystemExit):
+            run_cli("--strict", "--report-only")
 
     def test_shipped_settings_pass_strict(self):
-        for path in (
-            REPOSITORY_ROOT / "sample-app" / ".github" / "pipeline-settings.yml",
-            REPOSITORY_ROOT / "packages" / "app-template" / ".github" / "pipeline-settings.yml",
-            REPOSITORY_ROOT / "tests" / "fixtures" / "failing-test" / ".github" / "pipeline-settings.yml",
+        for repository in (
+            REPOSITORY_ROOT / "sample-app",
+            REPOSITORY_ROOT / "packages" / "app-template",
+            REPOSITORY_ROOT / "tests" / "fixtures" / "failing-test",
         ):
-            with self.subTest(str(path.relative_to(REPOSITORY_ROOT))):
-                status, report = run_cli("--config", str(path), "--mode", "pr", "--strict")
-                self.assertEqual((status, report["violations"]), (0, []))
+            with self.subTest(str(repository.relative_to(REPOSITORY_ROOT))):
+                status, report = run_json(str(repository), "--strict")
+                self.assertEqual((status, report["problems"]), (0, []))
 
 
 if __name__ == "__main__":

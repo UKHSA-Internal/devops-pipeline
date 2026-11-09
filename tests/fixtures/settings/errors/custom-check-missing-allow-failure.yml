@@ -1,4 +1,4 @@
-# Blocking CHK-09: deploy.production.approval_mode is not a supported value.
+# Error: a custom check has no explicit allow_failure (CHK-08).
 version: "1.0"
 
 service:
@@ -37,8 +37,8 @@ verification:
     - name: "smoke"
       command: "curl --fail http://localhost/health"
       timeout_seconds: 30
-      allow_failure: false
 
 deploy:
   production:
-    approval_mode: "standard"
+    approval_mode: "unattended"
+    exception_id: "EXC-0001"

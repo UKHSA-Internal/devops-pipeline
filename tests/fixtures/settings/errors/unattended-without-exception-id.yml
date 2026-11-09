@@ -1,11 +1,11 @@
-# Blocking CHK-11: service.test_command is empty.
+# Error: approval_mode is unattended but exception_id is empty (CHK-10).
 version: "1.0"
 
 service:
   name: "fixture-service"
   owner_team: "platform-team"
   language: "python"
-  test_command: ""
+  test_command: "python3 -m unittest discover -s tests -v"
 
 environments:
   - name: dev-env-1
@@ -42,4 +42,4 @@ verification:
 deploy:
   production:
     approval_mode: "unattended"
-    exception_id: "EXC-0001"
+    exception_id: ""

@@ -90,7 +90,7 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual(plan["health_endpoint"], "/health")
         self.assertEqual(plan["timeout_seconds"], 60)
 
-    def test_tolerates_malformed_advisory_verification(self):
+    def test_tolerates_malformed_verification_with_only_warnings(self):
         plan = RESOLVER.resolve(settings(verification="none"))
 
         self.assertEqual(plan["health_endpoint"], "/health")

@@ -1,9 +1,8 @@
 [project]
 name = "settings-checker"
 version = "0.1.0"
-description = "Validation engine for UKHSA pipeline-settings contract"
+description = "Checks a repository's pipeline settings and reports whether it is ready to onboard to the shared pipeline"
 requires-python = ">=3.10"
 dependencies = [
-    "jsonschema==4.25.1",
     "pyyaml==6.0.3",
 ]

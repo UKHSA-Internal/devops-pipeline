@@ -1,4 +1,4 @@
-# Compliant: passes every rule, including with --strict.
+# Compliant: no errors or warnings, so it passes with --strict.
 version: "1.0"
 
 service:
