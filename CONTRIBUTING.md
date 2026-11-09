@@ -110,6 +110,9 @@ Only change a version file when you intend to release.
 
 ## Testing before opening a PR
 
+For local workflow setup and failure scenarios, see the
+[local development guide](docs/local-development.md).
+
 - Install the settings checker's requirements and run the unit tests (the pre-gate also runs them):
   ```
   pip install -r packages/settings-checker/requirements.txt

@@ -13,3 +13,6 @@ template.
 
 The minimal `Dockerfile` allows the shared pipeline's build step to exercise
 container image creation without publishing the image to a registry.
+
+See the [consumer guide](../docs/consumer-guide.md) to adopt the pipeline, or
+the [local development guide](../docs/local-development.md) to run this example.
