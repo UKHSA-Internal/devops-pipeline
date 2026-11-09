@@ -23,7 +23,8 @@ def resolve(settings: dict) -> dict:
         deployment = {field: str(environment[field]).strip() for field in DEPLOYMENT_FIELDS}
         by_category[CATEGORIES[deployment["category"]]].append(deployment)
 
-    # verification problems are only warnings, so it may still be malformed.
+    # Check rejects a malformed health_endpoint or timeout_seconds (CHK-07); fall back to
+    # the defaults if verification itself is missing or unusable.
     verification = settings.get("verification")
     if not isinstance(verification, dict):
         verification = {}
@@ -40,7 +41,7 @@ def resolve(settings: dict) -> dict:
 
 
 def write_outputs(plan: dict, output_path: Path) -> None:
-    # Fields with only warnings can still contain newlines, so use delimited outputs.
+    # Use delimited outputs so a value containing a newline can't add extra outputs.
     delimiter = f"EOF_{secrets.token_hex(16)}"
     with output_path.open("a", encoding="utf-8") as output:
         for key, value in plan.items():

@@ -101,8 +101,8 @@ governance:
   approvers:                       # non-empty list of approver group names, required
     - "platform-leads"
 verification:
-  health_endpoint: "/health"       # optional, default /health
-  timeout_seconds: 60              # optional, default 60
+  health_endpoint: "/health"       # optional, default /health; a URL path starting with '/'
+  timeout_seconds: 60              # optional, default 60; integer > 0
   db_check_required: false         # required, explicit boolean
   custom_checks:                   # optional
     - name: "smoke"                # non-empty
@@ -125,11 +125,12 @@ deploy:
 | CHK-04 | Every category (Development, Pre-production, Production) has at least one environment | Error |
 | CHK-05 | `governance.approvers` is a non-empty list | Error |
 | CHK-06 | `governance.retention_days` is an integer greater than zero | Warning |
-| CHK-07 | `health_endpoint`, if set, is a valid path; `timeout_seconds`, if set, is an integer greater than zero; `db_check_required` is an explicit boolean | Warning |
+| CHK-07 | `verification.health_endpoint`, if set, is a URL path starting with `/`; `verification.timeout_seconds`, if set, is an integer greater than zero. Both are optional; when missing, the defaults apply | Error |
 | CHK-08 | Each custom check has a non-empty `name` and `command`, and an explicit boolean `allow_failure` | Error |
 | CHK-09 | `deploy.production.approval_mode` is `all-approvers`, `single-approver` or `unattended` | Error |
 | CHK-10 | When `approval_mode` is `unattended`, `exception_id` is non-empty | Error |
 | CHK-11 | `service.test_command` is a non-empty, single-line string | Error |
+| CHK-12 | `verification.db_check_required` is an explicit boolean | Warning |
 
 TODO (CHK-05): also check that each approver group exists in the platform
 approver config, once that config exists.

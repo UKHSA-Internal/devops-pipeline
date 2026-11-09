@@ -1,4 +1,4 @@
-# Warnings only (CHK-01, CHK-02, CHK-06, CHK-07): passes by default, fails with --strict.
+# Warnings only (CHK-01, CHK-02, CHK-06, CHK-12): passes by default, fails with --strict.
 version: 1.0
 
 service:
@@ -29,7 +29,7 @@ governance:
     - "platform-leads"
 
 verification:
-  health_endpoint: "health"
+  health_endpoint: "/health"
   timeout_seconds: 60
   custom_checks:
     - name: "smoke"

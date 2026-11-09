@@ -96,11 +96,12 @@ class Report:
         elif not valid(parent[key]):
             self.problem(field, message)
 
-    def section(self, parent: dict, field: str):
+    def section(self, parent: dict, field: str, required: bool = True):
         """Return the mapping at field, or None after reporting why it can't be used."""
         key = _key(field)
         if key not in parent:
-            self.problem(field, "is required")
+            if required:
+                self.problem(field, "is required")
             return None
         if not isinstance(parent[key], dict):
             self.problem(field, "must be a mapping")
@@ -236,9 +237,10 @@ def retention_days(settings, report):
 # verification
 
 
-@rule("CHK-07", WARNING)
-def verification(settings, report):
-    verification = report.section(settings, "verification")
+# Both fields are optional; when missing, the defaults apply.
+@rule("CHK-07", ERROR)
+def health_check(settings, report):
+    verification = report.section(settings, "verification", required=False)
     if verification is None:
         return
     report.value(
@@ -255,7 +257,13 @@ def verification(settings, report):
         "must be a whole number greater than zero",
         required=False,
     )
-    report.value(verification, "verification.db_check_required", is_boolean, "must be true or false")
+
+
+@rule("CHK-12", WARNING)
+def db_check_required(settings, report):
+    verification = report.section(settings, "verification")
+    if verification is not None:
+        report.value(verification, "verification.db_check_required", is_boolean, "must be true or false")
 
 
 @rule("CHK-08", ERROR)

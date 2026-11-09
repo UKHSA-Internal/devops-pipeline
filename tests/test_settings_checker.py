@@ -23,12 +23,14 @@ ERROR_FIXTURES = FIXTURES / "errors"
 # Error fixture -> the only rule it may report.
 EXPECTED_FIXTURE_RULES = {
     "custom-check-missing-allow-failure.yml": "CHK-08",
+    "health-endpoint-without-leading-slash.yml": "CHK-07",
     "environment-missing-role-name.yml": "CHK-03",
     "missing-test-command.yml": "CHK-11",
     "no-approvers.yml": "CHK-05",
     "no-production-environment.yml": "CHK-04",
     "unattended-without-exception-id.yml": "CHK-10",
     "unsupported-approval-mode.yml": "CHK-09",
+    "zero-timeout-seconds.yml": "CHK-07",
 }
 
 
@@ -146,12 +148,12 @@ FAILING_CASES = {
     "CHK-07": {
         "relative health_endpoint": set_path(["verification", "health_endpoint"], "health"),
         "health_endpoint with space": set_path(["verification", "health_endpoint"], "/he alth"),
-        "missing db_check_required": delete_path(["verification", "db_check_required"]),
-        "text db_check_required": set_path(["verification", "db_check_required"], "false"),
+        "numeric health_endpoint": set_path(["verification", "health_endpoint"], 8080),
         "zero timeout_seconds": set_path(["verification", "timeout_seconds"], 0),
-        "verification not a mapping": set_path(["verification"], "none"),
-        "missing verification": delete_path(["verification"]),
+        "negative timeout_seconds": set_path(["verification", "timeout_seconds"], -5),
         "text timeout_seconds": set_path(["verification", "timeout_seconds"], "60"),
+        "decimal timeout_seconds": set_path(["verification", "timeout_seconds"], 1.5),
+        "boolean timeout_seconds": set_path(["verification", "timeout_seconds"], True),
     },
     "CHK-08": {
         "custom_checks not a list": set_path(["verification", "custom_checks"], "smoke"),
@@ -178,6 +180,11 @@ FAILING_CASES = {
             ["deploy", "production"], {"approval_mode": "unattended", "exception_id": " "}
         ),
     },
+    "CHK-12": {
+        "missing db_check_required": delete_path(["verification", "db_check_required"]),
+        "text db_check_required": set_path(["verification", "db_check_required"], "false"),
+        "missing verification": delete_path(["verification"]),
+    },
     "CHK-11": {
         "missing test_command": delete_path(["service", "test_command"]),
         "blank test_command": set_path(["service", "test_command"], "  "),
@@ -200,7 +207,7 @@ PASSING_CASES = {
     "CHK-07": {
         "nested health_endpoint": set_path(["verification", "health_endpoint"], "/api/v1/health"),
         "defaults omitted": lambda v: [v["verification"].pop(key) for key in ("health_endpoint", "timeout_seconds")],
-        "db check required": set_path(["verification", "db_check_required"], True),
+        "one second timeout": set_path(["verification", "timeout_seconds"], 1),
     },
     "CHK-08": {
         "custom_checks omitted": delete_path(["verification", "custom_checks"]),
@@ -215,6 +222,7 @@ PASSING_CASES = {
         "exception_id not needed": set_path(["deploy", "production"], {"approval_mode": "all-approvers"}),
     },
     "CHK-11": {"command with arguments": set_path(["service", "test_command"], "make test ARGS='-v'")},
+    "CHK-12": {"db check required": set_path(["verification", "db_check_required"], True)},
 }
 
 
@@ -237,10 +245,10 @@ def rule_ids():
 class RuleTests(unittest.TestCase):
     def test_rule_ids_are_unique_and_complete(self):
         ids = [rule.id for rule in RULES.RULES]
-        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 12)])
+        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 13)])
 
     def test_severities_match_contract(self):
-        errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
+        errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-07", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
         for rule in RULES.RULES:
             with self.subTest(rule.id):
                 self.assertEqual(rule.severity, RULES.ERROR if rule.id in errors else RULES.WARNING)
@@ -271,6 +279,7 @@ class RuleTests(unittest.TestCase):
             (set_path(["service"], "sample-app"), "service", "must be a mapping", "CHK-02, CHK-11"),
             (delete_path(["governance"]), "governance", "is required", "CHK-05, CHK-06"),
             (set_path(["governance"], []), "governance", "must be a mapping", "CHK-05, CHK-06"),
+            (set_path(["verification"], "none"), "verification", "must be a mapping", "CHK-07, CHK-12"),
         ]
         for change, field, message, rule in cases:
             with self.subTest(field=field, message=message):
@@ -293,6 +302,13 @@ class RuleTests(unittest.TestCase):
 
         self.assertEqual(
             problems, [{"field": "service", "severity": "Warning", "message": "is required", "rule": "CHK-02, CHK-99"}]
+        )
+
+    def test_missing_verification_is_only_a_warning(self):
+        # health_endpoint and timeout_seconds are optional, so only db_check_required needs the section.
+        self.assertEqual(
+            RULES.check(settings(delete_path(["verification"]))),
+            [{"field": "verification", "severity": "Warning", "message": "is required", "rule": "CHK-12"}],
         )
 
     def test_missing_or_malformed_environments_report_fields_and_categories(self):
@@ -339,6 +355,17 @@ class RuleTests(unittest.TestCase):
                 "is required when approval_mode is unattended",
             ),
             (set_path(["version"], 1.0), "version", 'must be text in quotes, for example "1.0"'),
+            (
+                set_path(["verification", "health_endpoint"], "health"),
+                "verification.health_endpoint",
+                "must be a URL path starting with '/'",
+            ),
+            (
+                set_path(["verification", "timeout_seconds"], 0),
+                "verification.timeout_seconds",
+                "must be a whole number greater than zero",
+            ),
+            (set_path(["verification", "db_check_required"], "no"), "verification.db_check_required", "must be true or false"),
         ]
         for change, field, message in cases:
             with self.subTest(field=field, message=message):

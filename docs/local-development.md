@@ -83,8 +83,8 @@ The warning scenario asserts that Check, Test and Deploy pass for
 make test-pipeline-settings-warnings
 ```
 
-The verify step is still a placeholder, so this shows later stages run with
-malformed warning-only values, not that they handle them correctly.
+This shows that warnings don't stop a run. No later stage reads a field that
+only has warning rules, so it doesn't test how stages handle malformed values.
 
 ### Pre-gate checks
 
