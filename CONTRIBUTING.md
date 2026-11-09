@@ -118,9 +118,20 @@ Only change a version file when you intend to release.
 
 ## Testing before opening a PR
 
+For local workflow setup and failure scenarios, see the
+[local development guide](docs/local-development.md).
+
+- Install the settings checker's requirements and run the unit tests (the pre-gate also runs them):
+  ```
+  pip install -r packages/settings-checker/requirements.txt
+  python3 -m unittest discover -s tests
+  ```
 - Run `checker.py` against the relevant fixtures:
   ```
-  python3 packages/settings-checker/checker.py --config tests/fixtures/<file>.yml
+  python3 packages/settings-checker/checker.py --settings tests/fixtures/settings/<file>.yml --strict
   ```
 - Exercise workflow changes locally with [`act`](https://github.com/nektos/act).
-- Add or update fixtures in `tests/fixtures/` when you change settings validation rules.
+- When you add or change a settings rule, edit it in `packages/settings-checker/rules.py`, update
+  its cases in `tests/test_settings_checker.py` and the rules table in
+  `packages/settings-checker/README.md`. For a new error rule, add a fixture in
+  `tests/fixtures/settings/errors/`, named after the problem, and its expected rule ID in the test.

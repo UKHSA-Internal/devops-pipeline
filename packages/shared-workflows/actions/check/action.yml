@@ -1,5 +1,5 @@
 name: Pipeline Check Action
-description: Checks that pipeline-settings.yml is readable; schema validation is pending
+description: Checks pipeline-settings.yml against the settings contract; errors fail the step
 
 inputs:
   settings_path:
@@ -16,9 +16,21 @@ runs:
       with:
         python-version: '3.11'
 
-    - name: Run Standards Check Tool
+    - name: Check pipeline settings
       shell: bash
       env:
         SETTINGS_PATH: ${{ inputs.settings_path }}
+        CHECKER_DIRECTORY: ${{ github.action_path }}/../../../settings-checker
       run: |
-        python3 "${{ github.action_path }}/../../../settings-checker/checker.py" --config "$SETTINGS_PATH"
+        set -euo pipefail
+        python3 -m venv "$RUNNER_TEMP/settings-checker-venv"
+        "$RUNNER_TEMP/settings-checker-venv/bin/pip" install --quiet -r "$CHECKER_DIRECTORY/requirements.txt"
+
+        output_file="$RUNNER_TEMP/settings-checker-output.md"
+        status=0
+        "$RUNNER_TEMP/settings-checker-venv/bin/python" "$CHECKER_DIRECTORY/checker.py" \
+          --settings "$SETTINGS_PATH" --format markdown > "$output_file" || status=$?
+        cat "$output_file"
+        cat "$output_file" >> "$GITHUB_STEP_SUMMARY"
+
+        exit "$status"
