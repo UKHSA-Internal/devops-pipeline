@@ -96,6 +96,14 @@ Architecture Decision Records live in `docs/adr/` as numbered Markdown files, fo
 - **Order:** for major or breaking shifts, merge the ADR first in its own PR, then raise the implementation PR. For minor breaking changes, the ADR may be bundled with the implementation.
 - **Permanence:** accepted ADRs are never edited. A new ADR explicitly supersedes the old one.
 
+## Diagrams
+
+Architecture diagrams live in `docs/diagrams/`. The `.drawio` files are the
+source, the `.png` files are exports, and Confluence holds the published image.
+
+A change that makes a diagram wrong updates that diagram and its export in the
+same pull request. See `docs/diagrams/README.md`.
+
 ## Versions and releases
 
 Each component releases automatically when its version file changes on `main`:

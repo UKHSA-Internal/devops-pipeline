@@ -1,0 +1,73 @@
+<mxfile host="Electron">
+  <diagram name="How the Pipeline Fits Together" id="d1">
+    <mxGraphModel dx="1414" dy="791" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1340" pageHeight="710" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="g0" parent="1" style="rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#D4D8DC;strokeWidth=1.2;dashed=1;dashPattern=5 4;verticalAlign=top;align=left;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=11;fontStyle=1;fontColor=#8A9199;connectable=0;" value="IN THE SERVICE&#39;S REPOSITORY" vertex="1">
+          <mxGeometry height="282" width="270" x="50" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="g1" parent="1" style="rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#D4D8DC;strokeWidth=1.2;dashed=1;dashPattern=5 4;verticalAlign=top;align=left;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=11;fontStyle=1;fontColor=#8A9199;connectable=0;" value="IN THE PIPELINE REPOSITORY" vertex="1">
+          <mxGeometry height="537" width="370" x="490" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#1A2733;connectable=0;" value="How the Pipeline Fits Together" vertex="1">
+          <mxGeometry height="30" width="1260" x="36" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#5F6771;connectable=0;" value="The pieces that make up the standard and how a service connects to them." vertex="1">
+          <mxGeometry height="22" width="1260" x="36" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="caller" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A6FA5;strokeWidth=2;fontColor=#1A2733;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Caller Workflow&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;Runs on a pull request and&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;on merge to main&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="230" x="70" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="settings" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A6FA5;strokeWidth=2;fontColor=#1A2733;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Settings File&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;Environments, test command,&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;approvers, health endpoint&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="230" x="70" y="275" as="geometry" />
+        </mxCell>
+        <mxCell id="pipe" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#1F4E5F;strokeColor=#1F4E5F;strokeWidth=2;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Shared Pipeline Workflow&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;Runs the steps in a fixed order and stops&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;the run if one of them fails&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="326" x="512" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="steps" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#1F4E5F;strokeColor=#1F4E5F;strokeWidth=2;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Step Actions&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;Check, Test, Scan, Build, Deploy and Verify&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="326" x="512" y="275" as="geometry" />
+        </mxCell>
+        <mxCell id="check" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#1F4E5F;strokeColor=#1F4E5F;strokeWidth=2;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Standards Check&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;Reads a service&amp;#x27;s settings file and reports&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;gaps. It never blocks a change&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="326" x="512" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="template" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#1F4E5F;strokeColor=#1F4E5F;strokeWidth=2;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Starting Template&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;What a new service copies to get started&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="326" x="512" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="record" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;fontColor=#2B3137;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Run Record&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;What ran, what was checked&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;and what was deployed&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="250" x="1030" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="envs" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;fontColor=#2B3137;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Service Environments&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;Development, Pre-production and&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;Production, which has a gate&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="250" x="1030" y="275" as="geometry" />
+        </mxCell>
+        <mxCell id="report" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;fontColor=#2B3137;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Standards Check Report&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;The view across services&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;that governance reads&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="250" x="1030" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" edge="1" parent="1" source="caller" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" target="pipe" value="Calls the pipeline">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="settings" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" target="pipe" value="Read on every run">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="steps" value="Runs each step in order">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="steps" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="envs" value="Deploys, then verifies">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="record" value="One record per run">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="settings" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" target="check" value="Read on a schedule">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="check" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="report" value="Across every service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="template" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="settings" value="Copied once, to start a service off">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

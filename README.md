@@ -13,7 +13,8 @@ Centralised pipeline standards, shared GitHub Actions workflows, compliance chec
 | `sample-app/` | Example microservice demonstrating the shared pipeline |
 | `scripts/` | Repository-maintenance scripts, including contribution-rule validation used by hooks and CI |
 | `tests/` | Automated tests and settings fixtures under `tests/fixtures/` |
-| `docs/` | Architecture Decision Records and other repository documentation |
+| `docs/adr` | Architecture Decision Records |
+| `docs/diagrams/` | Architecture diagrams. The `.drawio` files are the source |
 
 The shared workflow sources in `packages/shared-workflows/` are not an
 independently published component. They are packaged and released with the
