@@ -1,0 +1,76 @@
+<mxfile host="Electron">
+  <diagram name="The Shared Pipeline Code in Context" id="d1">
+    <mxGraphModel dx="1414" dy="791" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1240" pageHeight="642" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#1A2733;connectable=0;" value="The Shared Pipeline Code in Context" vertex="1">
+          <mxGeometry height="30" width="1160" x="36" y="28" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#5F6771;connectable=0;" value="Who uses it, what it connects to and what it produces." vertex="1">
+          <mxGeometry height="22" width="1160" x="36" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="eng" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A6FA5;strokeWidth=2;fontColor=#1A2733;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Service Engineer&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;A developer on a service team&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="60" y="122" as="geometry" />
+        </mxCell>
+        <mxCell id="app" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A6FA5;strokeWidth=2;fontColor=#1A2733;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Production Approver&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;Signs off a release into production&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="60" y="272" as="geometry" />
+        </mxCell>
+        <mxCell id="gov" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A6FA5;strokeWidth=2;fontColor=#1A2733;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Governance&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;Reviews services, not&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#4A6FA5&quot;&gt;individual releases&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="60" y="422" as="geometry" />
+        </mxCell>
+        <mxCell id="pipe" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#1F4E5F;strokeColor=#1F4E5F;strokeWidth=2;fontColor=#FFFFFF;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Shared Pipeline Code&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;One pipeline that every service calls.&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;It runs the same steps in the same order&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#BFD9DF&quot;&gt;and writes a record of every run.&lt;/font&gt;" vertex="1">
+          <mxGeometry height="170" width="300" x="470" y="234" as="geometry" />
+        </mxCell>
+        <mxCell id="gh" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;fontColor=#2B3137;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="GitHub&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;Holds the code and runs&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;the pipeline&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="950" y="122" as="geometry" />
+        </mxCell>
+        <mxCell id="scan" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;fontColor=#2B3137;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="Scanning Tools&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;Check the code, dependencies&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;and infrastructure&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="950" y="272" as="geometry" />
+        </mxCell>
+        <mxCell id="env" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;fontColor=#2B3137;fontFamily=Helvetica;fontSize=15;fontStyle=1;verticalAlign=middle;align=center;" value="The Service&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;The service being built and&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px&quot; color=&quot;#5F6771&quot;&gt;deployed, in each environment&lt;/font&gt;" vertex="1">
+          <mxGeometry height="95" width="230" x="950" y="422" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" edge="1" parent="1" source="eng" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.1;entryDx=0;entryDy=0;" target="pipe" value="Raises a change">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" target="eng" value="Run record for every change">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="app" value="Asks for approval">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.9;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" target="gov" value="What was checked, across every service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.1;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" target="gh" value="Reads the code">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="scan" value="Sends code and dependencies to check">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="pipe" style="edgeStyle=none;html=1;strokeColor=#5F6771;strokeWidth=1.4;fontFamily=Helvetica;fontSize=10;fontColor=#5F6771;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.9;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" target="env" value="Deploys the build, checks it responds">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lg0s" parent="1" style="rounded=1;arcSize=8;html=1;fillColor=#FFFFFF;strokeColor=#4A6FA5;strokeWidth=2;connectable=0;" value="" vertex="1">
+          <mxGeometry height="15" width="26" x="60" y="557" as="geometry" />
+        </mxCell>
+        <mxCell id="lg0t" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5F6771;connectable=0;" value="Person or role" vertex="1">
+          <mxGeometry height="21" width="160" x="92" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1s" parent="1" style="rounded=1;arcSize=8;html=1;fillColor=#1F4E5F;strokeColor=#1F4E5F;strokeWidth=2;connectable=0;" value="" vertex="1">
+          <mxGeometry height="15" width="26" x="240" y="557" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1t" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5F6771;connectable=0;" value="The system in scope" vertex="1">
+          <mxGeometry height="21" width="160" x="272" y="554" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2s" parent="1" style="rounded=1;arcSize=8;html=1;fillColor=#F7F8F9;strokeColor=#A8ADB3;strokeWidth=1.5;connectable=0;" value="" vertex="1">
+          <mxGeometry height="15" width="26" x="420" y="557" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2t" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5F6771;connectable=0;" value="External system" vertex="1">
+          <mxGeometry height="21" width="160" x="452" y="554" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

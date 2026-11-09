@@ -34,7 +34,7 @@ see the [local development guide](docs/local-development.md).
 | `sample-app/` | Example service demonstrating the shared pipeline |
 | `scripts/` | Repository-maintenance scripts and release tag rulesets |
 | `tests/` | Automated tests and fixtures |
-| `docs/` | Guides and architecture decision records |
+| `docs/` | Guides, architecture decision records and diagrams |
 
 The GitHub-discovered workflow entrypoints in `.github/workflows/` and
 `packages/shared-workflows/` are released together as one workflow package.
