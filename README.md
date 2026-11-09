@@ -3,6 +3,21 @@
 Centralised pipeline standards, shared GitHub Actions workflows, settings
 checking tools and starter templates for UKHSA service teams.
 
+## Open source
+
+This repository is open source and developed in the open by the UKHSA Platform
+Team.
+
+It is a new project in active development, so behaviour may change as features
+and standards evolve.
+
+This repository is supported for UKHSA teams only.
+
+- For contributions, see [CONTRIBUTING.md](CONTRIBUTING.md).
+- Security issues must not be raised as public GitHub issues; see
+  [SECURITY.md](SECURITY.md).
+- Licence information is in [LICENSE](LICENSE).
+
 ## Get started
 
 - **Use the pipeline:** follow the [consumer guide](docs/consumer-guide.md).
