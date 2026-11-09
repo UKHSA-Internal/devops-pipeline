@@ -1,51 +1,145 @@
+"""Pipeline settings checker.
+
+Checks a repository's .github/pipeline-settings.yml and reports whether it is
+ready to onboard to the shared pipeline. The Check step of every pipeline run
+uses the same tool. The rules themselves are in rules.py.
+"""
+
 import argparse
 import json
+import sys
 from pathlib import Path
 
+import yaml
 
-def main():
-    parser = argparse.ArgumentParser(description="UKHSA Pipeline Standards Check Tool")
-    parser.add_argument("--config", default=".github/pipeline-settings.yml", help="Path to settings file")
-    parser.add_argument("--mode", choices=["pr", "audit"], default="pr", help="Execution context")
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Retained for compatibility; an unreadable settings file always fails",
-    )
-    args = parser.parse_args()
+from rules import ERROR, WARNING, check
 
-    config_path = Path(args.config)
-    print(f"[STEP: CHECK] Checking settings file: {config_path}")
+DEFAULT_SETTINGS = Path(".github") / "pipeline-settings.yml"
+SYMBOLS = {ERROR: "✗", WARNING: "!"}
+# Used when the terminal can't show the symbols above, such as a Windows console.
+PLAIN = str.maketrans({"✗": "x", "–": "-"})
 
+
+def file_problem(path: Path, message: str) -> dict:
+    return {"field": str(path), "severity": ERROR, "message": message, "rule": None}
+
+
+def load_settings(path: Path):
+    """Return (settings, None), or (None, problem) if the file can't be used."""
+    if path.is_dir():
+        return None, file_problem(path, "is a folder, not a settings file")
+    if not path.is_file():
+        return None, file_problem(path, "file not found")
     try:
-        with config_path.open("rb"):
-            pass
-    except OSError as error:
-        print(
-            json.dumps(
-                {
-                    "status": "ERROR",
-                    "file_checked": str(config_path),
-                    "mode": args.mode,
-                    "error": f"Unable to read settings file: {error}",
-                },
-                indent=2,
-            )
-        )
-        return 1
+        settings = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as error:
+        mark = getattr(error, "problem_mark", None)
+        where = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+        return None, file_problem(path, f"is not valid YAML{where}")
+    except (OSError, UnicodeDecodeError) as error:
+        return None, file_problem(path, f"cannot be read: {error}")
+    if not isinstance(settings, dict):
+        return None, file_problem(path, "must contain the settings as a YAML mapping")
+    return settings, None
 
-    print(
-        json.dumps(
-            {
-                "status": "VALIDATION_PENDING",
-                "file_checked": str(config_path),
-                "mode": args.mode,
-                "message": "Schema validation is not implemented; this check only confirms the file can be read.",
-            },
-            indent=2,
+
+def exit_code(problems: list, strict: bool, report_only: bool) -> int:
+    if report_only:
+        return 0
+    failing = problems if strict else [item for item in problems if item["severity"] == ERROR]
+    return 1 if failing else 0
+
+
+def create_report(path: Path, problems: list, status: int) -> dict:
+    errors = sum(item["severity"] == ERROR for item in problems)
+    return {
+        "settings_file": str(path),
+        "ready": errors == 0,
+        "exit_code": status,
+        "summary": {"errors": errors, "warnings": len(problems) - errors},
+        "problems": problems,
+    }
+
+
+def headline(report: dict) -> str:
+    counts = [
+        f"{count} {name}{'' if count == 1 else 's'}"
+        for name, count in (("error", report["summary"]["errors"]), ("warning", report["summary"]["warnings"]))
+        if count
+    ]
+    return f"{'Ready' if report['ready'] else 'Not ready'}: {', '.join(counts) or 'no problems'}"
+
+
+def describe(item: dict) -> str:
+    rule = f" ({item['rule']})" if item["rule"] else ""
+    return f"{item['field']} – {item['message']}{rule}"
+
+
+def as_text(report: dict) -> str:
+    lines = [f"Settings file: {report['settings_file']}", headline(report)]
+    if report["problems"]:
+        lines.append("")
+        lines.extend(f"{SYMBOLS[item['severity']]} {describe(item)}" for item in report["problems"])
+    return "\n".join(lines)
+
+
+def as_markdown(report: dict) -> str:
+    def cell(text: str) -> str:
+        return text.replace("|", "\\|").replace("`", "'")
+
+    lines = [
+        "### Settings check",
+        "",
+        f"**{headline(report)}**",
+        "",
+        f"Settings file: `{cell(report['settings_file'])}`",
+    ]
+    if report["problems"]:
+        lines += ["", "| | Field | Problem | Rule |", "| --- | --- | --- | --- |"]
+        lines.extend(
+            f"| {SYMBOLS[item['severity']]} {item['severity']} | `{cell(item['field'])}` "
+            f"| {cell(item['message'])} | {item['rule'] or ''} |"
+            for item in report["problems"]
         )
+    return "\n".join(lines) + "\n"
+
+
+def as_json(report: dict) -> str:
+    return json.dumps(report, indent=2, ensure_ascii=False)
+
+
+FORMATS = {"text": as_text, "json": as_json, "markdown": as_markdown}
+
+
+def printable(text: str, encoding: str) -> str:
+    """Return text that the output stream can encode, using plain symbols if needed."""
+    try:
+        text.encode(encoding)
+        return text
+    except UnicodeEncodeError:
+        return text.translate(PLAIN).encode(encoding, errors="replace").decode(encoding)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Check a repository's pipeline settings and report whether it is ready to onboard to the shared pipeline."
     )
-    return 0
+    parser.add_argument(
+        "repository", nargs="?", default=".", help="repository folder to check (default: the current folder)"
+    )
+    parser.add_argument("--settings", help=f"settings file to check, instead of REPOSITORY/{DEFAULT_SETTINGS}")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--strict", action="store_true", help="fail on warnings as well as errors")
+    mode.add_argument("--report-only", action="store_true", help="report problems, but always exit 0")
+    parser.add_argument("--format", choices=FORMATS, default="text", help="output format (default: text)")
+    args = parser.parse_args(argv)
+
+    path = Path(args.settings) if args.settings else Path(args.repository) / DEFAULT_SETTINGS
+    settings, problem = load_settings(path)
+    problems = [problem] if problem else sorted(check(settings), key=lambda item: item["severity"] != ERROR)
+    report = create_report(path, problems, exit_code(problems, args.strict, args.report_only))
+    print(printable(FORMATS[args.format](report), sys.stdout.encoding or "utf-8"))
+    return report["exit_code"]
 
 
 if __name__ == "__main__":

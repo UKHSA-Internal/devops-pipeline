@@ -1,0 +1,43 @@
+# Warnings only (CHK-01, CHK-02, CHK-06, CHK-12): Check passes, and the later stages must still run.
+version: 1.0
+
+service:
+  name: "warnings-only-service"
+  language: "python"
+  test_command: "python3 -c 'print(\"no tests in this fixture\")'"
+
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "123456789012"
+    role_name: pipeline-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
+    region: eu-west-2
+
+governance:
+  retention_days: 0
+  approvers:
+    - "platform-leads"
+
+verification:
+  health_endpoint: "/health"
+  timeout_seconds: 60
+  custom_checks:
+    - name: "smoke"
+      command: "curl --fail http://localhost/health"
+      timeout_seconds: 30
+      allow_failure: false
+
+deploy:
+  production:
+    approval_mode: "unattended"
+    exception_id: "EXC-0001"

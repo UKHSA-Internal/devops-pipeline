@@ -4,17 +4,37 @@ service:
   name: "replace-with-service-name"
   owner_team: "replace-with-owner-team"
   language: "python"
-  # Temporary sandbox placeholder; replace with the service's real test command.
-  test_command: "echo 'sandbox: no tests'"
+  # Runs tests/test_placeholder.py; replace the placeholder with the service's real tests.
+  test_command: "python3 -m unittest discover -s tests -v"
 
-environments: []
+# Replace the placeholder accounts and roles. Each category needs at least one environment.
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "000000000000"
+    role_name: replace-with-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "000000000000"
+    role_name: replace-with-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "000000000000"
+    role_name: replace-with-prod-role
+    region: eu-west-2
 
 governance:
   retention_days: 30
-  shared_workflow_ref: "v1"
-  approvers: []
+  approvers:
+    - "replace-with-approver-group"
 
 verification:
   health_endpoint: "/health"
   timeout_seconds: 60
   db_check_required: false
+
+deploy:
+  production:
+    approval_mode: "all-approvers"
