@@ -1,6 +1,6 @@
 # 5. Release Version 1.0.0 of the Workflow Package
 
-* **Status:** Proposed
+* **Status:** Approved
 * **Date:** 2026-11-09
 
 ## Context
