@@ -16,6 +16,8 @@ GitHub-discovered entrypoints under `.github/workflows/` and
 4. If it passes, promotion asserts the canary still points at the pinned
    commit, creates `vX.Y.Z` there and force-moves `v<MAJOR>` to it. Promotion
    is automatic; there is no manual approval step.
+5. Run the [sandbox](local-development.md#testing-as-a-consumer) against the
+   new tag to confirm consumers get the released version.
 
 From version `1.0.0` the aliases are `v1` and `v1-canary`. `v0` and
 `v0-canary` stay on the last 0.x release and are no longer moved.

@@ -105,6 +105,27 @@ including whether Production is skipped or included and whether artifacts are
 uploaded. For the separate manual canary smoke test, see the
 [release guide](workflow-release.md#canary-smoke-test).
 
+## Testing as a consumer
+
+Every test in this repository runs the pipeline from inside the platform
+repository, using relative action references. None of them prove that a
+separate repository can call `standard-pipeline.yml`.
+
+The [devops-pipeline-sandbox](https://github.com/UKHSA-Internal/devops-pipeline-sandbox)
+repository covers that gap. It calls the published workflow across a range of
+settings scenarios using only the default `GITHUB_TOKEN`.
+
+Run it:
+
+- after every release, against the new tag, to confirm consumers get the
+  released version;
+- when changing anything a consumer depends on: the workflow interface, the
+  settings contract, or how actions are referenced.
+
+Use the sandbox's Actions tab and choose a scenario workflow. Unreleased
+changes can't be tested by pointing the sandbox at a normal branch; the
+sandbox README explains how to test them.
+
 ## Git hooks
 
 ```bash
