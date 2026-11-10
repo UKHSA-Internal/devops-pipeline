@@ -15,7 +15,7 @@ version tags too.
 
 ## Release tags
 
-Consumers that pin to an exact version (for example `@v0.1.1`) must always get
+Consumers that pin to an exact version (for example `@v1.0.0`) must always get
 the same workflows and actions, so release tags are immutable. The ruleset has
 no creation rule and no bypass actors:
 
@@ -28,7 +28,7 @@ no creation rule and no bypass actors:
 
 ## Floating tags
 
-Consumers use the floating major tag (for example `@v0`, later `@v1`) for
+Consumers use the floating major tag (for example `@v1`) for
 automatic updates, so only the release may create, move or delete floating
 tags. Every release force-moves `v<MAJOR>-canary` and `v<MAJOR>`, so the
 ruleset needs a bypass actor that the release can act as:

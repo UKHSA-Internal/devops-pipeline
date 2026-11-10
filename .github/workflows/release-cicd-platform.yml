@@ -135,12 +135,6 @@ jobs:
             exit 1
           fi
 
-          # TODO: Remove this guard at the deliberate 1.0.0 cut-over.
-          if [[ "$major_alias" != "v0" ]]; then
-            printf 'ERROR: Releases before the 1.0.0 cut-over must use v0 aliases; got %s.\n' "$major_alias" >&2
-            exit 1
-          fi
-
           {
             printf 'release_needed=true\n' >> "$GITHUB_OUTPUT"
             printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"

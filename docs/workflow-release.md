@@ -17,8 +17,8 @@ GitHub-discovered entrypoints under `.github/workflows/` and
    commit, creates `vX.Y.Z` there and force-moves `v<MAJOR>` to it. Promotion
    is automatic; there is no manual approval step.
 
-Before the deliberate 1.0.0 cut-over, the aliases are `v0` and `v0-canary`;
-`v1` and `v1-canary` are not created before version `1.0.0`.
+From version `1.0.0` the aliases are `v1` and `v1-canary`. `v0` and
+`v0-canary` stay on the last 0.x release and are no longer moved.
 Consumers use a floating major tag or an exact version tag. See the
 [consumer guide](consumer-guide.md) for action access and caller setup.
 
@@ -101,7 +101,7 @@ smoke test passes only if every pipeline stage passes.
 
 For a manual check, run `smoke-test-pipeline.yml` using `workflow_dispatch`
 in the Actions tab or with `gh workflow run smoke-test-pipeline.yml`. Unlike
-the release smoke test, this calls `standard-pipeline.yml@v0-canary` and tests
+the release smoke test, this calls `standard-pipeline.yml@v1-canary` and tests
 the published canary. It has no other trigger. It runs inside the platform
 repository and cannot catch every cross-repository problem, such as a
 consumer's own token or permissions.
