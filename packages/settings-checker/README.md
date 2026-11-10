@@ -88,7 +88,7 @@ version: "1.0"                     # string, required
 service:
   name: "my-service"               # required
   owner_team: "my-team"            # required
-  language: "python"               # required
+  language: "python"               # required; "python" or "node" sets up a runtime
   test_command: "make test"        # non-empty, single line, required
 environments:                      # required; each entry needs every field
   - name: dev-env-1                # letters, numbers, '.', '_', '-'; unique

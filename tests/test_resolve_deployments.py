@@ -96,6 +96,20 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual(plan["health_endpoint"], "/health")
         self.assertEqual(plan["timeout_seconds"], 60)
 
+    def test_language_is_normalised_to_lower_case(self):
+        values = settings()
+        values["service"]["language"] = "  Python  "
+
+        self.assertEqual(RESOLVER.resolve(values)["language"], "python")
+
+    def test_language_is_empty_when_missing_or_not_text(self):
+        self.assertEqual(RESOLVER.resolve(settings())["language"], "")
+
+        values = settings()
+        values["service"]["language"] = None
+
+        self.assertEqual(RESOLVER.resolve(values)["language"], "")
+
     def test_outputs_are_delimited_so_values_cannot_add_outputs(self):
         plan = RESOLVER.resolve(
             settings(verification={"health_endpoint": "/health\ntest_command=injected", "timeout_seconds": 60})

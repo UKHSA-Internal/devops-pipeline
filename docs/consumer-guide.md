@@ -47,6 +47,24 @@ environment in each of Development, Pre-production and Production.
 placeholder with the service's real tests. The
 [sample app](../sample-app/README.md) shows a working example.
 
+### Test runtime
+
+The Test stage sets up a language runtime before running `test_command`, based
+on `service.language`. The runner has no particular version pre-installed, so
+the service must declare the version it needs:
+
+| `service.language` | Version file in the service directory | Runtime |
+| --- | --- | --- |
+| `python` | `.python-version` | `actions/setup-python` |
+| `node` | `.nvmrc`, or `.node-version` | `actions/setup-node` |
+
+`python` and `node` are the only accepted values. Matching ignores case and
+surrounding whitespace. If the language is `python` or `node` and its version
+file is missing, the Test stage fails and names the file to add. Any other
+value, or no value at all, sets up no runtime: the Test stage logs a warning
+and runs `test_command` on the runner as it is, so the command must rely only
+on what the runner already provides.
+
 The workflow uses `.github/pipeline-settings.yml` by default. For a service in a
 subdirectory, set the reusable workflow's `settings_path` input to its settings
 file. If no input or root settings file is present, the workflow accepts exactly
@@ -67,8 +85,9 @@ for the complete contract and options.
 
 ## What the pipeline does
 
-The Check stage validates settings, then the pipeline runs the configured test
-command, placeholder scan, build, deployments and verification. It records a
+The Check stage validates settings, then the pipeline sets up the service's
+language runtime, runs the configured test command, placeholder scan, build,
+deployments and verification. It records a
 run report and passes the full-commit-SHA image tag to each deployment.
 Deployments within each category run one at a time in settings order. Pull
 requests deploy to Development only; Pre-production and Production run only
