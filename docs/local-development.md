@@ -107,9 +107,12 @@ uploaded. For the separate manual canary smoke test, see the
 
 ## Testing as a consumer
 
-Every test in this repository runs the pipeline from inside the platform
-repository, using relative action references. None of them prove that a
-separate repository can call `standard-pipeline.yml`.
+Tests in this repository run the pipeline from inside the platform repository.
+The canary smoke test goes furthest: `smoke-test-pipeline.yml` calls the
+published `v<MAJOR>-canary` by full reference, so it does validate a release
+the way a consumer resolves it, through pinned action references. It still
+runs inside this repository, so it can't prove that a separate repository,
+using only its own default `GITHUB_TOKEN`, can call `standard-pipeline.yml`.
 
 The [devops-pipeline-sandbox](https://github.com/UKHSA-Internal/devops-pipeline-sandbox)
 repository covers that gap. It calls the published workflow across a range of
