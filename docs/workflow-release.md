@@ -21,8 +21,8 @@ The canary exists only while a release is being tested. It is deleted after a
 successful promotion, and after a failed smoke test it stays on the failed
 candidate until the next release replaces it. Consumers never use the canary.
 
-Before the deliberate 1.0.0 cut-over, the aliases are `v0` and `v0-canary`;
-`v1` and `v1-canary` are not created before version `1.0.0`.
+From version `1.0.0` the aliases are `v1` and `v1-canary`. `v0` and
+`v0-canary` stay on the last 0.x release and are no longer moved.
 Consumers use a floating major tag or an exact version tag. See the
 [consumer guide](consumer-guide.md) for action access and caller setup.
 
@@ -108,7 +108,7 @@ smoke test passes only if every pipeline stage passes.
 
 For a manual check, run `smoke-test-pipeline.yml` using `workflow_dispatch`
 in the Actions tab or with `gh workflow run smoke-test-pipeline.yml`. Unlike
-the release smoke test, this calls `standard-pipeline.yml@v0-canary`, so it
+the release smoke test, this calls `standard-pipeline.yml@v1-canary`, so it
 only works while a canary exists: during a release, or after a failed
 candidate. It has no other trigger. It runs inside the platform
 repository and cannot catch every cross-repository problem, such as a

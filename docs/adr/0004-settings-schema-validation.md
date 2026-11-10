@@ -1,6 +1,6 @@
 # 4. Settings Validation in the Settings Checker
 
-* **Status:** Proposed
+* **Status:** Approved
 * **Date:** 2026-11-09
 
 ## Context
