@@ -273,7 +273,8 @@ class RunRecordFileTests(unittest.TestCase):
         record = self.generate(deploy_preprod_result="skipped")
 
         self.assertEqual(
-            set(record), {"context", "timestamps", "steps", "environments", "governance"}
+            set(record),
+            {"context", "timestamps", "steps", "environments", "scan_findings", "governance"},
         )
         self.assertEqual(
             set(record["context"]),
@@ -292,6 +293,24 @@ class RunRecordFileTests(unittest.TestCase):
         for value in record["timestamps"].values():
             self.assertRegex(value, self.TIMESTAMP)
         self.assertEqual(record["environments"][0]["image_tag"], "sample-app:abcdef123456")
+        self.assertEqual(record["scan_findings"], {"total": 0, "baseline_used": False})
+
+    def test_scan_findings_default_to_zero_and_no_baseline(self):
+        record = self.generate(deploy_preprod_result="skipped")
+
+        self.assertEqual(record["scan_findings"], {"total": 0, "baseline_used": False})
+        # Report-only scanning: the scan step still passes however many findings there are.
+        self.assertEqual(record["steps"]["scan"], "PASSED")
+
+    def test_scan_findings_are_recorded_when_present(self):
+        record = self.generate(
+            deploy_preprod_result="skipped",
+            scan_findings_total="3",
+            scan_baseline_used="true",
+        )
+
+        self.assertEqual(record["scan_findings"], {"total": 3, "baseline_used": True})
+        self.assertEqual(record["steps"]["scan"], "PASSED")
 
     def test_failed_check_records_check_failed_and_downstream_skipped(self):
         record = self.generate(

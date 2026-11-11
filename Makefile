@@ -1,4 +1,4 @@
-.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-secrets-clean test-pipeline-secrets-finding test-pipeline-secrets-baseline install-hooks
 
 ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:act-latest
 ACT_EVENT_FILE ?=
@@ -42,6 +42,21 @@ test-pipeline-settings-warnings: ## Run the pipeline with settings that have onl
 	@rm -f .act-artifacts/run-record.json
 	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/warnings-only-service/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 	@grep -q '"check": "PASSED"' .act-artifacts/run-record.json && grep -q '"test": "PASSED"' .act-artifacts/run-record.json && grep -q '"deploy": "PASSED"' .act-artifacts/run-record.json && echo "OK: check PASSED with warnings, later stages PASSED"
+
+test-pipeline-secrets-clean: ## Run the pipeline against a service with no secrets; expects zero findings and Scan to pass
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/secret-scanning/clean-service/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"scan": "PASSED"' .act-artifacts/run-record.json && grep -q '"total": 0' .act-artifacts/run-record.json && grep -q '"baseline_used": false' .act-artifacts/run-record.json && echo "OK: no findings, Scan PASSED"
+
+test-pipeline-secrets-finding: ## Run the pipeline against a service with a fake secret; expects the finding reported but Scan still passes (report-only)
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/secret-scanning/service-with-finding/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"scan": "PASSED"' .act-artifacts/run-record.json && grep -q '"total": 1' .act-artifacts/run-record.json && grep -q '"baseline_used": false' .act-artifacts/run-record.json && echo "OK: finding reported, Scan still PASSED (report-only)"
+
+test-pipeline-secrets-baseline: ## Run the pipeline against a service whose .secrets.baseline suppresses its only known secret; expects zero findings
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/secret-scanning/service-with-baseline/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"scan": "PASSED"' .act-artifacts/run-record.json && grep -q '"total": 0' .act-artifacts/run-record.json && grep -q '"baseline_used": true' .act-artifacts/run-record.json && echo "OK: baseline suppressed the known finding"
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks

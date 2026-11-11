@@ -59,7 +59,11 @@ def load_deployment_results(
 
 
 def create_report(
-    environment: dict[str, str], end_time: str, deployment_results: list[dict] | None = None
+    environment: dict[str, str],
+    end_time: str,
+    deployment_results: list[dict] | None = None,
+    scan_findings_total: int = 0,
+    scan_baseline_used: bool = False,
 ) -> dict[str, object]:
     deploy_results = [
         environment[key]
@@ -112,6 +116,10 @@ def create_report(
             "deploy": deploy_status,
         },
         "environments": environments,
+        "scan_findings": {
+            "total": scan_findings_total,
+            "baseline_used": scan_baseline_used,
+        },
         "governance": {
             # TODO: Populate governance values after parsing the settings contract.
             "compliance_verdict": None,
@@ -166,6 +174,11 @@ def main() -> None:
         key.lower(): value for key, value in environment.items()
     }
     planned_deployments = json.loads(os.environ.get("DEPLOYMENTS") or "[]")
+    try:
+        scan_findings_total = int(os.environ.get("SCAN_FINDINGS_TOTAL") or "0")
+    except ValueError:
+        scan_findings_total = 0
+    scan_baseline_used = (os.environ.get("SCAN_BASELINE_USED") or "false").strip().lower() == "true"
     deployment_results_by_category = {
         "Development": normalized_environment["deploy_dev_result"],
         "Pre-production": normalized_environment["deploy_preprod_result"],
@@ -185,7 +198,13 @@ def main() -> None:
         if result.get("result_error"):
             print(f"ERROR: {result['result_error']}")
     end_time = utc_now()
-    report = create_report(normalized_environment, end_time, deployment_results)
+    report = create_report(
+        normalized_environment,
+        end_time,
+        deployment_results,
+        scan_findings_total=scan_findings_total,
+        scan_baseline_used=scan_baseline_used,
+    )
     output_path = Path(os.environ["REPORT_PATH"])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

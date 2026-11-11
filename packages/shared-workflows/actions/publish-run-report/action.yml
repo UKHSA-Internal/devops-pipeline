@@ -11,6 +11,14 @@ inputs:
   scan_result:
     description: Scan job result
     required: true
+  scan_findings_total:
+    description: Number of secret findings from the Scan stage, not already in the baseline
+    required: false
+    default: '0'
+  scan_baseline_used:
+    description: Whether the Scan stage used a .secrets.baseline file
+    required: false
+    default: 'false'
   build_result:
     description: Build job result
     required: true
@@ -71,6 +79,8 @@ runs:
         CHECK_RESULT: ${{ inputs.check_result }}
         TEST_RESULT: ${{ inputs.test_result }}
         SCAN_RESULT: ${{ inputs.scan_result }}
+        SCAN_FINDINGS_TOTAL: ${{ inputs.scan_findings_total }}
+        SCAN_BASELINE_USED: ${{ inputs.scan_baseline_used }}
         BUILD_RESULT: ${{ inputs.build_result }}
         DEPLOY_DEV_RESULT: ${{ inputs.deploy_dev_result }}
         DEPLOY_PREPROD_RESULT: ${{ inputs.deploy_preprod_result }}
