@@ -68,7 +68,7 @@ for the complete contract and options.
 ## What the pipeline does
 
 The Check stage validates settings, then the pipeline runs the configured test
-command, placeholder scan, build, deployments and verification. It records a
+command, secret scanning, build, deployments and verification. It records a
 run report and passes the full-commit-SHA image tag to each deployment.
 Deployments within each category run one at a time in settings order. Pull
 requests deploy to Development only; Pre-production and Production run only
@@ -81,3 +81,25 @@ from this workflow.
 
 For local development and limitations of the sample pipeline, see
 [local development](local-development.md).
+
+## Secret scanning
+
+The Scan stage runs [detect-secrets](https://github.com/Yelp/detect-secrets)
+against the service directory. It is **report-only**: findings are shown in
+the job summary and the step log (file, line and secret type only, never the
+secret value) and recorded in the run report, but they never fail the stage.
+This will change to a blocking check once Cyber confirms the scanning policy.
+
+If a finding is a known false positive, add a `.secrets.baseline` file to the
+service directory to suppress it from future scans. Create and review one
+locally:
+
+```bash
+pip install -r packages/shared-workflows/actions/scan/requirements.txt
+cd my-service
+detect-secrets scan --all-files . > .secrets.baseline
+```
+
+Review the baseline before committing it — it records the file, line and
+hashed secret for every finding you are choosing to suppress, so check each
+one is genuinely not a real secret.

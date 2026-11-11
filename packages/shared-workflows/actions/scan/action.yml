@@ -1,11 +1,54 @@
 name: Scan Step
-description: Placeholder scan step for the standard pipeline
+description: Scans the service directory for secrets with detect-secrets (report-only)
+
+inputs:
+  service_directory:
+    description: Service directory to scan for secrets
+    required: true
+
+outputs:
+  findings_total:
+    description: Number of secret findings not already suppressed by the service's baseline
+    value: ${{ steps.scan.outputs.findings_total }}
+  baseline_used:
+    description: Whether a .secrets.baseline file in the service directory was used
+    value: ${{ steps.scan.outputs.baseline_used }}
 
 runs:
   using: composite
   steps:
-    - name: Run Scan Placeholder
+    - name: Set Up Python
+      uses: actions/setup-python@v7
+      if: ${{ env.ACT != 'true' }}
+      with:
+        python-version: '3.11'
+
+    - name: Scan For Secrets
+      id: scan
       shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        PARSE_SCRIPT: ${{ github.action_path }}/parse_findings.py
+        REQUIREMENTS_FILE: ${{ github.action_path }}/requirements.txt
       run: |
-        printf '[STEP: SCAN] Scan step is not yet implemented.\n'
-        printf '## Scan\n\nScan step is not yet implemented.\n' >> "$GITHUB_STEP_SUMMARY"
+        set -euo pipefail
+        printf '[STEP: SCAN] Scanning %s for secrets with detect-secrets (report-only)\n' "$SERVICE_DIRECTORY"
+
+        python3 -m venv "$RUNNER_TEMP/detect-secrets-venv"
+        "$RUNNER_TEMP/detect-secrets-venv/bin/pip" install --quiet -r "$REQUIREMENTS_FILE"
+
+        scan_results="$RUNNER_TEMP/detect-secrets-results.json"
+        # Run from inside the service directory with --all-files so result paths
+        # match what a consumer sees when building a baseline the same way, and
+        # so untracked or just-created files are still scanned (no git dependency).
+        # The baseline file itself is excluded so its stored hashes are never
+        # mis-detected as a high-entropy secret.
+        (
+          cd "$SERVICE_DIRECTORY"
+          "$RUNNER_TEMP/detect-secrets-venv/bin/detect-secrets" scan --all-files \
+            --exclude-files '\.secrets\.baseline$' . > "$scan_results"
+        )
+
+        export SCAN_RESULTS_PATH="$scan_results"
+        export BASELINE_PATH="$SERVICE_DIRECTORY/.secrets.baseline"
+        python3 "$PARSE_SCRIPT"

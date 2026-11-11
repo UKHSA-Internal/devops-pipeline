@@ -86,6 +86,26 @@ make test-pipeline-settings-warnings
 This shows that warnings don't stop a run. No later stage reads a field that
 only has warning rules, so it doesn't test how stages handle malformed values.
 
+### Secret-scanning scenarios
+
+Each scenario asserts the Scan stage's findings count and baseline usage in
+the run record, and that the stage still passes (report-only):
+
+```bash
+make test-pipeline-secrets-clean     # no secrets: zero findings
+make test-pipeline-secrets-finding   # a fake secret: one finding reported, stage still PASSED
+make test-pipeline-secrets-baseline  # same fake secret, suppressed by .secrets.baseline: zero findings
+```
+
+Run the scan directly against a service directory, the same way the Scan
+stage does:
+
+```bash
+pip install -r packages/shared-workflows/actions/scan/requirements.txt
+cd my-service
+detect-secrets scan --all-files --exclude-files '\.secrets\.baseline$' .
+```
+
 ### Pre-gate checks
 
 The pre-gate validates the repository; the sample-app pipeline exercises the

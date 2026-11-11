@@ -120,15 +120,21 @@ jobs:
 
   scan:
     name: Scan
-    needs: test
+    needs: [check, test]
     runs-on: ubuntu-latest
+    outputs:
+      findings_total: ${{ steps.scan.outputs.findings_total }}
+      baseline_used: ${{ steps.scan.outputs.baseline_used }}
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
       - name: Execute Scan Step
+        id: scan
         uses: ./packages/shared-workflows/actions/scan
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
 
   build:
     name: Build
@@ -385,6 +391,8 @@ jobs:
           check_result: ${{ needs.check.result }}
           test_result: ${{ needs.test.result }}
           scan_result: ${{ needs.scan.result }}
+          scan_findings_total: ${{ needs.scan.outputs.findings_total }}
+          scan_baseline_used: ${{ needs.scan.outputs.baseline_used }}
           build_result: ${{ needs.build.result }}
           deploy_dev_result: ${{ needs.deploy-dev.result }}
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
