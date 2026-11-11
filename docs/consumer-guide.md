@@ -68,11 +68,14 @@ for the complete contract and options.
 ## What the pipeline does
 
 The Check stage validates settings, then the pipeline runs the configured test
-command, placeholder scan, build, deployments and verification. It records a
-run report and passes the full-commit-SHA image tag to each deployment.
-Deployments within each category run one at a time in settings order. Pull
-requests deploy to Development only; Pre-production and Production run only
-on pushes to `main`.
+command and placeholder scan. Pushes to `main` additionally build, deploy and
+verify the service; pull requests stop after Scan, so they never build an
+image or deploy. It records a run report and passes the full-commit-SHA image
+tag to each deployment. Deployments within each category run one at a time in
+settings order. Pushes to `main` deploy to Development; Pre-production and
+Production also run only on pushes to `main`.
+
+<!-- TODO: Pull requests may deploy to an ephemeral environment in future. -->
 
 `deploy.production.approval_mode` is required: `all-approvers`,
 `single-approver` or `unattended`. The last requires
