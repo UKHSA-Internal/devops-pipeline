@@ -133,6 +133,7 @@ jobs:
   build:
     name: Build
     needs: [check, scan]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.build.outputs.image_tag }}
@@ -152,6 +153,7 @@ jobs:
   deploy-dev:
     name: Deploy Development (${{ matrix.deployment.name }})
     needs: [check, build]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
