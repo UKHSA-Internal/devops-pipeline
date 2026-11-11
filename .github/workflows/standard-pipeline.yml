@@ -26,6 +26,12 @@ jobs:
       deployments: ${{ steps.deployments.outputs.deployments }}
       health_endpoint: ${{ steps.deployments.outputs.health_endpoint }}
       timeout_seconds: ${{ steps.deployments.outputs.timeout_seconds }}
+      # Pull requests build nothing and deploy nowhere; Pre-production and
+      # Production deploy only on a push to main. Computed once here so every
+      # downstream job references the same named condition instead of
+      # repeating the underlying event/ref checks.
+      should_build_and_deploy: ${{ github.event_name != 'pull_request' }}
+      should_deploy_main_only: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - name: Record Pipeline Start
         id: started
@@ -133,7 +139,7 @@ jobs:
   build:
     name: Build
     needs: [check, scan]
-    if: github.event_name != 'pull_request'
+    if: needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.build.outputs.image_tag }}
@@ -153,7 +159,7 @@ jobs:
   deploy-dev:
     name: Deploy Development (${{ matrix.deployment.name }})
     needs: [check, build]
-    if: github.event_name != 'pull_request'
+    if: needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -227,7 +233,7 @@ jobs:
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
     needs: [check, build, deploy-dev]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -300,7 +306,7 @@ jobs:
   deploy-prod:
     name: Deploy Production (${{ matrix.deployment.name }})
     needs: [check, build, deploy-preprod]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
