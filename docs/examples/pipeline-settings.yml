@@ -1,0 +1,58 @@
+# Example .github/pipeline-settings.yml
+#
+# A complete, valid settings file showing every field the settings checker
+# understands. Values are realistic dummy data, not placeholders, so this
+# file stays valid under `--strict` as rules tighten. See
+# packages/settings-checker/README.md for the full rule reference and
+# packages/settings-checker/rules.py for the rule implementations.
+#
+# Validate locally:
+#   python3 packages/settings-checker/checker.py --settings docs/examples/pipeline-settings.yml --strict
+
+version: "1.0" # required (string); CHK-01 warns if missing or not text
+
+service:
+  name: "payments-api" # required; CHK-02 warns if empty
+  owner_team: "payments-platform" # required; CHK-02 warns if empty
+  language: "python" # required; CHK-02 warns if empty. Accepted values: python, node
+  test_command: "python3 -m unittest discover -s tests" # required, single line, non-empty; CHK-11 (Error)
+
+# Required list; each entry needs every field below. CHK-03 (Error) validates
+# the fields and uniqueness of `name`. CHK-04 (Error) requires at least one
+# environment in each of Development, Pre-production and Production.
+environments:
+  - name: dev-env-1 # letters, numbers, '.', '_', '-'; unique across the list
+    category: Development # Development | Pre-production | Production
+    account_id: "111111111111" # required
+    role_name: payments-api-dev-deploy-role # required
+    region: eu-west-2 # required
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "222222222222"
+    role_name: payments-api-preprod-deploy-role
+    region: eu-west-2
+  - name: prod-env-1
+    category: Production
+    account_id: "333333333333"
+    role_name: payments-api-prod-deploy-role
+    region: eu-west-2
+
+governance:
+  retention_days: 30 # required; whole number > 0; CHK-06 (Warning)
+  approvers: # required; non-empty list of approver group names; CHK-05 (Error)
+    - "payments-platform-leads"
+
+verification:
+  health_endpoint: "/health" # optional, default "/health"; must start with '/'; CHK-07 (Error)
+  timeout_seconds: 60 # optional, default 60; whole number > 0; CHK-07 (Error)
+  db_check_required: false # required, explicit boolean; CHK-12 (Warning)
+  custom_checks: # optional list of extra checks run alongside verification
+    - name: "smoke" # required, non-empty; CHK-08 (Error)
+      command: "./scripts/smoke.sh" # required, non-empty; CHK-08 (Error)
+      timeout_seconds: 30 # optional whole number; CHK-08 (Error)
+      allow_failure: false # required, explicit boolean; CHK-08 (Error)
+
+deploy:
+  production:
+    approval_mode: "all-approvers" # required; all-approvers | single-approver | unattended; CHK-09 (Error)
+    # exception_id: "EXC-0001" # required only when approval_mode is "unattended"; CHK-10 (Error)
