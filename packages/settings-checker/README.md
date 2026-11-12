@@ -83,37 +83,9 @@ for example `"CHK-02, CHK-11"`.
 
 ## Settings contract
 
-```yaml
-version: "1.0"                     # string, required
-service:
-  name: "my-service"               # required
-  owner_team: "my-team"            # required
-  language: "python"               # required
-  test_command: "make test"        # non-empty, single line, required
-environments:                      # required; each entry needs every field
-  - name: dev-env-1                # letters, numbers, '.', '_', '-'; unique
-    category: Development          # Development | Pre-production | Production
-    account_id: "123456789012"
-    role_name: pipeline-dev-role
-    region: eu-west-2
-governance:
-  retention_days: 30               # integer > 0, required
-  approvers:                       # non-empty list of approver group names, required
-    - "platform-leads"
-verification:
-  health_endpoint: "/health"       # optional, default /health; a URL path starting with '/'
-  timeout_seconds: 60              # optional, default 60; integer > 0
-  db_check_required: false         # required, explicit boolean
-  custom_checks:                   # optional
-    - name: "smoke"                # non-empty
-      command: "./smoke.sh"        # non-empty
-      timeout_seconds: 30          # optional integer
-      allow_failure: false         # required, explicit boolean
-deploy:
-  production:
-    approval_mode: all-approvers   # all-approvers | single-approver | unattended
-    exception_id: "EXC-0001"       # required only when approval_mode is unattended
-```
+See the [tested example](../../docs/examples/pipeline-settings.yml) for a
+complete, valid settings file with every field commented: whether it's
+required or optional, its default, and the rule ID that checks it.
 
 ## Rules
 
