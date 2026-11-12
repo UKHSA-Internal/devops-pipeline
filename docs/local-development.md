@@ -54,6 +54,11 @@ runs use the action references in the called workflow. Generated build files
 and `run-record.json` are saved under the ignored `.act-artifacts/` directory.
 The [consumer guide](consumer-guide.md) describes the pipeline's stages.
 
+The run record's `context.workflow_package_version` is read from the executing
+report action's workflow-package `VERSION` file, including for consumers using
+a floating major alias. On local or unreleased runs it identifies the source
+version and does not prove that version has been published.
+
 Choose another compatible runner or provide a specific pull-request event for
 the pre-gate:
 

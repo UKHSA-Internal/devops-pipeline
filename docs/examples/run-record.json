@@ -6,6 +6,7 @@
     "ref": "refs/heads/main",
     "workflow_ref": "UKHSA-Internal/payments-api/.github/workflows/pipeline.yml@refs/heads/main",
     "workflow_sha": "9f8e7d6c5b4a3928170615243f3e2d1c0b9a8766",
+    "workflow_package_version": "1.0.0",
     "trigger_type": "push"
   },
   "timestamps": {

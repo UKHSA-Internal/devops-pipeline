@@ -30,8 +30,9 @@ no creation rule and no bypass actors:
 
 Consumers use the floating major tag (for example `@v1`) for
 automatic updates, so only the release may create, move or delete floating
-tags. Every release force-moves `v<MAJOR>-canary` and `v<MAJOR>`, so the
-ruleset needs a bypass actor that the release can act as:
+tags. Every release force-moves `v<MAJOR>-canary` and `v<MAJOR>`, then deletes
+the canary after promotion. The ruleset needs a bypass actor that the release
+can act as for creation, updates and deletion:
 
 - The bypass actor is a small team or role, for example a platform maintainers
   team or the Repository admin role. Never use an individual user account.

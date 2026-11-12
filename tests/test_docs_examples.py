@@ -40,6 +40,7 @@ def generated_clean_run_record() -> dict:
         "ref": "refs/heads/main",
         "workflow_ref": "UKHSA-Internal/sample-service/.github/workflows/pipeline.yml@refs/heads/main",
         "workflow_sha": "abcdef0123456789abcdef0123456789abcdef01",
+        "workflow_package_version": "1.0.0",
         "trigger_type": "push",
         "start_time": "2026-11-12T09:00:00Z",
         "check_result": "success",
