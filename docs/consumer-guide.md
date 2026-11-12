@@ -16,24 +16,13 @@ release and no longer receives updates; callers on `@v0` should move to `@v1`.
 
 ## Add a caller
 
-Create `.github/workflows/pipeline.yml` in the service repository. For example:
-
-```yaml
-name: Service Pipeline
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  pipeline:
-    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
-```
+Create `.github/workflows/pipeline.yml` in the service repository. See the
+[tested example caller](examples/caller-workflow.yml) for a complete file,
+including the `contents: read` and `id-token: write` permissions Deploy needs
+for OIDC and the optional `settings_path` input.
 
 The [app-template caller](../packages/app-template/.github/workflows/pipeline.yml)
-uses the same reference. The workflow reference must be literal.
+uses the same `uses:` reference. The workflow reference must be literal.
 
 ## Configure the service
 
