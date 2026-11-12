@@ -14,10 +14,14 @@ GitHub-discovered entrypoints under `.github/workflows/` and
 3. The [smoke test](#canary-smoke-test) runs the release commit's pipeline
    against the sample app.
 4. If it passes, promotion asserts the canary still points at the pinned
-   commit, creates `vX.Y.Z` there and force-moves `v<MAJOR>` to it. Promotion
-   is automatic; there is no manual approval step.
+   commit, creates `vX.Y.Z` there, force-moves `v<MAJOR>` to it and deletes
+   `v<MAJOR>-canary`. Promotion is automatic; there is no manual approval step.
 5. Run the [sandbox](local-development.md#testing-as-a-consumer) against the
    new tag to confirm consumers get the released version.
+
+The canary exists only while a release is being tested. It is deleted after a
+successful promotion, and after a failed smoke test it stays on the failed
+candidate until the next release replaces it. Consumers never use the canary.
 
 From version `1.0.0` the aliases are `v1` and `v1-canary`. `v0` and
 `v0-canary` stay on the last 0.x release and are no longer moved.
@@ -46,16 +50,17 @@ exist. Other checks in `prepare`:
 
 - **Idempotent promotion:** if `vX.Y.Z` already points at the pinned commit,
   it is not recreated and `v<MAJOR>` is still moved. If the version tag points
-  elsewhere, promotion fails.
+  elsewhere, promotion fails. If the canary is already absent, a re-run
+  succeeds only if both promotion tags still point at the pinned commit.
 - **Partial promotion:** use “Re-run failed jobs” to retry `promote` if, for
   example, the version tag was pushed but moving the major alias failed. Do
   not use “Re-run all jobs”: `prepare` rejects the existing version tag.
   Re-run only the most recent release; if a later release moved the canary,
   the assertion fails.
 - **Smoke test failure:** no version tag is created and the major alias does
-  not move. The canary remains on the failing commit until the next
-  release. Releases trigger only when `VERSION` changes, so ship the fix under
-  a new version.
+  not move. The canary remains on the failing commit until the next release
+  replaces it. Releases trigger only when `VERSION` changes, so ship the fix
+  under a new version.
 - **Dry run:** promotion never runs.
 
 TODO: decide whether promotion should also create a GitHub Release.
@@ -90,8 +95,10 @@ The `Release summary` job runs when a push to `main` has passed `prepare` with
 a changed version. It still runs if `canary`, `smoke-test` or `promote` fails
 or is skipped, but not during dry runs, unchanged-version runs or failed
 preparation. It reports the version, source and pinned commits, job results,
-and whether each canary, version and major tag points at the pinned commit,
-exists elsewhere or does not exist. A failed tag lookup fails the job.
+and the canary's state: deleted after promotion on success, or left on the
+failed candidate on failure. It also reports whether each version and major
+tag points at the pinned commit, exists elsewhere or does not exist. A failed
+tag lookup fails the job.
 
 ## Canary smoke test
 
@@ -103,8 +110,9 @@ smoke test passes only if every pipeline stage passes.
 
 For a manual check, run `smoke-test-pipeline.yml` using `workflow_dispatch`
 in the Actions tab or with `gh workflow run smoke-test-pipeline.yml`. Unlike
-the release smoke test, this calls `standard-pipeline.yml@v1-canary` and tests
-the published canary. It has no other trigger. It runs inside the platform
+the release smoke test, this calls `standard-pipeline.yml@v1-canary`, so it
+only works while a canary exists: during a release, or after a failed
+candidate. It has no other trigger. It runs inside the platform
 repository and cannot catch every cross-repository problem, such as a
 consumer's own token or permissions.
 
@@ -121,7 +129,7 @@ test workflow. Any event other than a push to `main` is a read-only dry run:
 - It compares the PR head's version with its base and reports “no release
   would run” if unchanged.
 - It applies the normal version, duplicate-tag, downgrade and pre-1.0 checks.
-- It derives aliases and writes planned tag commands, smoke test and promotion
-  to the job summary.
+- It derives aliases and writes the planned tag operations, smoke test and
+  promotion, including canary deletion, to the job summary.
 - It never creates or moves tags, runs the smoke test or promotes. It does not
   test the PR's pipeline code; the pre-gate covers that.

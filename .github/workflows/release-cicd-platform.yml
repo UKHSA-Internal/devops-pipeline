@@ -166,6 +166,7 @@ jobs:
               printf 'git push origin refs/tags/v%s\n' "$version"
               printf 'git tag --force %s %s\n' "$major_alias" "$COMMIT_SHA"
               printf 'git push --force origin refs/tags/%s\n' "$major_alias"
+              printf 'git push --force-with-lease=refs/tags/%s:<pinned-sha> origin :refs/tags/%s\n' "$canary_alias" "$canary_alias"
               printf '```\n'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -318,9 +319,12 @@ jobs:
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Assert canary points at the pinned commit
+        id: assert-canary
         shell: bash
         env:
           CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          MAJOR_ALIAS: ${{ needs.prepare.outputs.major_alias }}
           PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
         run: |
           set -euo pipefail
@@ -330,7 +334,21 @@ jobs:
             exit 1
           fi
           canary_sha="$(printf '%s\n' "$canary_ref" | awk '{print $1}')"
-          if [[ "$canary_sha" != "$PINNED_SHA" ]]; then
+          if [[ -z "$canary_sha" ]]; then
+            for tag in "v${VERSION}" "$MAJOR_ALIAS"; do
+              if ! tag_ref="$(git ls-remote --refs origin "refs/tags/${tag}")"; then
+                printf 'ERROR: Could not look up %s on the remote.\n' "$tag" >&2
+                exit 1
+              fi
+              tag_sha="$(printf '%s\n' "$tag_ref" | awk '{print $1}')"
+              if [[ "$tag_sha" != "$PINNED_SHA" ]]; then
+                printf 'ERROR: %s is missing and %s does not point at %s.\n' "$CANARY_ALIAS" "$tag" "$PINNED_SHA" >&2
+                exit 1
+              fi
+            done
+            echo "already_promoted=true" >> "$GITHUB_OUTPUT"
+            echo "Canary is absent and both promotion tags already point at the pinned commit."
+          elif [[ "$canary_sha" != "$PINNED_SHA" ]]; then
             printf 'ERROR: %s points at "%s", not the pinned commit %s.\n' "$CANARY_ALIAS" "$canary_sha" "$PINNED_SHA" >&2
             exit 1
           fi
@@ -338,7 +356,7 @@ jobs:
       # The job-level condition already excludes dry runs; this repeated guard
       # is deliberate defence in depth so a tag can only move on a push to main.
       - name: Create version tag and move major alias
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.assert-canary.outputs.already_promoted != 'true' }}
         shell: bash
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -369,6 +387,30 @@ jobs:
 
           git tag --force "$MAJOR_ALIAS" "$PINNED_SHA"
           git push --force origin "${PINNED_SHA}:refs/tags/${MAJOR_ALIAS}"
+
+      - name: Delete canary alias
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          CANARY_ALIAS: ${{ needs.prepare.outputs.canary_alias }}
+          PINNED_SHA: ${{ needs.canary.outputs.pinned_sha }}
+        run: |
+          set -euo pipefail
+
+          if ! canary_ref="$(git ls-remote --refs origin "refs/tags/${CANARY_ALIAS}")"; then
+            printf 'ERROR: Could not look up %s on the remote.\n' "$CANARY_ALIAS" >&2
+            exit 1
+          fi
+          canary_sha="$(printf '%s\n' "$canary_ref" | awk '{print $1}')"
+          if [[ -z "$canary_sha" ]]; then
+            echo "${CANARY_ALIAS} is already absent."
+          elif [[ "$canary_sha" != "$PINNED_SHA" ]]; then
+            printf 'ERROR: %s points at %s, not %s; refusing to delete it.\n' "$CANARY_ALIAS" "$canary_sha" "$PINNED_SHA" >&2
+            exit 1
+          else
+            git push --force-with-lease="refs/tags/${CANARY_ALIAS}:${PINNED_SHA}" \
+              origin ":refs/tags/${CANARY_ALIAS}"
+          fi
 
   # TODO: Decide whether promote should also create a GitHub Release.
   summary:
@@ -420,6 +462,11 @@ jobs:
           canary_state="$(tag_state "$CANARY_ALIAS")"
           version_state="$(tag_state "v${VERSION}")"
           major_state="$(tag_state "$MAJOR_ALIAS")"
+          if [[ "$PROMOTE_RESULT" == "success" && "$canary_state" == "does not exist" ]]; then
+            canary_state="deleted after promotion"
+          elif [[ "$PROMOTE_RESULT" != "success" && "$canary_state" == "points at the pinned commit" ]]; then
+            canary_state="left on failed candidate"
+          fi
 
           {
             printf '## Release summary\n\n'

@@ -33,6 +33,7 @@ def report_inputs(**overrides):
         "ref": "refs/heads/feature/example",
         "workflow_ref": "UKHSA/devops-pipeline/.github/workflows/sample-app-pipeline.yml@refs/heads/main",
         "workflow_sha": "fedcba654321",
+        "workflow_package_version": "0.7.3",
         "trigger_type": "pull_request",
         "start_time": "2026-10-30T12:00:00Z",
         "check_result": "success",
@@ -247,6 +248,8 @@ class RunRecordFileTests(unittest.TestCase):
         values = report_inputs(**overrides)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            version_file = root / "VERSION"
+            version_file.write_text(values["workflow_package_version"] + "\n", encoding="utf-8")
             results = root / "results"
             results.mkdir()
             (results / "dev-env-1.json").write_text(
@@ -260,6 +263,7 @@ class RunRecordFileTests(unittest.TestCase):
                 "STARTED_DIR": str(root / "started"),
                 "REPORT_PATH": str(root / "run-record.json"),
                 "GITHUB_STEP_SUMMARY": str(root / "summary.md"),
+                "VERSION_FILE": str(version_file),
             }
             subprocess.run(
                 [sys.executable, str(REPORT_PATH)],
@@ -284,6 +288,7 @@ class RunRecordFileTests(unittest.TestCase):
                 "ref",
                 "workflow_ref",
                 "workflow_sha",
+                "workflow_package_version",
                 "trigger_type",
             },
         )
@@ -292,6 +297,28 @@ class RunRecordFileTests(unittest.TestCase):
         for value in record["timestamps"].values():
             self.assertRegex(value, self.TIMESTAMP)
         self.assertEqual(record["environments"][0]["image_tag"], "sample-app:abcdef123456")
+        self.assertEqual(record["context"]["workflow_package_version"], "0.7.3")
+
+    def test_invalid_or_missing_version_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            version_file = Path(directory) / "VERSION"
+            environment = {
+                **os.environ,
+                **{key.upper(): value for key, value in report_inputs().items()},
+                "VERSION_FILE": str(version_file),
+            }
+            missing = subprocess.run(
+                [sys.executable, str(REPORT_PATH)], env=environment, capture_output=True, text=True
+            )
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn("FileNotFoundError", missing.stderr)
+
+            version_file.write_text("0.7.3-canary\n", encoding="utf-8")
+            invalid = subprocess.run(
+                [sys.executable, str(REPORT_PATH)], env=environment, capture_output=True, text=True
+            )
+            self.assertNotEqual(invalid.returncode, 0)
+            self.assertIn("Invalid workflow package version", invalid.stderr)
 
     def test_failed_check_records_check_failed_and_downstream_skipped(self):
         record = self.generate(
