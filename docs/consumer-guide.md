@@ -31,6 +31,12 @@ at `.github/pipeline-settings.yml`. Replace placeholder service information,
 accounts, roles and approvers with the service's values. Provide at least one
 environment in each of Development, Pre-production and Production.
 
+The Check stage flags unreplaced placeholders and malformed account IDs, so
+copying the template without editing it does not pass unnoticed: each
+`account_id` must be the service's real 12-digit account ID, not all zeros
+(CHK-03), and no field may still contain `replace-with-` or `TODO` text
+(CHK-13, a warning).
+
 `service.test_command` must be a non-empty, single-line command. The template's
 `python3 -m unittest discover -s tests -v` runs a placeholder test: replace the
 placeholder with the service's real tests. The

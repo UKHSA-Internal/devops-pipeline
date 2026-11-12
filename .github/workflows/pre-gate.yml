@@ -45,12 +45,29 @@ jobs:
         run: |
           set +e
           checker_status=0
-          for repository in sample-app packages/app-template; do
-            "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
-              "$repository" --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
-            status=${PIPESTATUS[0]}
-            (( status == 0 )) || checker_status=$status
-          done
+
+          "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+            sample-app --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
+          status=${PIPESTATUS[0]}
+          (( status == 0 )) || checker_status=$status
+
+          # The template keeps its placeholder account IDs and replace-with-/
+          # TODO text on purpose, so it must report exactly the expected
+          # CHK-03 (account_id) and CHK-13 (placeholder) problems, not pass
+          # --strict. The exact field-by-field list is asserted by
+          # tests/test_settings_checker.py; this only checks the summary
+          # counts so the two don't drift silently out of sync.
+          template_output=$("$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+            packages/app-template --strict 2>&1)
+          template_status=$?
+          printf '%s\n' "$template_output" | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
+          if [[ "$template_status" -eq 1 ]] && grep -qF 'Not ready: 3 errors, 6 warnings' <<< "$template_output"; then
+            echo "OK: app-template reports exactly 3 CHK-03 and 6 CHK-13 problems."
+          else
+            echo "FAIL: app-template must report exactly 3 CHK-03 and 6 CHK-13 problems (unedited placeholders)." >&2
+            checker_status=1
+          fi
+
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"
           exit "$checker_status"
 

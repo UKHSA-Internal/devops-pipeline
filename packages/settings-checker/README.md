@@ -93,7 +93,7 @@ required or optional, its default, and the rule ID that checks it.
 | --- | --- | --- |
 | CHK-01 | `version` is present and a string | Warning |
 | CHK-02 | `service.name`, `owner_team` and `language` are present | Warning |
-| CHK-03 | Each environment has `name`, `category`, `account_id`, `role_name` and `region`, and `category` is valid. Names must be unique and contain only letters, numbers, `.`, `_` and `-` | Error |
+| CHK-03 | Each environment has `name`, `category`, `account_id`, `role_name` and `region`, and `category` is valid. Names must be unique and contain only letters, numbers, `.`, `_` and `-`. `account_id` must be a 12-digit string, not all zeros | Error |
 | CHK-04 | Every category (Development, Pre-production, Production) has at least one environment | Error |
 | CHK-05 | `governance.approvers` is a non-empty list | Error |
 | CHK-06 | `governance.retention_days` is an integer greater than zero | Warning |
@@ -103,6 +103,7 @@ required or optional, its default, and the rule ID that checks it.
 | CHK-10 | When `approval_mode` is `unattended`, `exception_id` is non-empty | Error |
 | CHK-11 | `service.test_command` is a non-empty, single-line string | Error |
 | CHK-12 | `verification.db_check_required` is an explicit boolean | Warning |
+| CHK-13 | No value anywhere in the settings file contains template placeholder text (`replace-with-` or `TODO`, matched case-insensitively) | Warning |
 
 TODO (CHK-05): also check that each approver group exists in the platform
 approver config, once that config exists.
