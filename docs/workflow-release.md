@@ -16,6 +16,8 @@ GitHub-discovered entrypoints under `.github/workflows/` and
 4. If it passes, promotion asserts the canary still points at the pinned
    commit, creates `vX.Y.Z` there, force-moves `v<MAJOR>` to it and deletes
    `v<MAJOR>-canary`. Promotion is automatic; there is no manual approval step.
+5. Run the [sandbox](local-development.md#testing-as-a-consumer) against the
+   new tag to confirm consumers get the released version.
 
 The canary exists only while a release is being tested. It is deleted after a
 successful promotion, and after a failed smoke test it stays on the failed
