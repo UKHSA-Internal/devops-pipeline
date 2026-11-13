@@ -98,7 +98,12 @@ workflow end to end. In addition to contribution rules for commits, branches,
 PR titles and the ADR gate, the pre-gate:
 
 - runs the unit tests;
-- checks the sample app and app-template settings with `checker.py --strict`;
+- checks the sample app's settings with `checker.py --strict`, expecting no
+  problems;
+- checks the app-template's settings with `checker.py --strict`, expecting
+  exactly the CHK-03 (malformed `account_id`) and CHK-13 (unreplaced
+  placeholder text) problems the unedited template is meant to report — the
+  template keeps its placeholders on purpose, so it must never silently pass;
 - checks every fixture in `tests/fixtures/settings/`: the compliant file passes
   with `--strict`, each file in `errors/` fails by default,
   `warnings-only.yml` passes by default and fails with `--strict`,

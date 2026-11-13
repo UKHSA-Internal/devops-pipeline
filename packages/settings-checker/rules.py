@@ -16,6 +16,8 @@ CATEGORIES = ("Development", "Pre-production", "Production")
 APPROVAL_MODES = ("all-approvers", "single-approver", "unattended")
 ENVIRONMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 URL_PATH = re.compile(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*")
+ACCOUNT_ID = re.compile(r"[0-9]{12}")
+PLACEHOLDER = re.compile(r"replace-with-|todo", re.IGNORECASE)
 
 
 class Rule(NamedTuple):
@@ -55,8 +57,8 @@ def is_boolean(value) -> bool:
     return isinstance(value, bool)
 
 
-def is_account_id(value) -> bool:
-    return is_whole_number(value) or is_text(value)
+def is_valid_account_id(value) -> bool:
+    return is_text(value) and ACCOUNT_ID.fullmatch(value) is not None and value != "0" * 12
 
 
 def is_approver_list(value) -> bool:
@@ -73,6 +75,33 @@ def matches(pattern):
 
 def _key(field: str) -> str:
     return field.rsplit(".", 1)[-1]
+
+
+def _walk_strings(value, field: str, seen=None):
+    """Yield (field, value) for every string leaf reachable from value.
+
+    Tracks container ids on the current path (not globally) so a cyclic YAML
+    alias cannot recurse forever, while a value legitimately shared by more
+    than one non-cyclic alias is still visited at each of its locations.
+    """
+    if seen is None:
+        seen = set()
+    if isinstance(value, str):
+        yield field, value
+    elif isinstance(value, dict):
+        container_id = id(value)
+        if container_id in seen:
+            return
+        seen = seen | {container_id}
+        for key, item in value.items():
+            yield from _walk_strings(item, f"{field}.{key}" if field else str(key), seen)
+    elif isinstance(value, list):
+        container_id = id(value)
+        if container_id in seen:
+            return
+        seen = seen | {container_id}
+        for index, item in enumerate(value):
+            yield from _walk_strings(item, f"{field}[{index}]", seen)
 
 
 class Report:
@@ -191,7 +220,12 @@ def environment_fields(settings, report):
             "must start with a letter or number and use only letters, numbers, '.', '_' and '-'",
         )
         report.value(environment, f"{field}.category", one_of(CATEGORIES), "must be one of " + ", ".join(CATEGORIES))
-        report.value(environment, f"{field}.account_id", is_account_id, "must not be empty")
+        report.value(
+            environment,
+            f"{field}.account_id",
+            is_valid_account_id,
+            "must be a 12-digit string, for example \"123456789012\", and not all zeros",
+        )
         for key in ("role_name", "region"):
             report.value(environment, f"{field}.{key}", is_text, "must not be empty")
 
@@ -304,3 +338,13 @@ def unattended_exception(settings, report):
         and not is_text(production.get("exception_id"))
     ):
         report.problem("deploy.production.exception_id", "is required when approval_mode is unattended")
+
+
+# whole file
+
+
+@rule("CHK-13", WARNING)
+def no_placeholder_text(settings, report):
+    for field, value in _walk_strings(settings, ""):
+        if PLACEHOLDER.search(value):
+            report.problem(field, "contains template placeholder text")

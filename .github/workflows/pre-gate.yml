@@ -45,12 +45,33 @@ jobs:
         run: |
           set +e
           checker_status=0
-          for repository in sample-app packages/app-template; do
-            "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
-              "$repository" --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
-            status=${PIPESTATUS[0]}
-            (( status == 0 )) || checker_status=$status
-          done
+
+          "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+            sample-app --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
+          status=${PIPESTATUS[0]}
+          (( status == 0 )) || checker_status=$status
+
+          # The template keeps its placeholder account IDs and replace-with-/
+          # TODO text on purpose, so it must fail with only CHK-03
+          # (account_id) and CHK-13 (placeholder) problems, not pass
+          # --strict. This checks the rule set rather than exact counts, so
+          # adding another placeholder field to the template in future
+          # doesn't break the gate; the field-by-field detail is asserted by
+          # tests/test_settings_checker.py.
+          "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+            packages/app-template --strict 2>&1 | tee -a "$RUNNER_TEMP/standards-checker-output.txt"
+          template_status=${PIPESTATUS[0]}
+          template_rules=$("$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+            packages/app-template --report-only --format json \
+            | "$RUNNER_TEMP/settings-checker-venv/bin/python" -c 'import json, sys; report = json.load(sys.stdin); rules = {rule for item in report["problems"] for rule in item["rule"].split(", ")}; print(" ".join(sorted(rules)))')
+          if [[ "$template_status" -eq 1 ]] && [[ -n "$template_rules" ]] \
+            && [[ "$(tr " " "\n" <<< "$template_rules" | grep -vE "^CHK-(03|13)$")" == "" ]]; then
+            echo "OK: app-template fails with only CHK-03/CHK-13 problems (rules: $template_rules)."
+          else
+            echo "FAIL: app-template must fail with only CHK-03/CHK-13 problems (unedited placeholders); got status=$template_status rules=$template_rules" >&2
+            checker_status=1
+          fi
+
           echo "exit_code=$checker_status" >> "$GITHUB_OUTPUT"
           exit "$checker_status"
 
