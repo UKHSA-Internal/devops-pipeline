@@ -1,4 +1,4 @@
-.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-node test-pipeline-missing-version-file test-pipeline-unsupported-language install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-node test-pipeline-missing-version-file test-pipeline-unsupported-language test-pipeline-pinned-python-version install-hooks
 
 ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:act-latest
 ACT_EVENT_FILE ?=
@@ -57,6 +57,11 @@ test-pipeline-unsupported-language: ## Run the pipeline for an unsupported langu
 	@rm -f .act-artifacts/run-record.json
 	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/unsupported-language/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && echo "OK: no runtime set up, test PASSED"
+
+test-pipeline-pinned-python-version: ## Run the pipeline for a python service pinned to 3.12 via .python-version; expects test PASSED
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/pinned-python-version/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && echo "OK: pinned python version set up from .python-version, test PASSED"
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks

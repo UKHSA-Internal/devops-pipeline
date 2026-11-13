@@ -101,12 +101,21 @@ fallbacks:
 make test-pipeline-node                    # node: set up from .nvmrc, every stage passes
 make test-pipeline-missing-version-file    # python with no .python-version: test FAILED, downstream SKIPPED
 make test-pipeline-unsupported-language    # unsupported language: no runtime, warning, test still runs
+make test-pipeline-pinned-python-version   # python pinned to a specific minor version via .python-version: test PASSED
 ```
 
 The python path is already covered by `make test-standard-pipeline-local`,
 which runs the sample app with its `.python-version`. The
 [consumer guide](consumer-guide.md#test-runtime) lists the accepted languages
 and version files.
+
+`test-pipeline-pinned-python-version` covers a service pinned to a specific
+minor version (3.12) that isn't just whatever `python3` happens to resolve to
+on the runner image, using `tests/fixtures/pinned-python-version/`. This
+proves `actions/setup-python` installs the exact requested version from
+`.python-version` and that the test command then runs successfully against
+it, rather than failing because only a different python version was
+preinstalled on the bare runner.
 
 #### Apple Silicon
 
@@ -125,8 +134,8 @@ those targets, changing `settings_path` for each one:
 ```
 
 This affects `make test-standard-pipeline-local`,
-`make test-pipeline-failing-test` and `make test-pipeline-settings-warnings`.
-Hosted runs are unaffected.
+`make test-pipeline-failing-test`, `make test-pipeline-settings-warnings` and
+`make test-pipeline-pinned-python-version`. Hosted runs are unaffected.
 
 ### Pre-gate checks
 
