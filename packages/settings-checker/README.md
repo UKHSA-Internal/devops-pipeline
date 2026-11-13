@@ -83,37 +83,9 @@ for example `"CHK-02, CHK-11"`.
 
 ## Settings contract
 
-```yaml
-version: "1.0"                     # string, required
-service:
-  name: "my-service"               # required
-  owner_team: "my-team"            # required
-  language: "python"               # required; "python" or "node" sets up a runtime
-  test_command: "make test"        # non-empty, single line, required
-environments:                      # required; each entry needs every field
-  - name: dev-env-1                # letters, numbers, '.', '_', '-'; unique
-    category: Development          # Development | Pre-production | Production
-    account_id: "123456789012"
-    role_name: pipeline-dev-role
-    region: eu-west-2
-governance:
-  retention_days: 30               # integer > 0, required
-  approvers:                       # non-empty list of approver group names, required
-    - "platform-leads"
-verification:
-  health_endpoint: "/health"       # optional, default /health; a URL path starting with '/'
-  timeout_seconds: 60              # optional, default 60; integer > 0
-  db_check_required: false         # required, explicit boolean
-  custom_checks:                   # optional
-    - name: "smoke"                # non-empty
-      command: "./smoke.sh"        # non-empty
-      timeout_seconds: 30          # optional integer
-      allow_failure: false         # required, explicit boolean
-deploy:
-  production:
-    approval_mode: all-approvers   # all-approvers | single-approver | unattended
-    exception_id: "EXC-0001"       # required only when approval_mode is unattended
-```
+See the [tested example](../../docs/examples/pipeline-settings.yml) for a
+complete, valid settings file with every field commented: whether it's
+required or optional, its default, and the rule ID that checks it.
 
 ## Rules
 
@@ -121,7 +93,7 @@ deploy:
 | --- | --- | --- |
 | CHK-01 | `version` is present and a string | Warning |
 | CHK-02 | `service.name`, `owner_team` and `language` are present | Warning |
-| CHK-03 | Each environment has `name`, `category`, `account_id`, `role_name` and `region`, and `category` is valid. Names must be unique and contain only letters, numbers, `.`, `_` and `-` | Error |
+| CHK-03 | Each environment has `name`, `category`, `account_id`, `role_name` and `region`, and `category` is valid. Names must be unique and contain only letters, numbers, `.`, `_` and `-`. `account_id` must be a 12-digit string, not all zeros | Error |
 | CHK-04 | Every category (Development, Pre-production, Production) has at least one environment | Error |
 | CHK-05 | `governance.approvers` is a non-empty list | Error |
 | CHK-06 | `governance.retention_days` is an integer greater than zero | Warning |
@@ -131,6 +103,7 @@ deploy:
 | CHK-10 | When `approval_mode` is `unattended`, `exception_id` is non-empty | Error |
 | CHK-11 | `service.test_command` is a non-empty, single-line string | Error |
 | CHK-12 | `verification.db_check_required` is an explicit boolean | Warning |
+| CHK-13 | No value anywhere in the settings file contains template placeholder text (`replace-with-` or `TODO`, matched case-insensitively) | Warning |
 
 TODO (CHK-05): also check that each approver group exists in the platform
 approver config, once that config exists.

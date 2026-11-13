@@ -16,24 +16,13 @@ release and no longer receives updates; callers on `@v0` should move to `@v1`.
 
 ## Add a caller
 
-Create `.github/workflows/pipeline.yml` in the service repository. For example:
-
-```yaml
-name: Service Pipeline
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  pipeline:
-    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
-```
+Create `.github/workflows/pipeline.yml` in the service repository. See the
+[tested example caller](examples/caller-workflow.yml) for a complete file,
+including the `contents: read` and `id-token: write` permissions Deploy needs
+for OIDC and the optional `settings_path` input.
 
 The [app-template caller](../packages/app-template/.github/workflows/pipeline.yml)
-uses the same reference. The workflow reference must be literal.
+uses the same `uses:` reference. The workflow reference must be literal.
 
 ## Configure the service
 
@@ -41,6 +30,12 @@ Start with the [app-template settings](../packages/app-template/.github/pipeline
 at `.github/pipeline-settings.yml`. Replace placeholder service information,
 accounts, roles and approvers with the service's values. Provide at least one
 environment in each of Development, Pre-production and Production.
+
+The Check stage flags unreplaced placeholders and malformed account IDs, so
+copying the template without editing it does not pass unnoticed: each
+`account_id` must be the service's real 12-digit account ID, not all zeros
+(CHK-03), and no field may still contain `replace-with-` or `TODO` text
+(CHK-13, a warning).
 
 `service.test_command` must be a non-empty, single-line command. The template's
 `python3 -m unittest discover -s tests -v` runs a placeholder test: replace the
@@ -86,12 +81,14 @@ for the complete contract and options.
 ## What the pipeline does
 
 The Check stage validates settings, then the pipeline sets up the service's
-language runtime, runs the configured test command, placeholder scan, build,
-deployments and verification. It records a
-run report and passes the full-commit-SHA image tag to each deployment.
-Deployments within each category run one at a time in settings order. Pull
-requests deploy to Development only; Pre-production and Production run only
-on pushes to `main`.
+language runtime and runs the configured test command and placeholder scan.
+Pushes additionally build, deploy and verify the service; pull requests stop
+after Scan, so they never build an image or deploy. It records a run report
+and passes the full-commit-SHA image tag to each deployment. Deployments
+within each category run one at a time in settings order. Pushes deploy to
+Development; Pre-production and Production run only on pushes to `main`.
+
+<!-- TODO: Pull requests may deploy to an ephemeral environment in future. -->
 
 `deploy.production.approval_mode` is required: `all-approvers`,
 `single-approver` or `unattended`. The last requires

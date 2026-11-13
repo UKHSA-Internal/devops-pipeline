@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -98,6 +99,7 @@ def create_report(
             "ref": environment["ref"],
             "workflow_ref": environment["workflow_ref"],
             "workflow_sha": environment["workflow_sha"],
+            "workflow_package_version": environment["workflow_package_version"],
             "trigger_type": environment["trigger_type"],
         },
         "timestamps": {
@@ -165,6 +167,11 @@ def main() -> None:
     normalized_environment = {
         key.lower(): value for key, value in environment.items()
     }
+    version_path = Path(os.environ["VERSION_FILE"])
+    version = version_path.read_text(encoding="utf-8").rstrip("\n")
+    if not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version):
+        raise ValueError(f"Invalid workflow package version in {version_path}: {version!r}")
+    normalized_environment["workflow_package_version"] = version
     planned_deployments = json.loads(os.environ.get("DEPLOYMENTS") or "[]")
     deployment_results_by_category = {
         "Development": normalized_environment["deploy_dev_result"],

@@ -1,0 +1,30 @@
+# Example .github/workflows/pipeline.yml for a service repository.
+#
+# Calls the shared standard pipeline. The reference must be literal (no
+# expressions) and should use the floating major tag (@v1) for automatic
+# updates, or an exact version tag (for example @v1.0.0) for a fixed release.
+
+name: Service Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read # required so the called workflow can check out this repository
+  # Deploy assumes an AWS role via OIDC, not a long-lived credential. A called
+  # reusable workflow can never be granted more than its caller allows, so the
+  # caller must grant id-token: write itself even though it has no OIDC step
+  # of its own.
+  id-token: write
+
+jobs:
+  pipeline:
+    uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1
+    with:
+      # Optional. Defaults to .github/pipeline-settings.yml at the repository
+      # root. Set this only if the service's settings file lives elsewhere,
+      # for example in a subdirectory of a monorepo.
+      settings_path: .github/pipeline-settings.yml

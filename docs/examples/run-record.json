@@ -1,0 +1,55 @@
+{
+  "context": {
+    "pipeline_run_id": "4812093765",
+    "repository": "UKHSA-Internal/payments-api",
+    "change_id": "a1b2c3d4e5f60718293a4b5c6d7e8f9018273645",
+    "ref": "refs/heads/main",
+    "workflow_ref": "UKHSA-Internal/payments-api/.github/workflows/pipeline.yml@refs/heads/main",
+    "workflow_sha": "9f8e7d6c5b4a3928170615243f3e2d1c0b9a8766",
+    "workflow_package_version": "1.0.0",
+    "trigger_type": "push"
+  },
+  "timestamps": {
+    "start_time": "2026-11-12T09:00:00Z",
+    "end_time": "2026-11-12T09:14:02Z"
+  },
+  "steps": {
+    "check": "PASSED",
+    "test": "PASSED",
+    "scan": "PASSED",
+    "build": "PASSED",
+    "deploy": "PASSED"
+  },
+  "environments": [
+    {
+      "name": "dev-env-1",
+      "category": "Development",
+      "deploy_status": "PASSED",
+      "verify_status": "PASSED",
+      "image_tag": "payments-api:a1b2c3d4e5f60718293a4b5c6d7e8f9018273645",
+      "verified_at": "2026-11-12T09:04:10Z"
+    },
+    {
+      "name": "preprod-env-1",
+      "category": "Pre-production",
+      "deploy_status": "PASSED",
+      "verify_status": "PASSED",
+      "image_tag": "payments-api:a1b2c3d4e5f60718293a4b5c6d7e8f9018273645",
+      "verified_at": "2026-11-12T09:08:45Z"
+    },
+    {
+      "name": "prod-env-1",
+      "category": "Production",
+      "deploy_status": "PASSED",
+      "verify_status": "PASSED",
+      "image_tag": "payments-api:a1b2c3d4e5f60718293a4b5c6d7e8f9018273645",
+      "verified_at": "2026-11-12T09:13:30Z"
+    }
+  ],
+  "governance": {
+    "compliance_verdict": null,
+    "approval_mode": null,
+    "exception_id": null,
+    "approvers": null
+  }
+}

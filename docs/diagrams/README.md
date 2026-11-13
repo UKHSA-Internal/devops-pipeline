@@ -4,11 +4,13 @@ Each `.drawio.png` is both the image and the source. GitHub renders it, Confluen
 embeds it, and draw.io opens it as an editable diagram. There is no second file to
 keep in step.
 
-| File | Shows | Published To |
+| File | Shows | Confluence Home |
 | --- | --- | --- |
 | `1.context.drawio.png` | Who uses the pipeline, what it connects to and what it produces. C4 Level 1. | Reference Architecture, section 1 |
 | `2.pipeline_overview.drawio.png` | The pieces that make up the standard and how a service connects to them. | Reference Architecture, section 1 |
 | `3.pipeline_components.drawio.png` | What runs inside the shared pipeline workflow, in what order, and what each part reads or writes. C4 Level 3. | Low Level Design, section 2.1 |
+| `4.responsibilities.drawio.png` | Who holds each responsibility for the standard, and what has no owner yet. | None yet |
+| `5.current_and_target_state.drawio.png` | How a change reaches production for the pilot service today, and once it is on the standard. | Pilot Implementation |
 
 Confluence holds the published image. This folder holds the source. If the two
 disagree, this folder is right.
