@@ -1,0 +1,39 @@
+# Unsupported language: the Test step sets up no runtime, warns, and runs the command as-is.
+version: "1.0"
+
+service:
+  name: "unsupported-language"
+  owner_team: "platform-team"
+  language: "go"
+  test_command: "echo 'no runtime set up for this language'"
+
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "123456789012"
+    role_name: pipeline-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
+    region: eu-west-2
+
+governance:
+  retention_days: 0
+  approvers:
+    - "platform-leads"
+
+verification:
+  health_endpoint: "/health"
+  timeout_seconds: 60
+
+deploy:
+  production:
+    approval_mode: "unattended"
+    exception_id: "EXC-0001"

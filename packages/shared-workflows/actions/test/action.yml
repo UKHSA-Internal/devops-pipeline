@@ -1,5 +1,5 @@
 name: Test Step
-description: Runs the service's test command from its pipeline settings
+description: Sets up the service's language runtime, then runs its test command from its pipeline settings
 
 inputs:
   service_directory:
@@ -8,10 +8,66 @@ inputs:
   test_command:
     description: Test command resolved from pipeline settings (service.test_command)
     required: true
+  language:
+    description: Service language resolved from pipeline settings (service.language)
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
+    - name: Resolve Test Runtime
+      id: runtime
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        LANGUAGE: ${{ inputs.language }}
+      run: |
+        set -euo pipefail
+
+        language="$(printf '%s' "$LANGUAGE" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        printf '## Test\n\n' >> "$GITHUB_STEP_SUMMARY"
+
+        case "$language" in
+          python) version_files=(".python-version") ;;
+          node) version_files=(".nvmrc" ".node-version") ;;
+          *)
+            printf '[STEP: TEST] WARNING: No runtime set up for service.language "%s". The test command runs on the runner as-is.\n' \
+              "$language"
+            printf -- '- Runtime: **none** (no setup for `service.language`: `%s`)\n' "${language:-unset}" >> "$GITHUB_STEP_SUMMARY"
+            printf 'language=\n' >> "$GITHUB_OUTPUT"
+            exit 0
+            ;;
+        esac
+
+        for candidate in "${version_files[@]}"; do
+          if [[ -f "$SERVICE_DIRECTORY/$candidate" ]]; then
+            printf '[STEP: TEST] Using %s version from %s/%s\n' "$language" "$SERVICE_DIRECTORY" "$candidate"
+            printf -- '- Runtime: **%s** from `%s`\n' "$language" "$candidate" >> "$GITHUB_STEP_SUMMARY"
+            printf 'language=%s\n' "$language" >> "$GITHUB_OUTPUT"
+            printf 'version_file=%s\n' "$SERVICE_DIRECTORY/$candidate" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+        done
+
+        expected="$(printf '%s or ' "${version_files[@]}")"
+        expected="${expected% or }"
+        printf 'ERROR: service.language is "%s" but no version file was found in %s. Add %s to the service directory.\n' \
+          "$language" "$SERVICE_DIRECTORY" "$expected" >&2
+        exit 1
+
+    - name: Set Up Python
+      if: ${{ steps.runtime.outputs.language == 'python' }}
+      uses: actions/setup-python@v7
+      with:
+        python-version-file: ${{ steps.runtime.outputs.version_file }}
+
+    - name: Set Up Node
+      if: ${{ steps.runtime.outputs.language == 'node' }}
+      uses: actions/setup-node@v6
+      with:
+        node-version-file: ${{ steps.runtime.outputs.version_file }}
+
     - name: Run Service Tests
       shell: bash
       env:
@@ -24,7 +80,6 @@ runs:
         status=0
         bash -e -o pipefail -c "$TEST_COMMAND" || status=$?
         {
-          printf '## Test\n\n'
           printf -- '- Command: `%s`\n' "$TEST_COMMAND"
           printf -- '- Exit code: **%s**\n' "$status"
         } >> "$GITHUB_STEP_SUMMARY"

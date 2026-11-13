@@ -1,4 +1,4 @@
-.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-node test-pipeline-missing-version-file test-pipeline-unsupported-language test-pipeline-pinned-python-version install-hooks
 
 ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:act-latest
 ACT_EVENT_FILE ?=
@@ -42,6 +42,26 @@ test-pipeline-settings-warnings: ## Run the pipeline with settings that have onl
 	@rm -f .act-artifacts/run-record.json
 	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/warnings-only-service/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 	@grep -q '"check": "PASSED"' .act-artifacts/run-record.json && grep -q '"test": "PASSED"' .act-artifacts/run-record.json && grep -q '"deploy": "PASSED"' .act-artifacts/run-record.json && echo "OK: check PASSED with warnings, later stages PASSED"
+
+test-pipeline-node: ## Run the pipeline against a Node service; expects Node set up from .nvmrc and every stage to pass
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/node-service/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && echo "OK: Node runtime set up, test PASSED"
+
+test-pipeline-missing-version-file: ## Run the pipeline for a python service with no .python-version; expects test FAILED and downstream skipped
+	@rm -f .act-artifacts/run-record.json
+	@! ./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/missing-version-file/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"test": "FAILED"' .act-artifacts/run-record.json && grep -q '"scan": "SKIPPED"' .act-artifacts/run-record.json && echo "OK: missing version file FAILED test, downstream SKIPPED"
+
+test-pipeline-unsupported-language: ## Run the pipeline for an unsupported language; expects no runtime set up and every stage to pass
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/unsupported-language/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && echo "OK: no runtime set up, test PASSED"
+
+test-pipeline-pinned-python-version: ## Run the pipeline for a python service pinned to 3.12 via .python-version; expects test PASSED
+	@rm -f .act-artifacts/run-record.json
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/pinned-python-version/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && echo "OK: pinned python version set up from .python-version, test PASSED"
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks

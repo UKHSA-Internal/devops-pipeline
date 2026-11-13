@@ -1,0 +1,43 @@
+# Python service pinned to a specific minor version (3.12) that isn't just
+# whatever "python3" resolves to on the bare runner image. Proves the Test
+# step's "Resolve Test Runtime" step installs the exact requested version via
+# actions/setup-python before the test command runs, rather than failing with
+# a "python3.12: not found" error.
+version: "1.0"
+
+service:
+  name: "pinned-python-version"
+  owner_team: "platform-team"
+  language: "python"
+  test_command: "python3.12 --version && python3.12 tests/test_placeholder.py"
+
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "123456789012"
+    role_name: pipeline-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
+    region: eu-west-2
+
+governance:
+  retention_days: 0
+  approvers:
+    - "platform-leads"
+
+verification:
+  health_endpoint: "/health"
+  timeout_seconds: 60
+
+deploy:
+  production:
+    approval_mode: "unattended"
+    exception_id: "EXC-0001"
