@@ -16,7 +16,7 @@ CATEGORIES = ("Development", "Pre-production", "Production")
 APPROVAL_MODES = ("all-approvers", "single-approver", "unattended")
 ENVIRONMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 URL_PATH = re.compile(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*")
-ACCOUNT_ID = re.compile(r"\d{12}")
+ACCOUNT_ID = re.compile(r"[0-9]{12}")
 PLACEHOLDER = re.compile(r"replace-with-|todo", re.IGNORECASE)
 
 
@@ -77,16 +77,31 @@ def _key(field: str) -> str:
     return field.rsplit(".", 1)[-1]
 
 
-def _walk_strings(value, field: str):
-    """Yield (field, value) for every string leaf reachable from value."""
+def _walk_strings(value, field: str, seen=None):
+    """Yield (field, value) for every string leaf reachable from value.
+
+    Tracks container ids on the current path (not globally) so a cyclic YAML
+    alias cannot recurse forever, while a value legitimately shared by more
+    than one non-cyclic alias is still visited at each of its locations.
+    """
+    if seen is None:
+        seen = set()
     if isinstance(value, str):
         yield field, value
     elif isinstance(value, dict):
+        container_id = id(value)
+        if container_id in seen:
+            return
+        seen = seen | {container_id}
         for key, item in value.items():
-            yield from _walk_strings(item, f"{field}.{key}" if field else key)
+            yield from _walk_strings(item, f"{field}.{key}" if field else str(key), seen)
     elif isinstance(value, list):
+        container_id = id(value)
+        if container_id in seen:
+            return
+        seen = seen | {container_id}
         for index, item in enumerate(value):
-            yield from _walk_strings(item, f"{field}[{index}]")
+            yield from _walk_strings(item, f"{field}[{index}]", seen)
 
 
 class Report:

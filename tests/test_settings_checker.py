@@ -132,6 +132,7 @@ FAILING_CASES = {
         "unquoted account_id": set_path(["environments", 0, "account_id"], 123456789012),
         "all-zero account_id": set_path(["environments", 0, "account_id"], "000000000000"),
         "short account_id": set_path(["environments", 0, "account_id"], "12345"),
+        "non-ASCII digit account_id": set_path(["environments", 0, "account_id"], "１２３４５６７８９０１２"),
     },
     "CHK-04": {
         "no Production": lambda v: v["environments"].pop(),
@@ -384,6 +385,45 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(
                     [(item["field"], item["message"]) for item in RULES.check(settings(change))], [(field, message)]
                 )
+
+
+class PlaceholderWalkTests(unittest.TestCase):
+    """CHK-13 walks the whole settings tree, so it must tolerate unusual YAML shapes."""
+
+    def test_non_string_root_key_is_stringified(self):
+        found = list(RULES._walk_strings({1: "replace-with-value", "ok": "fine"}, ""))
+        self.assertIn(("1", "replace-with-value"), found)
+
+    def test_non_string_key_in_full_settings_does_not_crash_check(self):
+        values = settings(lambda v: None)
+        values[2] = "replace-with-extra-field"
+        problems = RULES.check(values)
+        chk13_fields = {item["field"] for item in problems if item["rule"] == "CHK-13"}
+        self.assertIn("2", chk13_fields)
+
+    def test_recursive_alias_does_not_recurse_forever(self):
+        cyclic = {"name": "replace-with-service"}
+        cyclic["self"] = cyclic
+        # Must terminate instead of recursing until RecursionError.
+        found = list(RULES._walk_strings(cyclic, "metadata"))
+        self.assertEqual(found, [("metadata.name", "replace-with-service")])
+
+    def test_recursive_alias_in_full_settings_does_not_crash_check(self):
+        values = settings(lambda v: None)
+        values["governance"]["self_reference"] = values["governance"]
+        # Must not raise RecursionError; the rest of the settings tree is
+        # still walked for genuine placeholders.
+        problems = RULES.check(values)
+        self.assertEqual({item["rule"] for item in problems}, set())
+
+    def test_shared_non_cyclic_alias_is_still_visited_at_each_location(self):
+        shared = {"note": "replace-with-shared"}
+        tree = {"one": shared, "two": shared}
+        found = list(RULES._walk_strings(tree, ""))
+        self.assertEqual(
+            sorted(found),
+            [("one.note", "replace-with-shared"), ("two.note", "replace-with-shared")],
+        )
 
 
 class ExitCodeTests(unittest.TestCase):
