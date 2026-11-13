@@ -22,6 +22,7 @@ ERROR_FIXTURES = FIXTURES / "errors"
 
 # Error fixture -> the only rule it may report.
 EXPECTED_FIXTURE_RULES = {
+    "all-zero-account-id.yml": "CHK-03",
     "custom-check-missing-allow-failure.yml": "CHK-08",
     "health-endpoint-without-leading-slash.yml": "CHK-07",
     "environment-missing-role-name.yml": "CHK-03",
@@ -128,6 +129,10 @@ FAILING_CASES = {
         "missing account_id": delete_path(["environments", 0, "account_id"]),
         "blank account_id": set_path(["environments", 0, "account_id"], " "),
         "boolean account_id": set_path(["environments", 0, "account_id"], True),
+        "unquoted account_id": set_path(["environments", 0, "account_id"], 123456789012),
+        "all-zero account_id": set_path(["environments", 0, "account_id"], "000000000000"),
+        "short account_id": set_path(["environments", 0, "account_id"], "12345"),
+        "non-ASCII digit account_id": set_path(["environments", 0, "account_id"], "１２３４５６７８９０１２"),
     },
     "CHK-04": {
         "no Production": lambda v: v["environments"].pop(),
@@ -192,13 +197,18 @@ FAILING_CASES = {
         "numeric test_command": set_path(["service", "test_command"], 1),
         "empty test_command": set_path(["service", "test_command"], None),
     },
+    "CHK-13": {
+        "replace-with placeholder": set_path(["service", "name"], "replace-with-service-name"),
+        "TODO placeholder": set_path(["service", "owner_team"], "TODO-owner-team"),
+        "mixed case placeholder": set_path(["environments", 0, "role_name"], "Replace-With-Dev-Role"),
+        "placeholder in a nested list": set_path(["governance", "approvers"], ["TODO-approver-group"]),
+    },
 }
 
 PASSING_CASES = {
     "CHK-01": {"string version": set_path(["version"], "2")},
     "CHK-02": {"other language": set_path(["service", "language"], "java")},
     "CHK-03": {
-        "unquoted account_id": set_path(["environments", 0, "account_id"], 123456789012),
         "several deployments per category": lambda v: v["environments"].append(environment("dev-2", "Development")),
     },
     "CHK-04": {"categories in any order": lambda v: v["environments"].reverse()},
@@ -223,6 +233,9 @@ PASSING_CASES = {
     },
     "CHK-11": {"command with arguments": set_path(["service", "test_command"], "make test ARGS='-v'")},
     "CHK-12": {"db check required": set_path(["verification", "db_check_required"], True)},
+    "CHK-13": {
+        "ordinary realistic values": set_path(["environments", 0, "role_name"], "pipeline-automation-role"),
+    },
 }
 
 
@@ -245,7 +258,7 @@ def rule_ids():
 class RuleTests(unittest.TestCase):
     def test_rule_ids_are_unique_and_complete(self):
         ids = [rule.id for rule in RULES.RULES]
-        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 13)])
+        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 14)])
 
     def test_severities_match_contract(self):
         errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-07", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
@@ -372,6 +385,45 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(
                     [(item["field"], item["message"]) for item in RULES.check(settings(change))], [(field, message)]
                 )
+
+
+class PlaceholderWalkTests(unittest.TestCase):
+    """CHK-13 walks the whole settings tree, so it must tolerate unusual YAML shapes."""
+
+    def test_non_string_root_key_is_stringified(self):
+        found = list(RULES._walk_strings({1: "replace-with-value", "ok": "fine"}, ""))
+        self.assertIn(("1", "replace-with-value"), found)
+
+    def test_non_string_key_in_full_settings_does_not_crash_check(self):
+        values = settings(lambda v: None)
+        values[2] = "replace-with-extra-field"
+        problems = RULES.check(values)
+        chk13_fields = {item["field"] for item in problems if item["rule"] == "CHK-13"}
+        self.assertIn("2", chk13_fields)
+
+    def test_recursive_alias_does_not_recurse_forever(self):
+        cyclic = {"name": "replace-with-service"}
+        cyclic["self"] = cyclic
+        # Must terminate instead of recursing until RecursionError.
+        found = list(RULES._walk_strings(cyclic, "metadata"))
+        self.assertEqual(found, [("metadata.name", "replace-with-service")])
+
+    def test_recursive_alias_in_full_settings_does_not_crash_check(self):
+        values = settings(lambda v: None)
+        values["governance"]["self_reference"] = values["governance"]
+        # Must not raise RecursionError; the rest of the settings tree is
+        # still walked for genuine placeholders.
+        problems = RULES.check(values)
+        self.assertEqual({item["rule"] for item in problems}, set())
+
+    def test_shared_non_cyclic_alias_is_still_visited_at_each_location(self):
+        shared = {"note": "replace-with-shared"}
+        tree = {"one": shared, "two": shared}
+        found = list(RULES._walk_strings(tree, ""))
+        self.assertEqual(
+            sorted(found),
+            [("one.note", "replace-with-shared"), ("two.note", "replace-with-shared")],
+        )
 
 
 class ExitCodeTests(unittest.TestCase):
@@ -553,12 +605,36 @@ class CliTests(unittest.TestCase):
     def test_shipped_settings_pass_strict(self):
         for repository in (
             REPOSITORY_ROOT / "sample-app",
-            REPOSITORY_ROOT / "packages" / "app-template",
             REPOSITORY_ROOT / "tests" / "fixtures" / "failing-test",
         ):
             with self.subTest(str(repository.relative_to(REPOSITORY_ROOT))):
                 status, report = run_json(str(repository), "--strict")
                 self.assertEqual((status, report["problems"]), (0, []))
+
+    def test_app_template_reports_expected_placeholder_problems(self):
+        # The template keeps its placeholder account IDs and replace-with-/TODO
+        # text on purpose, so it must fail CHK-03 for every account_id and
+        # CHK-13 for every placeholder field, and nothing else.
+        repository = REPOSITORY_ROOT / "packages" / "app-template"
+        status, report = run_json(str(repository), "--strict")
+        self.assertEqual(status, 1)
+        self.assertFalse(report["ready"])
+        self.assertEqual(
+            {(item["field"], item["rule"]) for item in report["problems"]},
+            {
+                ("environments[0].account_id", "CHK-03"),
+                ("environments[1].account_id", "CHK-03"),
+                ("environments[2].account_id", "CHK-03"),
+                ("service.name", "CHK-13"),
+                ("service.owner_team", "CHK-13"),
+                ("environments[0].role_name", "CHK-13"),
+                ("environments[1].role_name", "CHK-13"),
+                ("environments[2].role_name", "CHK-13"),
+                ("governance.approvers[0]", "CHK-13"),
+            },
+        )
+        self.assertEqual({item["severity"] for item in report["problems"]}, {"Error", "Warning"})
+
 
 
 class ScriptTests(unittest.TestCase):
