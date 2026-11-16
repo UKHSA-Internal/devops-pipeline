@@ -4,3 +4,4 @@ __pycache__/
 .act/
 .act-artifacts/
 .DS_Store
+CLAUDE.local.md
