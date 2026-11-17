@@ -27,7 +27,8 @@ def main() -> int:
     if expired:
         print(
             f"::error title=Approval expired::{environment} was approved more than {max_age_hours:g} hours "
-            f"after the gate opened ({opened_at}). Re-run the pipeline to request a fresh approval."
+            f"after the gate opened ({opened_at}). Start a new run, or use 'Re-run all jobs'. "
+            "'Re-run failed jobs' reuses the original gate time and expires again."
         )
         print(f"[STEP: APPROVAL] {environment} EXPIRED for group(s): {groups}")
         return 1
