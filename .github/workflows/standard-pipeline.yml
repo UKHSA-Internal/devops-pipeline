@@ -340,6 +340,10 @@ jobs:
     outputs:
       gate_opened_at: ${{ steps.guard.outputs.gate_opened_at }}
     steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+
       - name: Check Approval Environments
         id: guard
         uses: ./packages/shared-workflows/actions/approval-guard
@@ -361,7 +365,8 @@ jobs:
     needs: [check, approval-guard]
     if: needs.check.outputs.should_deploy_main_only == 'true' && needs.check.outputs.approval_mode != 'unattended'
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      contents: read
     environment: ${{ matrix.approval.environment }}
     strategy:
       # A rejection cancels the sibling approvals still waiting.
@@ -373,6 +378,10 @@ jobs:
       group: approval-gate-${{ needs.check.outputs.settings_path }}-${{ matrix.approval.environment }}
       cancel-in-progress: true
     steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+
       - name: Confirm Approval
         uses: ./packages/shared-workflows/actions/approval-confirm
         with:
