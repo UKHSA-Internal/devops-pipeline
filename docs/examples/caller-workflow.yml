@@ -14,6 +14,10 @@ on:
 
 permissions:
   contents: read # required so the called workflow can check out this repository
+  # The Production approval guard reads this repository's environment settings
+  # to confirm the approval environments exist and have required reviewers.
+  # Without actions: read, the guard fails the run before Production.
+  actions: read
   # Deploy assumes an AWS role via OIDC, not a long-lived credential. A called
   # reusable workflow can never be granted more than its caller allows, so the
   # caller must grant id-token: write itself even though it has no OIDC step

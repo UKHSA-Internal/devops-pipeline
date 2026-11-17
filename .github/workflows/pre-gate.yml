@@ -80,6 +80,11 @@ jobs:
           "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
             --settings docs/examples/pipeline-settings.yml --strict
 
+      - name: Check release smoke-test settings
+        run: |
+          "$RUNNER_TEMP/settings-checker-venv/bin/python" packages/settings-checker/checker.py \
+            --settings sample-app/.github/smoke-test-settings.yml --strict
+
       - name: Install actionlint
         env:
           ACTIONLINT_VERSION: '1.7.12'

@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  # The Production approval guard needs actions: read to check that the approval
+  # environments exist and have required reviewers.
+  actions: read
+  # Deploy assumes an AWS role via OIDC; the caller must grant id-token itself
+  # because a called workflow can never be granted more than its caller allows.
+  id-token: write
+
 jobs:
   pipeline:
     uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1

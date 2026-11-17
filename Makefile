@@ -1,4 +1,4 @@
-.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-approval-modes install-hooks
 
 ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:act-latest
 ACT_EVENT_FILE ?=
@@ -42,6 +42,37 @@ test-pipeline-settings-warnings: ## Run the pipeline with settings that have onl
 	@rm -f .act-artifacts/run-record.json
 	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/warnings-only-service/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 	@grep -q '"check": "PASSED"' .act-artifacts/run-record.json && grep -q '"test": "PASSED"' .act-artifacts/run-record.json && grep -q '"deploy": "PASSED"' .act-artifacts/run-record.json && echo "OK: check PASSED with warnings, later stages PASSED"
+
+test-pipeline-approval-modes: ## Run the pipeline on a simulated push to main in each approval mode; asserts which approval jobs run (act cannot approve)
+	@mkdir -p .act-artifacts
+	@printf '{"ref":"refs/heads/main"}' > .act-artifacts/push-main-event.json
+	@set -eu; \
+	run_mode() { \
+		mode=$$1; log=".act-artifacts/approval-$$mode.log"; \
+		./act-run.sh push -W tests/fixtures/approval-modes/caller.yml -e .act-artifacts/push-main-event.json \
+			--var SETTINGS_PATH=tests/fixtures/approval-modes/.github/$$mode.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE) > "$$log" 2>&1 \
+			|| { cat "$$log"; echo "FAIL: $$mode run failed"; exit 1; }; \
+	}; \
+	expect() { grep -q -- "$$2" ".act-artifacts/approval-$$1.log" || { echo "FAIL: $$1: expected '$$2'"; exit 1; }; }; \
+	expect_not() { ! grep -q -- "$$2" ".act-artifacts/approval-$$1.log" || { echo "FAIL: $$1: unexpected '$$2'"; exit 1; }; }; \
+	run_mode all-approvers; \
+	expect all-approvers 'Approve Production (production-approval-platform-leads).*Job succeeded'; \
+	expect all-approvers 'Approve Production (production-approval-security-leads).*Job succeeded'; \
+	expect all-approvers 'STEP: APPROVAL\] production-approval-platform-leads approved for group(s): platform-leads'; \
+	expect all-approvers 'STEP: APPROVAL\] production-approval-security-leads approved for group(s): security-leads'; \
+	expect all-approvers 'Deploy Production (prod).*Job succeeded'; \
+	echo "OK: all-approvers: one approval job per group, then Production"; \
+	run_mode single-approver; \
+	expect single-approver 'Approve Production (production-approval).*Job succeeded'; \
+	expect single-approver 'STEP: APPROVAL\] production-approval approved for group(s): platform-leads, security-leads'; \
+	expect_not single-approver 'production-approval-platform-leads'; \
+	expect single-approver 'Deploy Production (prod).*Job succeeded'; \
+	echo "OK: single-approver: one approval job, then Production"; \
+	run_mode unattended; \
+	expect unattended 'unattended Production deployment under exception EXC-0001'; \
+	expect_not unattended 'Approve Production'; \
+	expect unattended 'Deploy Production (prod).*Job succeeded'; \
+	echo "OK: unattended: no approval jobs, Production runs"
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks
