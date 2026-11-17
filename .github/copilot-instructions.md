@@ -93,5 +93,5 @@ disagree, the specification wins.
   one ADR per significant change, not one per decision.
 - Smaller decisions go in the project's decision log on Confluence, not in this
   repo.
-- Keep the README, CONTRIBUTING.md and `docs/` in step with every change. The
-  examples in `docs/examples/` are checked by the pre-gate.
+- Keep README.md, CONTRIBUTING.md, ROADMAP.md and `docs/` in step with every
+  change. The examples in `docs/examples/` are checked by the pre-gate.
