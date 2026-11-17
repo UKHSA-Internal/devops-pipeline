@@ -6,6 +6,7 @@ disagree, the specification wins.
 
 ## Working in this repo
 
+- Use the LLD's terms (for example stage, artifact, Settings Check tool). Don't introduce synonyms or rename established concepts. If a term seems wrong, raise it as an LLD change.
 - Documentation and tests are part of every change.
 - Follow CONTRIBUTING.md for branch names (`<type>/<jira-key>/<description>`),
   commits and pull requests.
@@ -58,7 +59,7 @@ disagree, the specification wins.
 - Severities:
   - an Error stops the run at Check;
   - a Warning is reported but never blocks.
-- The current rules are CHK-01 to CHK-13. CHK-07 is an Error.
+- The current rules are CHK-01 to CHK-13, with the severities set out in LLD section 4.1.
 - Modes:
   - default: used in pipelines; fails on errors;
   - `--strict`: used by the pre-gate and local runs; fails on warnings too;
