@@ -10,6 +10,9 @@ outputs:
   test_command:
     description: Service test command run by the Test step
     value: ${{ steps.resolve.outputs.test_command }}
+  language:
+    description: Service language, lower-cased, used to set up the Test step's runtime
+    value: ${{ steps.resolve.outputs.language }}
   dev_deployments:
     description: JSON list of Development deployments
     value: ${{ steps.resolve.outputs.dev_deployments }}

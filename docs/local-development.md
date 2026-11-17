@@ -91,6 +91,52 @@ make test-pipeline-settings-warnings
 This shows that warnings don't stop a run. No later stage reads a field that
 only has warning rules, so it doesn't test how stages handle malformed values.
 
+### Test runtime scenarios
+
+The Test stage sets up a runtime from `service.language` before running the
+test command. These targets cover the supported languages and the two
+fallbacks:
+
+```bash
+make test-pipeline-node                    # node: set up from .nvmrc, every stage passes
+make test-pipeline-missing-version-file    # python with no .python-version: test FAILED, downstream SKIPPED
+make test-pipeline-unsupported-language    # unsupported language: no runtime, warning, test still runs
+make test-pipeline-pinned-python-version   # python pinned to a specific minor version via .python-version: test PASSED
+```
+
+The python path is already covered by `make test-standard-pipeline-local`,
+which runs the sample app with its `.python-version`. The
+[consumer guide](consumer-guide.md#test-runtime) lists the accepted languages
+and version files.
+
+`test-pipeline-pinned-python-version` covers a service pinned to a specific
+minor version (3.12) that isn't just whatever `python3` happens to resolve to
+on the runner image, using `tests/fixtures/pinned-python-version/`. This
+proves `actions/setup-python` installs the exact requested version from
+`.python-version` and that the test command then runs successfully against
+it, rather than failing because only a different python version was
+preinstalled on the bare runner.
+
+#### Apple Silicon
+
+`.actrc` forces `--container-architecture linux/amd64` to match GitHub's x86
+runners. On Apple Silicon this breaks every target that sets up a python
+runtime, because `act` rewrites `PATH` to an `arm64` toolcache directory that
+the amd64 image doesn't have, and `setup-python`'s post step then fails with
+`node: executable file not found in $PATH`. Override the architecture to run
+those targets, changing `settings_path` for each one:
+
+```bash
+./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml \
+  --input settings_path=sample-app/.github/pipeline-settings.yml \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest \
+  --container-architecture linux/arm64
+```
+
+This affects `make test-standard-pipeline-local`,
+`make test-pipeline-failing-test`, `make test-pipeline-settings-warnings` and
+`make test-pipeline-pinned-python-version`. Hosted runs are unaffected.
+
 ### Pre-gate checks
 
 The pre-gate validates the repository; the sample-app pipeline exercises the

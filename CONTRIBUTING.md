@@ -116,6 +116,12 @@ Each component releases automatically when its version file changes on `main`:
 
 Only change a version file when you intend to release.
 
+## AI assistants
+
+- Shared instructions for AI assistants live in `.github/copilot-instructions.md`.
+- `CLAUDE.md` imports them and adds only Claude Code-specific guidance.
+- Put personal preferences in `CLAUDE.local.md` (Claude Code, gitignored) or your personal Copilot instructions, never in the shared file.
+
 ## Testing before opening a PR
 
 For local workflow setup and failure scenarios, see the
