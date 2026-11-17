@@ -97,6 +97,11 @@ before it deploys to Production. The Production deploy runs only after every
 approval succeeds. A rejected, cancelled or failed approval never lets it run.
 Pull requests never reach this point: only a push to `main` does.
 
+To set it up: choose a mode, set it in your settings, create the GitHub
+environments, grant `actions: read` in the caller, then work through the
+[checklist](#checklist-before-the-first-merge-to-main). Run record fields and
+error messages are in the [reference](#production-approval-reference) at the end.
+
 ### Choose a mode
 
 Set `deploy.production.approval_mode`. The Settings Check tool requires the
@@ -124,8 +129,6 @@ Group names become part of a GitHub environment name. Use only letters,
 digits, `.`, `_` and `-`, starting with a letter or digit, at most 235
 characters. A name that is listed twice, ignoring case, fails Check.
 
-`all-approvers`:
-
 ```yaml
 service:
   owner_team: "platform-leads"
@@ -133,33 +136,12 @@ governance:
   approvers: ["platform-leads", "security-leads"]
 deploy:
   production:
-    approval_mode: "all-approvers"
+    approval_mode: "all-approvers"   # or "single-approver" or "unattended"
+    # exception_id: "EXC-0001"       # unattended only: your approved Architecture Exception ID
 ```
 
-`single-approver`:
-
-```yaml
-service:
-  owner_team: "platform-leads"
-governance:
-  approvers: ["platform-leads", "security-leads"]
-deploy:
-  production:
-    approval_mode: "single-approver"
-```
-
-`unattended`:
-
-```yaml
-deploy:
-  production:
-    approval_mode: "unattended"
-    exception_id: "EXC-0001"   # your approved Architecture Exception ID
-```
-
-The `unattended` example shows only the changed block. `service.owner_team` and
-`governance.approvers` must still be set and pass CHK-05, as in the other
-examples.
+Only `approval_mode` and `exception_id` change between modes.
+`service.owner_team` and `governance.approvers` must pass CHK-05 in every mode.
 
 ### Create the GitHub environments
 
@@ -254,6 +236,22 @@ Time limit:
 If a reviewer rejects, the other waiting gates are cancelled and Production
 does not run.
 
+### Checklist before the first merge to `main`
+
+- [ ] `governance.approvers` lists the groups and includes `service.owner_team`.
+- [ ] `deploy.production.approval_mode` is set. For `unattended`, an approved
+      exception ID is in `deploy.production.exception_id`.
+- [ ] The approval environments exist, named as in the table above.
+- [ ] Each has the group's GitHub team as a required reviewer.
+- [ ] Prevent self-review is on, and each team has at least two people.
+- [ ] The caller workflow grants `actions: read`, `contents: read` and
+      `id-token: write`.
+- [ ] The repository is public, or private or internal on GitHub Team or
+      Enterprise, so required reviewers work.
+- [ ] The people who can approve know that stale waiting runs need cancelling.
+
+## Production approval reference
+
 ### What the run record shows
 
 The `governance` block of
@@ -315,20 +313,6 @@ The text in angle brackets varies.
 | `<environment> was approved more than 24 hours after the gate opened (<time>). Start a new run, or use 'Re-run all jobs'. 'Re-run failed jobs' reuses the original gate time and expires again.` (title "Approval expired") | Approval check | Start a new run, or use "Re-run all jobs". Do not use "Re-run failed jobs". |
 | `Invalid gate open time '<value>'; failing closed.` | Approval check | Start a new run. If it repeats, report it to the platform team. |
 | `Approval details are unavailable (<reason>). Grant 'actions: read' to the caller workflow.` | Report (warning) | Add `actions: read` to the caller. The run record shows `approvals_unavailable: true` until you do. |
-
-### Checklist before the first merge to `main`
-
-- [ ] `governance.approvers` lists the groups and includes `service.owner_team`.
-- [ ] `deploy.production.approval_mode` is set. For `unattended`, an approved
-      exception ID is in `deploy.production.exception_id`.
-- [ ] The approval environments exist, named as in the table above.
-- [ ] Each has the group's GitHub team as a required reviewer.
-- [ ] Prevent self-review is on, and each team has at least two people.
-- [ ] The caller workflow grants `actions: read`, `contents: read` and
-      `id-token: write`.
-- [ ] The repository is public, or private or internal on GitHub Team or
-      Enterprise, so required reviewers work.
-- [ ] The people who can approve know that stale waiting runs need cancelling.
 
 For local development and limitations of the sample pipeline, see
 [local development](local-development.md).
