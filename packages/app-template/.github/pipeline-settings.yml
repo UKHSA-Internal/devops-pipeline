@@ -2,7 +2,8 @@ version: "1.0"
 
 service:
   name: "replace-with-service-name"
-  owner_team: "replace-with-owner-team"
+  # Must also appear in governance.approvers (CHK-05).
+  owner_team: "replace-with-approver-group"
   language: "python"
   # Runs tests/test_placeholder.py; replace the placeholder with the service's real tests.
   test_command: "python3 -m unittest discover -s tests -v"

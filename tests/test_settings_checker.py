@@ -49,7 +49,7 @@ COMPLIANT = {
     "version": "1.0",
     "service": {
         "name": "sample-app",
-        "owner_team": "platform-team",
+        "owner_team": "platform-leads",
         "language": "python",
         "test_command": "python3 -m unittest discover",
     },
@@ -143,6 +143,7 @@ FAILING_CASES = {
         "empty approvers": set_path(["governance", "approvers"], []),
         "approvers not a list": set_path(["governance", "approvers"], "platform-leads"),
         "blank approver": set_path(["governance", "approvers"], [""]),
+        "owner_team not in approvers": set_path(["governance", "approvers"], ["security-leads"]),
     },
     "CHK-06": {
         "missing retention_days": delete_path(["governance", "retention_days"]),
@@ -199,9 +200,15 @@ FAILING_CASES = {
     },
     "CHK-13": {
         "replace-with placeholder": set_path(["service", "name"], "replace-with-service-name"),
-        "TODO placeholder": set_path(["service", "owner_team"], "TODO-owner-team"),
+        "TODO placeholder": lambda v: (
+            set_path(["service", "owner_team"], "TODO-owner-team")(v),
+            set_path(["governance", "approvers"], ["TODO-owner-team"])(v),
+        ),
         "mixed case placeholder": set_path(["environments", 0, "role_name"], "Replace-With-Dev-Role"),
-        "placeholder in a nested list": set_path(["governance", "approvers"], ["TODO-approver-group"]),
+        "placeholder in a nested list": lambda v: (
+            set_path(["service", "owner_team"], "TODO-approver-group")(v),
+            set_path(["governance", "approvers"], ["TODO-approver-group"])(v),
+        ),
     },
 }
 
@@ -212,7 +219,10 @@ PASSING_CASES = {
         "several deployments per category": lambda v: v["environments"].append(environment("dev-2", "Development")),
     },
     "CHK-04": {"categories in any order": lambda v: v["environments"].reverse()},
-    "CHK-05": {"several approvers": set_path(["governance", "approvers"], ["leads", "security"])},
+    "CHK-05": {
+        "several approvers": set_path(["governance", "approvers"], ["security", "platform-leads"]),
+        "owner_team differing only in case": set_path(["governance", "approvers"], ["Platform-LEADS"]),
+    },
     "CHK-06": {"one day": set_path(["governance", "retention_days"], 1)},
     "CHK-07": {
         "nested health_endpoint": set_path(["verification", "health_endpoint"], "/api/v1/health"),
@@ -344,6 +354,26 @@ class RuleTests(unittest.TestCase):
             ],
         )
 
+
+    def test_missing_owner_team_is_reported_only_by_chk_02(self):
+        problems = RULES.check(settings(delete_path(["service", "owner_team"])))
+
+        self.assertEqual({problem["rule"] for problem in problems}, {"CHK-02"})
+
+    def test_owner_team_message_names_both_values(self):
+        problems = RULES.check(settings(set_path(["governance", "approvers"], ["security-leads"])))
+
+        self.assertEqual(
+            problems,
+            [
+                {
+                    "field": "governance.approvers",
+                    "severity": "Error",
+                    "message": "must include service.owner_team ('platform-leads')",
+                    "rule": "CHK-05",
+                }
+            ],
+        )
 
     def test_messages_say_what_is_wrong(self):
         cases = [

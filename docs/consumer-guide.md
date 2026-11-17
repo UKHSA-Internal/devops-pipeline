@@ -92,8 +92,28 @@ Development; Pre-production and Production run only on pushes to `main`.
 
 `deploy.production.approval_mode` is required: `all-approvers`,
 `single-approver` or `unattended`. The last requires
-`deploy.production.exception_id`. The approval gate is managed separately
-from this workflow.
+`deploy.production.exception_id`.
+
+`governance.approvers` must be a non-empty list of approver groups that
+includes `service.owner_team` (compared ignoring case, CHK-05). The owner team
+stands in for the platform approver configuration until that exists.
+
+### Production approval gate
+
+After Pre-production, Production waits for approval:
+
+- `all-approvers`: one gated environment per approver group,
+  `production-approval-<group>`, approved in parallel.
+- `single-approver`: one environment, `production-approval`.
+- `unattended`: no pause. The exception ID is recorded in the run record.
+
+Create each environment in the service repository with required reviewers and
+"Prevent self-review". Grant `actions: read` to the caller workflow, as the
+[example caller](examples/caller-workflow.yml) does. The approval guard needs
+it to read the environment settings and fails closed without it. The
+`publish-report` job needs it too, to read the approval history: without it the
+run record is still written, but with `approvals_unavailable: true` and no
+approver details. A waiting approval expires after 24 hours.
 
 For local development and limitations of the sample pipeline, see
 [local development](local-development.md).
