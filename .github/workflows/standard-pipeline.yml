@@ -23,6 +23,7 @@ jobs:
       preprod_deployments: ${{ steps.deployments.outputs.preprod_deployments }}
       prod_deployments: ${{ steps.deployments.outputs.prod_deployments }}
       test_command: ${{ steps.deployments.outputs.test_command }}
+      language: ${{ steps.deployments.outputs.language }}
       deployments: ${{ steps.deployments.outputs.deployments }}
       health_endpoint: ${{ steps.deployments.outputs.health_endpoint }}
       timeout_seconds: ${{ steps.deployments.outputs.timeout_seconds }}
@@ -123,6 +124,7 @@ jobs:
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           test_command: ${{ needs.check.outputs.test_command }}
+          language: ${{ needs.check.outputs.language }}
 
   scan:
     name: Scan
