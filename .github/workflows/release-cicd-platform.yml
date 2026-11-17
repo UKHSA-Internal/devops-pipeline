@@ -287,7 +287,7 @@ jobs:
       packages: write
     uses: ./.github/workflows/standard-pipeline.yml
     with:
-      settings_path: sample-app/.github/pipeline-settings.yml
+      settings_path: sample-app/.github/smoke-test-settings.yml
 
   promote:
     name: Promote release

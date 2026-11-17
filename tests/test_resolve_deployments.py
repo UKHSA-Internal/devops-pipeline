@@ -1,6 +1,7 @@
 import importlib.util
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 RESOLVER_PATH = (
@@ -38,6 +39,7 @@ def settings(*environments, **overrides):
         ],
         "service": {"test_command": "python3 -m unittest discover"},
         "verification": {"health_endpoint": "/health", "timeout_seconds": 60},
+        "governance": {"approvers": ["platform-leads"]},
         **overrides,
     }
 
@@ -128,6 +130,74 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual(sum(line.startswith("test_command<<") for line in lines), 1)
         self.assertIn("test_command=injected", lines)
         self.assertTrue(lines[0].startswith("test_command<<EOF_"))
+
+
+class ResolveApprovalTests(unittest.TestCase):
+    def approval(self, mode=None, approvers=("platform-leads", "security-leads"), **production):
+        deploy = {"production": {**({"approval_mode": mode} if mode else {}), **production}}
+        return RESOLVER.resolve(
+            settings(deploy=deploy, governance={"approvers": list(approvers)})
+        )
+
+    def test_all_approvers_has_one_environment_per_group(self):
+        plan = self.approval("all-approvers")
+
+        self.assertEqual(plan["approval_mode"], "all-approvers")
+        self.assertEqual(
+            plan["approval_environments"],
+            [
+                {"environment": "production-approval-platform-leads", "groups": ["platform-leads"]},
+                {"environment": "production-approval-security-leads", "groups": ["security-leads"]},
+            ],
+        )
+
+    def test_mode_defaults_to_all_approvers(self):
+        plan = RESOLVER.resolve(settings(governance={"approvers": ["platform-leads"]}))
+
+        self.assertEqual(plan["approval_mode"], "all-approvers")
+        self.assertEqual(len(plan["approval_environments"]), 1)
+
+    def test_single_approver_has_one_environment_for_all_groups(self):
+        plan = self.approval("single-approver")
+
+        self.assertEqual(
+            plan["approval_environments"],
+            [{"environment": "production-approval", "groups": ["platform-leads", "security-leads"]}],
+        )
+
+    def test_unattended_has_no_environments_and_keeps_the_exception_id(self):
+        plan = self.approval("unattended", exception_id=" EXC-0001 ")
+
+        self.assertEqual(plan["approval_environments"], [])
+        self.assertEqual(plan["approval_exception_id"], "EXC-0001")
+
+    def test_unattended_ignores_unusable_group_names(self):
+        plan = self.approval("unattended", approvers=("not a valid name!",), exception_id="EXC-1")
+
+        self.assertEqual(plan["approval_environments"], [])
+
+    def test_rejects_group_names_that_cannot_be_environment_names(self):
+        for group in ("has space", "-leading-dash", "slash/name", "x" * 300):
+            with self.subTest(group=group), self.assertRaisesRegex(ValueError, "cannot be used"):
+                self.approval("all-approvers", approvers=(group,))
+
+    def test_rejects_groups_that_differ_only_by_case(self):
+        with self.assertRaisesRegex(ValueError, "more than once"):
+            self.approval("single-approver", approvers=("Platform-Leads", "platform-leads"))
+
+    def test_rejects_missing_approvers_when_a_gate_is_needed(self):
+        with self.assertRaisesRegex(ValueError, "at least one approver group"):
+            self.approval("all-approvers", approvers=())
+
+    def test_main_reports_invalid_groups_as_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "pipeline-settings.yml"
+            path.write_text(
+                "environments: []\nservice: {test_command: x}\ngovernance: {approvers: ['bad name']}\n",
+                encoding="utf-8",
+            )
+            with unittest.mock.patch.object(RESOLVER.sys, "argv", ["resolve", str(path)]):
+                self.assertEqual(RESOLVER.main(), 1)
 
 
 if __name__ == "__main__":

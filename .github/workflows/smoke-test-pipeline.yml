@@ -18,4 +18,4 @@ jobs:
     # permissions.
     uses: UKHSA-Internal/devops-pipeline/.github/workflows/standard-pipeline.yml@v1-canary
     with:
-      settings_path: sample-app/.github/pipeline-settings.yml
+      settings_path: sample-app/.github/smoke-test-settings.yml
