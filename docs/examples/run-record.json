@@ -46,10 +46,26 @@
       "verified_at": "2026-11-12T09:13:30Z"
     }
   ],
+  "simulated_stages": ["deploy", "verify"],
   "governance": {
     "compliance_verdict": null,
-    "approval_mode": null,
+    "approval_mode": "all-approvers",
     "exception_id": null,
-    "approvers": null
+    "approvers": [
+      {
+        "environment": "production-approval-platform-leads",
+        "groups": ["platform-leads"],
+        "approver": "alice",
+        "decision": "approved",
+        "timestamp": "2026-11-12T09:10:05Z"
+      },
+      {
+        "environment": "production-approval-security-leads",
+        "groups": ["security-leads"],
+        "approver": "bob",
+        "decision": "approved",
+        "timestamp": "2026-11-12T09:10:41Z"
+      }
+    ]
   }
 }

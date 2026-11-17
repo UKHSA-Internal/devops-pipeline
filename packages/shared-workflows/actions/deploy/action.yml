@@ -24,10 +24,18 @@ inputs:
     description: Full commit SHA tag of the built image
     required: true
 
+# A real implementation removes this output and its line in the step below; the run record
+# then stops listing "deploy" as a simulated stage.
+outputs:
+  simulated:
+    description: "'true' while this action is a placeholder that deploys nothing"
+    value: ${{ steps.placeholder.outputs.simulated }}
+
 runs:
   using: composite
   steps:
     - name: Run Deploy Placeholder
+      id: placeholder
       shell: bash
       env:
         ENVIRONMENT_NAME: ${{ inputs.environment_name }}
@@ -38,6 +46,7 @@ runs:
         REGION: ${{ inputs.region }}
         IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
+        echo "simulated=true" >> "$GITHUB_OUTPUT"
         printf '[STEP: %s] Deploy %s to %s (%s): would assume %s in account %s (%s); not yet implemented.\n' \
           "$STEP_NAME" "$IMAGE_TAG" "$ENVIRONMENT_NAME" "$CATEGORY" "$ROLE_NAME" "$ACCOUNT_ID" "$REGION"
         {

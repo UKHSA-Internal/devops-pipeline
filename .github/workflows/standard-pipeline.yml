@@ -10,8 +10,8 @@ on:
 
 # No workflow-level permissions: a called workflow can only reduce what its
 # caller grants, so every job sets contents: read itself. Only approval-guard
-# sets none, so it inherits the caller's token and can read environments when
-# the caller grants actions: read.
+# and publish-report set none, so they inherit the caller's token and can read
+# environments and the approval history when the caller grants actions: read.
 
 jobs:
   check:
@@ -246,6 +246,8 @@ jobs:
           image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy.outcome }}
           verify_outcome: ${{ steps.verify.outcome }}
+          deploy_simulated: ${{ steps.deploy.outputs.simulated }}
+          verify_simulated: ${{ steps.verify.outputs.simulated }}
 
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
@@ -321,6 +323,8 @@ jobs:
           image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy.outcome }}
           verify_outcome: ${{ steps.verify.outcome }}
+          deploy_simulated: ${{ steps.deploy.outputs.simulated }}
+          verify_simulated: ${{ steps.verify.outputs.simulated }}
 
   # Approval gate. Each approve job only logs a marker; the required reviewers on
   # its GitHub environment do the gating. The guard fails first if an environment
@@ -356,6 +360,8 @@ jobs:
 
   approve:
     name: Approve Production (${{ matrix.approval.environment }})
+    # The report finds this job by name: keep it equal to APPROVAL_JOB_NAME in
+    # publish-run-report/approvals.py (a test checks).
     needs: [check, approval-guard]
     if: needs.check.outputs.should_deploy_main_only == 'true' && needs.check.outputs.approval_mode != 'unattended'
     runs-on: ubuntu-latest
@@ -471,14 +477,17 @@ jobs:
           image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy.outcome }}
           verify_outcome: ${{ steps.verify.outcome }}
+          deploy_simulated: ${{ steps.deploy.outputs.simulated }}
+          verify_simulated: ${{ steps.verify.outputs.simulated }}
 
   publish-report:
     name: Publish Run Report
     needs: [check, test, scan, build, deploy-dev, deploy-preprod, approval-guard, approve, deploy-prod]
     if: always()
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    # No permissions block on purpose: inherit the caller's token, which needs
+    # actions: read to read the approval history. Without it the run record
+    # sets approvals_unavailable.
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -495,5 +504,11 @@ jobs:
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
           deployments: ${{ needs.check.outputs.deployments }}
+          approval_mode: ${{ needs.check.outputs.approval_mode }}
+          approval_exception_id: ${{ needs.check.outputs.approval_exception_id }}
+          approval_environments: ${{ needs.check.outputs.approval_environments }}
+          approval_guard_result: ${{ needs.approval-guard.result }}
+          approve_result: ${{ needs.approve.result }}
+          gate_opened_at: ${{ needs.approval-guard.outputs.gate_opened_at }}
           start_time: ${{ needs.check.outputs.start_time }}
           trigger_type: ${{ github.event_name }}

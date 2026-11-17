@@ -6,7 +6,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
+
+import yaml
 
 REPORT_PATH = (
     Path(__file__).resolve().parents[1]
@@ -277,7 +280,8 @@ class RunRecordFileTests(unittest.TestCase):
         record = self.generate(deploy_preprod_result="skipped")
 
         self.assertEqual(
-            set(record), {"context", "timestamps", "steps", "environments", "governance"}
+            set(record),
+            {"context", "timestamps", "steps", "environments", "simulated_stages", "governance"},
         )
         self.assertEqual(
             set(record["context"]),
@@ -341,6 +345,273 @@ class RunRecordFileTests(unittest.TestCase):
             },
         )
         self.assertEqual(record["environments"], [])
+
+
+PLAN = [
+    {"environment": "production-approval-platform-leads", "groups": ["platform-leads"]},
+    {"environment": "production-approval-security-leads", "groups": ["security-leads"]},
+]
+GATE_OPENED = "2026-11-12T09:00:00Z"
+APPROVALS = REPORT.approvals_api
+
+
+def review(environment, state, login):
+    return {"state": state, "user": {"login": login}, "environments": [{"name": environment}], "comments": ""}
+
+
+def approval_job(environment, started, completed, prefix=""):
+    name = APPROVALS.APPROVAL_JOB_NAME.format(environment=environment)
+    return {"name": prefix + name, "started_at": started, "completed_at": completed}
+
+
+def gate_inputs(**overrides):
+    values = {
+        "trigger_type": "push",
+        "ref": "refs/heads/main",
+        "approval_mode": "all-approvers",
+        "approval_environments": json.dumps(PLAN),
+        "approval_guard_result": "success",
+        "approve_result": "success",
+        "gate_opened_at": GATE_OPENED,
+    }
+    return report_inputs(**{**values, **overrides})
+
+
+class ApprovalRecordTests(unittest.TestCase):
+    def test_several_groups_each_get_an_entry_with_their_own_approver(self):
+        reviews = [
+            review("production-approval-platform-leads", "approved", "alice"),
+            review("production-approval-security-leads", "approved", "bob"),
+        ]
+        jobs = [
+            approval_job("production-approval-platform-leads", "2026-11-12T09:05:00Z", "2026-11-12T09:06:00Z"),
+            approval_job("production-approval-security-leads", "2026-11-12T10:30:00Z", "2026-11-12T10:31:00Z"),
+        ]
+
+        approvers = APPROVALS.build_approvers(PLAN, reviews, jobs, GATE_OPENED, 24)
+
+        self.assertEqual(
+            approvers,
+            [
+                {
+                    "environment": "production-approval-platform-leads",
+                    "groups": ["platform-leads"],
+                    "approver": "alice",
+                    "decision": "approved",
+                    "timestamp": "2026-11-12T09:05:00Z",
+                },
+                {
+                    "environment": "production-approval-security-leads",
+                    "groups": ["security-leads"],
+                    "approver": "bob",
+                    "decision": "approved",
+                    "timestamp": "2026-11-12T10:30:00Z",
+                },
+            ],
+        )
+
+    def test_rejected_uses_the_end_of_the_job_as_its_time(self):
+        reviews = [review("production-approval-platform-leads", "rejected", "alice")]
+        jobs = [approval_job("production-approval-platform-leads", None, "2026-11-12T09:20:00Z")]
+
+        [entry] = APPROVALS.build_approvers(PLAN, reviews, jobs, GATE_OPENED, 24)
+
+        self.assertEqual((entry["decision"], entry["timestamp"]), ("rejected", "2026-11-12T09:20:00Z"))
+
+    def test_expired_only_when_the_leg_started_after_the_window(self):
+        reviews = [review("production-approval-platform-leads", "approved", "alice")]
+        for started, expected in (
+            ("2026-11-13T09:00:00Z", "approved"),
+            ("2026-11-13T09:00:01Z", "expired"),
+        ):
+            with self.subTest(started=started):
+                jobs = [approval_job("production-approval-platform-leads", started, started)]
+                [entry] = APPROVALS.build_approvers(PLAN, reviews, jobs, GATE_OPENED, 24)
+                self.assertEqual(entry["decision"], expected)
+
+    def test_reviews_for_other_environments_and_unfinished_reviews_are_ignored(self):
+        reviews = [
+            review("production-approval-other", "approved", "carol"),
+            review("production-approval-platform-leads", "pending", "alice"),
+        ]
+
+        self.assertEqual(APPROVALS.build_approvers(PLAN, reviews, [], GATE_OPENED, 24), [])
+
+    def test_job_is_found_behind_a_reusable_workflow_prefix(self):
+        jobs = [approval_job("production-approval-platform-leads", "t", "t", prefix="Sample App / ")]
+
+        self.assertIs(APPROVALS.find_job(jobs, "production-approval-platform-leads"), jobs[0])
+        self.assertIsNone(APPROVALS.find_job(jobs, "production-approval-security-leads"))
+
+    def test_job_name_matches_the_workflow(self):
+        workflow = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "standard-pipeline.yml"
+        job = yaml.safe_load(workflow.read_text(encoding="utf-8"))["jobs"]["approve"]
+
+        self.assertEqual(
+            job["name"].replace("${{ matrix.approval.environment }}", "{environment}"),
+            APPROVALS.APPROVAL_JOB_NAME,
+        )
+
+    def collect(self, inputs, reviews=None, jobs=None):
+        def unreadable(*_):
+            raise APPROVALS.ApprovalsUnavailable("HTTP 403")
+
+        with unittest.mock.patch.dict(os.environ, {"GH_TOKEN": "token", "ACT": ""}):
+            return REPORT.collect_approvals(
+                inputs,
+                get_reviews=(lambda *_: reviews) if reviews is not None else unreadable,
+                get_jobs=lambda *_: jobs or [],
+            )
+
+    def test_unreadable_history_is_unavailable_not_an_error(self):
+        approvals = self.collect(gate_inputs())
+
+        self.assertEqual(approvals, {"approvers": None, "unavailable": True})
+        record = REPORT.create_report(gate_inputs(), END_TIME, [], approvals)
+        self.assertIsNone(record["governance"]["approvers"])
+        self.assertIs(record["governance"]["approvals_unavailable"], True)
+
+    def test_unattended_and_skipped_approval_read_nothing(self):
+        for inputs in (
+            gate_inputs(approval_mode="unattended", approve_result="skipped"),
+            gate_inputs(approve_result="skipped"),
+        ):
+            with self.subTest(mode=inputs["approval_mode"]):
+                self.assertEqual(self.collect(inputs), {"approvers": [], "unavailable": False})
+
+    def test_governance_records_mode_and_the_exception_for_unattended_only(self):
+        unattended = REPORT.create_report(
+            gate_inputs(approval_mode="unattended", approval_exception_id="EXC-0001", approve_result="skipped"),
+            END_TIME,
+        )
+        gated = REPORT.create_report(gate_inputs(approval_exception_id="EXC-0001"), END_TIME)
+
+        self.assertEqual(unattended["governance"]["approval_mode"], "unattended")
+        self.assertEqual(unattended["governance"]["exception_id"], "EXC-0001")
+        self.assertEqual(unattended["governance"]["approvers"], [])
+        self.assertEqual(gated["governance"]["approval_mode"], "all-approvers")
+        self.assertIsNone(gated["governance"]["exception_id"])
+        self.assertNotIn("approvals_unavailable", gated["governance"])
+
+    PLANNED = [
+        {"name": "dev-env-1", "category": "Development"},
+        {"name": "prod", "category": "Production"},
+    ]
+    RAN = [deployment_result("dev-env-1", "Development")]
+
+    def blocked_record(self, approvers, **overrides):
+        inputs = gate_inputs(deploy_prod_result="skipped", approve_result="failure", **overrides)
+        return REPORT.create_report(
+            inputs, END_TIME, self.RAN, {"approvers": approvers, "unavailable": False}, self.PLANNED
+        )
+
+    def assert_blocked(self, record, reason):
+        self.assertEqual(record["steps"]["deploy"], "FAILED")
+        production = [entry for entry in record["environments"] if entry["category"] == "Production"]
+        self.assertEqual(
+            [(entry["deploy_status"], entry["verify_status"], entry["skipped_reason"]) for entry in production],
+            [("SKIPPED", "SKIPPED", reason)],
+        )
+
+    def test_rejected_approval_never_shows_production_as_passed(self):
+        approvers = [
+            {
+                "environment": "production-approval-platform-leads",
+                "groups": ["platform-leads"],
+                "approver": "alice",
+                "decision": "rejected",
+                "timestamp": "2026-11-12T09:20:00Z",
+            }
+        ]
+
+        self.assert_blocked(
+            self.blocked_record(approvers), "approval rejected by alice (production-approval-platform-leads)"
+        )
+
+    def test_expired_approval_never_shows_production_as_passed(self):
+        approvers = [
+            {
+                "environment": "production-approval-platform-leads",
+                "groups": ["platform-leads"],
+                "approver": "alice",
+                "decision": "expired",
+                "timestamp": "2026-11-14T09:00:00Z",
+            }
+        ]
+
+        self.assert_blocked(self.blocked_record(approvers), "approval expired (production-approval-platform-leads)")
+
+    def test_approved_leg_that_failed_for_another_reason_stays_approved_without_a_guess(self):
+        approvers = [
+            {
+                "environment": "production-approval-platform-leads",
+                "groups": ["platform-leads"],
+                "approver": "alice",
+                "decision": "approved",
+                "timestamp": "2026-11-12T09:05:00Z",
+            }
+        ]
+        record = self.blocked_record(approvers)
+
+        self.assert_blocked(record, "approval job failure")
+        self.assertEqual(record["governance"]["approvers"][0]["decision"], "approved")
+
+    def test_failed_guard_blocks_production(self):
+        record = REPORT.create_report(
+            gate_inputs(deploy_prod_result="skipped", approval_guard_result="failure", approve_result="skipped"),
+            END_TIME,
+            self.RAN,
+            None,
+            self.PLANNED,
+        )
+
+        self.assert_blocked(record, "approval guard failed")
+
+    def test_pull_request_and_unattended_runs_have_no_blocked_production(self):
+        pull_request = REPORT.create_report(
+            report_inputs(approve_result="skipped", approval_guard_result="skipped"),
+            END_TIME,
+            self.RAN,
+            None,
+            self.PLANNED,
+        )
+        unattended = REPORT.create_report(
+            gate_inputs(approval_mode="unattended", approve_result="skipped", deploy_prod_result="success"),
+            END_TIME,
+            self.RAN + [deployment_result("prod", "Production")],
+            None,
+            self.PLANNED,
+        )
+
+        for record in (pull_request, unattended):
+            self.assertEqual(record["steps"]["deploy"], "PASSED")
+            self.assertTrue(all("skipped_reason" not in entry for entry in record["environments"]))
+
+    def test_simulated_stages_come_from_the_deployment_flags(self):
+        simulated = {**deployment_result("dev-env-1", "Development"), "deploy_simulated": True, "verify_simulated": True}
+        real_verify = {**simulated, "verify_simulated": False}
+        skipped = {**simulated, "deploy_outcome": "skipped"}
+
+        self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [simulated])["simulated_stages"], ["deploy", "verify"])
+        self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [real_verify])["simulated_stages"], ["deploy"])
+        self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [skipped])["simulated_stages"], [])
+        self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [])["simulated_stages"], [])
+
+    def test_summary_lists_simulated_stages(self):
+        simulated = {**deployment_result("dev-env-1", "Development"), "deploy_simulated": True}
+        report = REPORT.create_report(report_inputs(), END_TIME, [simulated])
+        with tempfile.TemporaryDirectory() as directory:
+            summary = Path(directory) / "summary.md"
+            REPORT.append_summary(report, summary)
+
+            self.assertIn("**Simulated stages:** deploy", summary.read_text(encoding="utf-8"))
+
+    def test_governance_keeps_its_existing_keys(self):
+        record = REPORT.create_report(report_inputs(), END_TIME)
+
+        self.assertTrue(
+            {"compliance_verdict", "approval_mode", "exception_id", "approvers"} <= set(record["governance"])
+        )
 
 
 if __name__ == "__main__":
