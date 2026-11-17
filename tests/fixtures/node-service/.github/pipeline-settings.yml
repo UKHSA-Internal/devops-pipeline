@@ -1,0 +1,39 @@
+# Node service: the Test step must set up Node from .nvmrc before running the test command.
+version: "1.0"
+
+service:
+  name: "node-service"
+  owner_team: "platform-team"
+  language: "node"
+  test_command: "node --version && node tests/test_placeholder.js"
+
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "123456789012"
+    role_name: pipeline-dev-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: pipeline-preprod-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: pipeline-prod-role
+    region: eu-west-2
+
+governance:
+  retention_days: 0
+  approvers:
+    - "platform-leads"
+
+verification:
+  health_endpoint: "/health"
+  timeout_seconds: 60
+
+deploy:
+  production:
+    approval_mode: "unattended"
+    exception_id: "EXC-0001"

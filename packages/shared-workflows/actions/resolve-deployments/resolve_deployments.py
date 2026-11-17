@@ -29,8 +29,14 @@ def resolve(settings: dict) -> dict:
     if not isinstance(verification, dict):
         verification = {}
 
+    # Check only warns that service.language is present (CHK-02), so treat a missing or
+    # malformed value as "no runtime", which the Test step reports as unsupported.
+    language = settings["service"].get("language")
+    language = language.strip().lower() if isinstance(language, str) else ""
+
     return {
         "test_command": settings["service"]["test_command"].strip(),
+        "language": language,
         "dev_deployments": by_category["dev"],
         "preprod_deployments": by_category["preprod"],
         "prod_deployments": by_category["prod"],
