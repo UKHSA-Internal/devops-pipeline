@@ -102,6 +102,12 @@ class ResolveDeploymentsTests(unittest.TestCase):
 
         self.assertEqual(RESOLVER.resolve(values)["language"], "python")
 
+    def test_language_keeps_internal_whitespace(self):
+        values = settings()
+        values["service"]["language"] = " Py Thon "
+
+        self.assertEqual(RESOLVER.resolve(values)["language"], "py thon")
+
     def test_language_is_empty_when_missing_or_not_text(self):
         self.assertEqual(RESOLVER.resolve(settings())["language"], "")
 

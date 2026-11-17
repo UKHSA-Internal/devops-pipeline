@@ -25,7 +25,10 @@ runs:
       run: |
         set -euo pipefail
 
-        language="$(printf '%s' "$LANGUAGE" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+        # Trim only leading and trailing whitespace, so "py thon" stays unsupported
+        language="$(printf '%s' "$LANGUAGE" | tr '[:upper:]' '[:lower:]')"
+        language="${language#"${language%%[![:space:]]*}"}"
+        language="${language%"${language##*[![:space:]]}"}"
         printf '## Test\n\n' >> "$GITHUB_STEP_SUMMARY"
 
         case "$language" in
@@ -67,6 +70,7 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version-file: ${{ steps.runtime.outputs.version_file }}
+        package-manager-cache: false
 
     - name: Run Service Tests
       shell: bash

@@ -131,6 +131,14 @@ class ResolveTestRuntimeTests(unittest.TestCase):
         self.assertIn("WARNING", completed.stdout)
         self.assertIn("Runtime: **none**", summary)
 
+    def test_internal_whitespace_is_not_stripped_and_takes_the_unsupported_path(self):
+        completed, outputs, summary = self.run_step("py thon", [(".python-version", "3.11\n")])
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(outputs["language"], "")
+        self.assertIn('"py thon"', completed.stdout)
+        self.assertIn("Runtime: **none**", summary)
+
     def test_missing_language_warns_and_sets_up_no_runtime(self):
         completed, outputs, summary = self.run_step("")
 
