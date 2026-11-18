@@ -33,9 +33,11 @@ These standing decisions still apply:
 - Recovery is always a redeployment of a previously verified artifact.
 
 ## Decision
-**Scope.** The first step is one image, deployed to one ECS service
-(`private-api`) in one Development environment (`uhd-dev`). It is proven in the
-sandbox first.
+**Scope.** This is a proof of concept. It deploys one image to one ECS
+service in the sandbox, and is done when build, deploy, verify and rollback are
+proven there. The first real service, `private-api` in `uhd-dev`, follows once
+the proof of concept passes. The data dashboard details below describe that
+step.
 
 **Ownership.** The pipeline owns the application deploy only. A deploy changes
 only the image. Every other task definition setting stays as the
@@ -54,6 +56,8 @@ repository.
 - The push role and the tools pipeline-only repository live in the tools
   infrastructure repository, using the account's existing OIDC provider.
 - The repository's policy lets only the new main-only push role write.
+- The repository's policy also lets the Development deploy role pull, so
+  Deploy can copy the image into the Development account.
 - In the Development account, an existing OIDC provider is looked up before
   one is created. The Terraform modules do not create a provider where one
   exists.
@@ -116,7 +120,7 @@ never rolled back.
 
 **Staleness.** Each deploy job refuses an image older than the version
 recorded in SSM. This lets an approved older run wait up to 24 hours without
-overwriting a newer deploy.
+overwriting a newer deploy. Concurrency is keyed on service and environment.
 
 **Running alongside the existing pipeline.**
 
@@ -125,6 +129,7 @@ overwriting a newer deploy.
 | Images | `dp-<commit-sha>`, in the pipeline-only repositories |
 | Task definitions | Tagged `deployed-by=devops-pipeline`, with the commit and run ID |
 | Version record | SSM `/devops-pipeline/<service>/<env>/version` |
+| Rollback point | The previous task definition's ARN and full JSON, with its image digest, in SSM before each deploy |
 
 The infrastructure repository stops deploying the one service in `uhd-dev`
 only:
@@ -174,9 +179,10 @@ The Settings Check tool gets these changes:
 
 Existing 1.0 settings files behave exactly as today.
 
-**Terraform modules.** Reusable modules under `terraform/aws/`, which consumers
-apply themselves: the OIDC provider, the registry push role, the deploy role
-and the pipeline-only ECR repositories.
+**Terraform modules.** Reusable modules under `terraform/aws/`, which
+consumers apply in their own infrastructure repositories: the registry push
+role, the deploy role and the pipeline-only ECR repositories. The OIDC
+provider is looked up, and created only where none exists.
 
 **Simulated stages.** Deploy and Verify become real only for services with
 `deploy.targets`, and stop flagging themselves as simulated. Services without
@@ -187,7 +193,7 @@ simulated.
 definitions, the verification results, the rollback outcome, the run attempt
 and the shared pipeline's own commit (`job.workflow_sha`, passed in as an
 input). A run replaced by a newer one is recorded as SKIPPED, with the reason
-superseded. Concurrency is keyed on service and environment.
+superseded.
 
 ## Alternatives considered
 | Option | Why not chosen |
@@ -225,7 +231,7 @@ superseded. Concurrency is keyed on service and environment.
   workflow in the same repository that uses the Development environment on
   `main` could reach the deploy role.
 
-**Before the first deploy**, the infrastructure side must:
+**Before the first `data-dashboard-api` deploy**, the infrastructure side must:
 
 - add the pipeline-only repository and push role in the tools infrastructure
   repository, and the Development repository and deploy role;
@@ -257,17 +263,17 @@ Out of scope here. Each is proven in the sandbox first.
 Other arrangements are added as services need them.
 
 ## Open decisions
-| ID | Question | Recommendation |
-|---|---|---|
-| D5 | How consumers get the Terraform modules | A git source pinned by commit, with version tags |
-| D7 | How infrastructure stops Terraform resetting the service | Dev-only flags plus `track_latest = false`, with a state move and no `moved` block |
-| D10 | Which service and environment go first | `private-api` in `uhd-dev` |
-| D14 | Deploy timeout | 15 minutes by default, 30 at most; job timeout 70 minutes |
-| D15 | Who is told about failures, and who responds | The service team's channel; the Platform Team as backup |
-| D16 | How many images the pipeline-only repositories keep | The last 10 |
-| D17 | Whether an older image can replace a newer one | No, checked against SSM |
-| D18 | Can one service run ahead of the five sharing its image in `uhd-dev`? | Yes, for Development only, with the tech lead's sign-off. This includes migrations, the cache and the hydrate job |
-| D19 | Where the tools account's repository and push role live | **Decided:** the tools infrastructure repository |
-| D20 | How Verify reaches a health endpoint behind an API key | An unauthenticated `/health/` route on the load balancer |
-| D21 | What happens when a deploy runs while Development is scaled to zero | Fail fast with "environment asleep" |
-| D22 | How a superseded run is recorded | SKIPPED, with the reason |
+| ID | Question | Recommendation | Needed by |
+|---|---|---|---|
+| D5 | How consumers get the Terraform modules | A git source pinned by commit, with version tags | Proof of concept |
+| D7 | How infrastructure stops Terraform resetting the service | Dev-only flags plus `track_latest = false`, with a state move and no `moved` block | First service |
+| D10 | Which service and environment go first | `private-api` in `uhd-dev` | First service |
+| D14 | Deploy timeout | 15 minutes by default, 30 at most; job timeout 70 minutes | Proof of concept |
+| D15 | Who is told about failures, and who responds | The service team's channel; the Platform Team as backup | First service |
+| D16 | How many images the pipeline-only repositories keep | The last 10 | Proof of concept |
+| D17 | Whether an older image can replace a newer one | No, checked against SSM | First service |
+| D18 | Can one service run ahead of the five sharing its image in `uhd-dev`? | Yes, for Development only, with the tech lead's sign-off. This includes migrations, the cache and the hydrate job | First service |
+| D19 | Where the tools account's repository and push role live | **Decided:** the tools infrastructure repository | — |
+| D20 | How Verify reaches a health endpoint behind an API key | An unauthenticated `/health/` route on the load balancer | First service |
+| D21 | What happens when a deploy runs while Development is scaled to zero | Fail fast with "environment asleep" | First service |
+| D22 | How a superseded run is recorded | SKIPPED, with the reason | First service |
