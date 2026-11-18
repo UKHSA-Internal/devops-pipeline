@@ -5,17 +5,24 @@
 
 ## Context
 The Deploy and Verify stages are placeholders. The run record flags them as
-simulated stages.
+simulated stages. That flag comes with the Production approval gate (DP-189,
+PRs #28 to #30), which this work builds on.
 
 The first consumer service builds one ARM64 image. It runs as six ECS Fargate
 services in each environment. They share one database, and every service runs
-migrations when it starts.
+migrations when it starts. The Development environment (`uhd-dev`) scales to
+zero tasks overnight and at weekends.
 
 Its infrastructure repository manages the cluster, network and database. That
 repository also deploys the services today. On every merge to the service, it
 picks the newest image from a shared tools ECR repository, applies Terraform
 and restarts the services in every environment, Production included. The ECR
-tags are immutable, and only 5 images are kept.
+tags are immutable. The environment repositories keep 5 images, and the tools
+repositories keep 30.
+
+The tools account is managed in its own infrastructure repository, which
+applies automatically on merge. Its existing push role trusts every branch of
+the service repository.
 
 These standing decisions still apply:
 
@@ -44,14 +51,25 @@ infrastructure repository set it.
 The deploy role is scoped to one cluster, one service, its task roles and one
 repository.
 
+- The push role and the tools pipeline-only repository live in the tools
+  infrastructure repository, using the account's existing OIDC provider.
+- The repository's policy lets only the new main-only push role write.
+- In the Development account, an existing OIDC provider is looked up before
+  one is created. The Terraform modules do not create a provider where one
+  exists.
+
 **Main-only.** This is enforced four ways:
 
 - The workflow deploys only on a push to `main`. Today any run that is not a
-  pull request deploys Development.
+  pull request deploys Development. Build publishes to a registry only on a
+  push to `main`.
 - The default OIDC subjects.
 - The environment's branch policy, set to `main` only.
-- The engine refuses to deploy unless the run is a push to `main` and the
-  environment exists with that branch policy.
+- A guard job before the Development deploy checks that the GitHub environment
+  `Development` allows `main` only. It fails closed, like the Production
+  approval guard. Existence alone means nothing, because GitHub creates
+  missing environments automatically. A repository admin creates `Development`
+  first.
 
 **Build once, promote by digest, in pipeline-only repositories.**
 
@@ -78,15 +96,27 @@ Composite actions are thin wrappers around it.
 - `GET /health/` returns the deployed commit, in the field set by
   `verification.version_field` (default `commit_sha`).
 
-The infrastructure repository lets `/health/` through its load balancer
-without the API key, so no application secret reaches the runner.
+Verify sends no auth headers. The infrastructure repository adds an exact
+`GET /health/` route without the API key, at load balancer rule priority 2,
+only where the environment is `dev`. It does not use `is_dev`, which also
+covers dpd, personal and CI environments. So no application secret reaches the
+runner.
 
-**Rollback.** Before each deploy, the pipeline records the current task
-definition and its image digest in SSM. On a failed check, it confirms that
-image still exists, restores that task definition, records where it came from,
-and still fails the stage. If another deploy has replaced this one, the
-pipeline reports it as superseded and does not roll back. The database is
+**Out of hours.** The engine fails fast with "environment asleep" when the
+service is scaled to zero.
+
+**Rollback.** Before each deploy, the engine saves the live task definition's
+ARN and full JSON, with its image digest, in SSM. On a failed check, it
+confirms that image still exists and restores that task definition. If the
+infrastructure repository has since deregistered that revision, rollback
+re-registers it from the JSON. The pipeline records where the task definition
+came from, and still fails the stage. If another deploy has replaced this one,
+the pipeline reports it as superseded and does not roll back. The database is
 never rolled back.
+
+**Staleness.** Each deploy job refuses an image older than the version
+recorded in SSM. This lets an approved older run wait up to 24 hours without
+overwriting a newer deploy.
 
 **Running alongside the existing pipeline.**
 
@@ -97,8 +127,29 @@ never rolled back.
 | Version record | SSM `/devops-pipeline/<service>/<env>/version` |
 
 The infrastructure repository stops deploying the one service in `uhd-dev`
-only. Terraform ignores that service's task definition, and the restart script
-skips it when the environment is dev.
+only:
+
+- In dev only, `ignore_task_definition_changes = true` and
+  `track_latest = false` on the service's module.
+- No `moved` block. It cannot be limited to dev, and would recreate the service
+  in every other workspace, Production included.
+- Instead, a one-off `terraform state mv` in the dev workspace. It is done with
+  the merge, while dev applies are paused, with plans checked in dev and
+  staging.
+- The restart script skips the service when the cluster is `uhd-dev-cluster`,
+  and drops it from the wait-for-stable list.
+- The engine prunes only the task definition revisions it registered.
+
+**Build argument.** `COMMIT_SHA` reaches the image as a build argument from
+both build paths: the pipeline, and the service's existing publish-image
+action. The service's caller needs a push trigger on `main`. Without one, the
+two pipelines do not deploy the same merge.
+
+**Permissions.** Build and the deploy jobs ask for `id-token: write`. GitHub
+refuses to start a run whose called jobs ask for more than the caller grants.
+So the platform's own callers (the sample app, the app template, the examples
+and the sandbox) are updated in the same release or before. The known
+consumers are checked and told before release.
 
 **Settings contract 1.1.** All additions are optional.
 
@@ -115,10 +166,11 @@ skips it when the environment is dev.
 
 The Settings Check tool gets these changes:
 
-- CHK-14 to CHK-19 are new and all Errors. CHK-19 limits environment names and
+- CHK-14 to CHK-20 are new and all Errors. CHK-19 limits environment names and
   `service.name` to lowercase letters, digits and hyphens, within a length
-  limit.
-- CHK-01 now fails a settings version newer than the pipeline supports.
+  limit. It applies only when `deploy` is set.
+- CHK-20 fails a settings version newer than the pipeline supports, comparing
+  versions as numbers. CHK-01 stays a Warning.
 
 Existing 1.0 settings files behave exactly as today.
 
@@ -133,8 +185,9 @@ simulated.
 
 **Run record.** It gains the digest, the target's previous and new task
 definitions, the verification results, the rollback outcome, the run attempt
-and the shared pipeline's own commit (`job_workflow_sha`). Concurrency is keyed
-on service and environment.
+and the shared pipeline's own commit (`job.workflow_sha`, passed in as an
+input). A run replaced by a newer one is recorded as SKIPPED, with the reason
+superseded. Concurrency is keyed on service and environment.
 
 ## Alternatives considered
 | Option | Why not chosen |
@@ -143,7 +196,8 @@ on service and environment.
 | Put pipeline images in the shared repositories, and have infrastructure filter out `dp-*` | Terraform's "most recent" image lookup cannot filter by tag, and an image copied into the shared Development repository would move all six services. A missed filter would ship a pipeline build to Production |
 | Moving rollback tags (`dp-<env>-current` and `dp-<env>-previous`) | ECR tags are immutable in these repositories |
 | The deploy role reads the API key to call `/health/` | Puts an application secret on the runner, and mixes deployment access with application access |
-| Custom OIDC subject claims for main-only | They apply to the whole repository, and would break the existing pipeline's AWS trust |
+| Custom OIDC subject claims for main-only | Not needed for Development. Revisit when trust is pinned to the shared workflow before Production. The existing trusts use a `repo:…:*` wildcard, so they would probably still match |
+| A `moved` block for the Terraform hand-over | It cannot be limited to one workspace |
 | Rebuild the image per environment | What is tested would no longer be what is deployed |
 | The pipeline manages the infrastructure too | Too much ownership and risk for a first step |
 
@@ -162,19 +216,28 @@ on service and environment.
   its image and database. Both pipelines deploy the same merge, usually within
   minutes. A failure or rollback leaves a longer gap.
 - Migrations run on start in every service, and rollback cannot undo them. So
-  migrations must be backward compatible.
+  migrations must be backward compatible. About six migrations a year are
+  ones that old code cannot handle, for example new NOT NULL columns. We
+  recommend that the service team adds a CI check for NOT NULL changes.
+- Shared Redis values can be written by an older worker.
+- The hydrate job runs the infrastructure repository's image.
 - Until trust is pinned to the shared workflow before Production, another
   workflow in the same repository that uses the Development environment on
   `main` could reach the deploy role.
 
-**Before the first deploy**, the infrastructure repository must:
+**Before the first deploy**, the infrastructure side must:
 
-- create the pipeline-only repositories and roles;
-- add the Terraform ignore;
-- add the dev-only restart skip;
-- add the health route.
+- add the pipeline-only repository and push role in the tools infrastructure
+  repository, and the Development repository and deploy role;
+- set the dev-only Terraform ignore and `track_latest = false`;
+- do the state move;
+- add the cluster-keyed restart skip;
+- add the dev-only health route.
 
 The service must return its commit from `/health/`.
+
+We recommend narrowing the existing push role, which trusts every branch. This
+does not block this work.
 
 **Design sections that change when this lands:** Build, Deploy, Verify and
 rollback; concurrency; the settings rules; consumer requirements (`base_url`
@@ -197,12 +260,14 @@ Other arrangements are added as services need them.
 | ID | Question | Recommendation |
 |---|---|---|
 | D5 | How consumers get the Terraform modules | A git source pinned by commit, with version tags |
-| D7 | How infrastructure stops Terraform resetting the service | `ignore_task_definition_changes` on that service's module only, with a `moved` block, planned in `uhd-dev` first |
+| D7 | How infrastructure stops Terraform resetting the service | Dev-only flags plus `track_latest = false`, with a state move and no `moved` block |
 | D10 | Which service and environment go first | `private-api` in `uhd-dev` |
 | D14 | Deploy timeout | 15 minutes by default, 30 at most; job timeout 70 minutes |
 | D15 | Who is told about failures, and who responds | The service team's channel; the Platform Team as backup |
 | D16 | How many images the pipeline-only repositories keep | The last 10 |
-| D17 | Whether the staleness gate stops an older queued run | Yes |
-| D18 | Can one service run ahead of the five sharing its image in `uhd-dev`? | Yes, for Development only, with the tech lead's sign-off |
-| D19 | Where the tools account's repository and push role live | Unknown: ask the tools account's owner |
+| D17 | Whether an older image can replace a newer one | No, checked against SSM |
+| D18 | Can one service run ahead of the five sharing its image in `uhd-dev`? | Yes, for Development only, with the tech lead's sign-off. This includes migrations, the cache and the hydrate job |
+| D19 | Where the tools account's repository and push role live | **Decided:** the tools infrastructure repository |
 | D20 | How Verify reaches a health endpoint behind an API key | An unauthenticated `/health/` route on the load balancer |
+| D21 | What happens when a deploy runs while Development is scaled to zero | Fail fast with "environment asleep" |
+| D22 | How a superseded run is recorded | SKIPPED, with the reason |
