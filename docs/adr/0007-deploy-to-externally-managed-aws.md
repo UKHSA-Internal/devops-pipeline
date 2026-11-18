@@ -7,10 +7,15 @@
 The Deploy and Verify stages are placeholders. The run record flags them as
 simulated stages.
 
-The first consumer service runs on AWS ECS Fargate. Its cluster, network and
-database are managed in a separate infrastructure repository, which also
-deploys the service today. That deploy picks the newest image and sends it to
-every environment. It has no link to the commit that triggered the run.
+The first consumer service builds one ARM64 image. It runs as six ECS Fargate
+services in each environment. They share one database, and every service runs
+migrations when it starts.
+
+Its infrastructure repository manages the cluster, network and database. That
+repository also deploys the services today. On every merge to the service, it
+picks the newest image from a shared tools ECR repository, applies Terraform
+and restarts the services in every environment, Production included. The ECR
+tags are immutable, and only 5 images are kept.
 
 These standing decisions still apply:
 
@@ -21,60 +26,79 @@ These standing decisions still apply:
 - Recovery is always a redeployment of a previously verified artifact.
 
 ## Decision
-**Scope.** The first step is one image, deployed to one Development environment
-on AWS ECS. It is proven in the sandbox before any real service uses it.
+**Scope.** The first step is one image, deployed to one ECS service
+(`private-api`) in one Development environment (`uhd-dev`). It is proven in the
+sandbox first.
 
-**Ownership.** The pipeline owns the application deploy only. The cluster,
-network, database and task definition settings stay in the service's
-infrastructure repository. A deploy changes only the image. Every other task
-definition setting stays as the infrastructure repository set it.
+**Ownership.** The pipeline owns the application deploy only. A deploy changes
+only the image. Every other task definition setting stays as the
+infrastructure repository set it.
 
 **Access.** GitHub OIDC only, using AWS's official actions, pinned.
 
 | Role | Account | Trusts |
 |---|---|---|
 | Registry push | Tools | The service repository, on `main` only |
-| Deploy | Development | That repository's Development GitHub environment |
+| Deploy | Development | The service's Development GitHub environment |
 
-Main-only is enforced three ways: the default OIDC subjects, the environment's
-branch policy (`main` only), and the engine refusing anything that is not
-`main` and the shared workflow.
+The deploy role is scoped to one cluster, one service, its task roles and one
+repository.
 
-**Build once, promote by digest.**
+**Main-only.** This is enforced four ways:
 
-- On `main`, Build pushes `dp-<commit-sha>` to the tools ECR and records the
-  digest.
-- Deploy copies that exact image into the environment's ECR.
-- The digest replaces the `.sha256` checksum gate.
+- The workflow deploys only on a push to `main`. Today any run that is not a
+  pull request deploys Development.
+- The default OIDC subjects.
+- The environment's branch policy, set to `main` only.
+- The engine refuses to deploy unless the run is a push to `main` and the
+  environment exists with that branch policy.
+
+**Build once, promote by digest, in pipeline-only repositories.**
+
+- On `main`, Build builds for `build.platform` and pushes `dp-<commit-sha>` to
+  a pipeline-only repository in the tools account.
+- Deploy copies that image by digest into a pipeline-only repository in the
+  Development account.
+- Both repositories use immutable tags and keep the last 10 images.
+- The infrastructure repository's scripts and Terraform never read these
+  repositories, so a pipeline image cannot reach another service or
+  environment.
+- The digest replaces the tar `.sha256` file.
 - Pull requests and feature branches never build to a registry or deploy.
 
-**Deploy engine.** A new Python package, `packages/deploy-engine/`. It has
-`publish`, `deploy`, `verify` and `rollback` commands and a provider model.
-`aws` is the first provider and `aws.ecs` the first target type. Composite
-actions stay thin wrappers around it.
+**Deploy engine.** A new Python package, `packages/deploy-engine/`, with
+`publish`, `deploy`, `verify` and `rollback` commands. It uses a provider
+model: `aws` is the first provider and `aws.ecs` the first target type.
+Composite actions are thin wrappers around it.
 
 **Verify.** Verify checks independently that:
 
 - every running task uses the expected digest;
-- the service's live task definition is the one this run registered;
-- the health endpoint returns the deployed commit, in the field set by
+- the live task definition is the one this run registered;
+- `GET /health/` returns the deployed commit, in the field set by
   `verification.version_field` (default `commit_sha`).
 
-**Rollback.** On a failed check, the pipeline restores the previous task
-definition, whatever created it, and records where it came from. The stage
-still fails, so later environments do not run. If another deploy has replaced
-this one, the pipeline reports it as superseded and does not roll back. The
-database is never rolled back, so migrations must be backward compatible.
+The infrastructure repository lets `/health/` through its load balancer
+without the API key, so no application secret reaches the runner.
 
-**Running alongside the existing pipeline.** Everything the pipeline creates is
-labelled as its own.
+**Rollback.** Before each deploy, the pipeline records the current task
+definition and its image digest in SSM. On a failed check, it confirms that
+image still exists, restores that task definition, records where it came from,
+and still fails the stage. If another deploy has replaced this one, the
+pipeline reports it as superseded and does not roll back. The database is
+never rolled back.
+
+**Running alongside the existing pipeline.**
 
 | Item | Label |
 |---|---|
-| Images | `dp-<commit-sha>` |
-| Rollback images | `dp-<env>-current` and `dp-<env>-previous` |
+| Images | `dp-<commit-sha>`, in the pipeline-only repositories |
 | Task definitions | Tagged `deployed-by=devops-pipeline`, with the commit and run ID |
 | Version record | SSM `/devops-pipeline/<service>/<env>/version` |
+
+The infrastructure repository stops deploying the one service in `uhd-dev`
+only. Terraform ignores that service's task definition, and the restart script
+skips it when the environment is dev.
 
 **Settings contract 1.1.** All additions are optional.
 
@@ -89,25 +113,39 @@ labelled as its own.
 | `environments[].verification.base_url` | Health endpoint base URL |
 | `verification.version_field` | Field that holds the deployed commit |
 
-New rules CHK-14 to CHK-19 are all Errors. Existing 1.0 settings files behave
-exactly as today.
+The Settings Check tool gets these changes:
+
+- CHK-14 to CHK-19 are new and all Errors. CHK-19 limits environment names and
+  `service.name` to lowercase letters, digits and hyphens, within a length
+  limit.
+- CHK-01 now fails a settings version newer than the pipeline supports.
+
+Existing 1.0 settings files behave exactly as today.
 
 **Terraform modules.** Reusable modules under `terraform/aws/`, which consumers
 apply themselves: the OIDC provider, the registry push role, the deploy role
-and the ECR protection rules.
+and the pipeline-only ECR repositories.
 
-**Simulated flag.** When Deploy and Verify become real, their actions drop the
-simulated flag. The run record and the README's list of simulated stages stop
-listing them.
+**Simulated stages.** Deploy and Verify become real only for services with
+`deploy.targets`, and stop flagging themselves as simulated. Services without
+`deploy.targets`, including the sample app and the release smoke test, stay
+simulated.
+
+**Run record.** It gains the digest, the target's previous and new task
+definitions, the verification results, the rollback outcome, the run attempt
+and the shared pipeline's own commit (`job_workflow_sha`). Concurrency is keyed
+on service and environment.
 
 ## Alternatives considered
 | Option | Why not chosen |
 |---|---|
-| Hand over to the infrastructure repository's own workflow | Needs a cross-repository token, which means a GitHub App or a personal token. Both conflict with standing decisions. Kept as a later option for services that need it |
-| The pipeline manages the infrastructure too | Too much ownership and risk for a first step. Infrastructure stays where it is |
-| A separate tools ECR repository for pipeline images | Workable, but more set-up. The `dp-` labelling keeps the two apart. Kept as the fallback |
-| Custom OIDC subject claims to enforce main-only | They apply to the whole repository, and would break the existing pipeline's AWS trust |
-| Rebuild the image for each environment | What is tested would no longer be what is deployed |
+| Hand over to the infrastructure repository's own workflow | Needs a cross-repository token, so a GitHub App or a personal token. Both conflict with standing decisions. Kept for later |
+| Put pipeline images in the shared repositories, and have infrastructure filter out `dp-*` | Terraform's "most recent" image lookup cannot filter by tag, and an image copied into the shared Development repository would move all six services. A missed filter would ship a pipeline build to Production |
+| Moving rollback tags (`dp-<env>-current` and `dp-<env>-previous`) | ECR tags are immutable in these repositories |
+| The deploy role reads the API key to call `/health/` | Puts an application secret on the runner, and mixes deployment access with application access |
+| Custom OIDC subject claims for main-only | They apply to the whole repository, and would break the existing pipeline's AWS trust |
+| Rebuild the image per environment | What is tested would no longer be what is deployed |
+| The pipeline manages the infrastructure too | Too much ownership and risk for a first step |
 
 ## Consequences
 **Positive**
@@ -115,44 +153,56 @@ listing them.
 - No consumer secrets.
 - The exact tested image is deployed.
 - Deploys are checked independently and rolled back automatically.
-- The existing pipeline keeps working during the transition.
+- Pipeline images cannot reach other services or environments.
+- The existing pipeline keeps working.
 
-**Negative or accepted**
+**Accepted for Development only**
 
-- The infrastructure team must change its scripts first. It excludes `dp-*`
-  images from its "newest image" selection, stops deploying the handed-over
-  service, and applies the roles.
-- Until trust is pinned to the shared workflow (before Production), another
+- The handed-over service can run a different version from the five that share
+  its image and database. Both pipelines deploy the same merge, usually within
+  minutes. A failure or rollback leaves a longer gap.
+- Migrations run on start in every service, and rollback cannot undo them. So
+  migrations must be backward compatible.
+- Until trust is pinned to the shared workflow before Production, another
   workflow in the same repository that uses the Development environment on
-  `main` could reach the deploy role. This is accepted for Development only. The
-  branch policy, CODEOWNERS and a narrowly scoped role reduce the risk.
-- Health endpoints that GitHub runners cannot reach get only the running-image
-  check.
+  `main` could reach the deploy role.
+
+**Before the first deploy**, the infrastructure repository must:
+
+- create the pipeline-only repositories and roles;
+- add the Terraform ignore;
+- add the dev-only restart skip;
+- add the health route.
+
+The service must return its commit from `/health/`.
 
 **Design sections that change when this lands:** Build, Deploy, Verify and
-rollback; the settings rules; consumer requirements (`base_url` replaces the
-`DEPLOYMENT_BASE_URL_<NAME>` variables for deployed environments); the run
-record; and identity and access.
+rollback; concurrency; the settings rules; consumer requirements (`base_url`
+replaces the `DEPLOYMENT_BASE_URL_<NAME>` variables for deployed
+environments); the run record; and identity and access.
 
 ## Later steps
 Out of scope here. Each is proven in the sandbox first.
 
-1. Several Development environments.
-2. One Pre-production environment.
-3. Several Pre-production environments.
-4. Production, with the approval gate and trust pinned to the shared workflow.
+1. Every service that shares the image, deployed together.
+2. Several Development environments.
+3. One Pre-production environment, with migrations moved to a separate one-off
+   task.
+4. Several Pre-production environments.
+5. Production, with the approval gate and trust pinned to the shared workflow.
 
-Other arrangements are added as services need them: Lambda and more images,
-handover, infrastructure kept in the service repository, other clouds, and
-ephemeral environments for pull requests.
+Other arrangements are added as services need them.
 
 ## Open decisions
 | ID | Question | Recommendation |
 |---|---|---|
 | D5 | How consumers get the Terraform modules | A git source pinned by commit, with version tags |
-| D7 | How infrastructure stops Terraform resetting the service | Terraform ignores that service's image |
-| D10 | Which service goes first | `private-api`, whose Development endpoint is public |
+| D7 | How infrastructure stops Terraform resetting the service | `ignore_task_definition_changes` on that service's module only, with a `moved` block, planned in `uhd-dev` first |
+| D10 | Which service and environment go first | `private-api` in `uhd-dev` |
 | D14 | Deploy timeout | 15 minutes by default, 30 at most; job timeout 70 minutes |
 | D15 | Who is told about failures, and who responds | The service team's channel; the Platform Team as backup |
-| D16 | How many `dp-` images the tools ECR keeps | About the last 30; rollback images protected separately |
-| D17 | Whether the staleness gate stops an older queued run | Yes: only the latest main commit deploys |
+| D16 | How many images the pipeline-only repositories keep | The last 10 |
+| D17 | Whether the staleness gate stops an older queued run | Yes |
+| D18 | Can one service run ahead of the five sharing its image in `uhd-dev`? | Yes, for Development only, with the tech lead's sign-off |
+| D19 | Where the tools account's repository and push role live | Unknown: ask the tools account's owner |
+| D20 | How Verify reaches a health endpoint behind an API key | An unauthenticated `/health/` route on the load balancer |
