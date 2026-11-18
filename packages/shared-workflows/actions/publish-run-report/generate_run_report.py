@@ -72,12 +72,14 @@ def blocked_reason(environment: dict[str, str], approvers: list[dict] | None) ->
     approve_result = environment.get("approve_result", "")
     if approve_result not in ("failure", "cancelled"):
         return None
+    first_by_decision = {}
     for entry in approvers or []:
-        if entry["decision"] == "rejected":
-            return f"approval rejected by {entry['approver']} ({entry['environment']})"
-    for entry in approvers or []:
-        if entry["decision"] == "expired":
-            return f"approval expired ({entry['environment']})"
+        first_by_decision.setdefault(entry["decision"], entry)
+    if "rejected" in first_by_decision:
+        entry = first_by_decision["rejected"]
+        return f"approval rejected by {entry['approver']} ({entry['environment']})"
+    if "expired" in first_by_decision:
+        return f"approval expired ({first_by_decision['expired']['environment']})"
     return f"approval job {approve_result}"
 
 
@@ -90,33 +92,25 @@ def simulated_stages(deployment_results: list[dict]) -> list[str]:
     ]
 
 
-def create_report(
-    environment: dict[str, str],
-    end_time: str,
-    deployment_results: list[dict] | None = None,
-    approvals: dict | None = None,
-    planned: list[dict] | None = None,
-) -> dict[str, object]:
-    approvals = approvals or {"approvers": [], "unavailable": False}
-    approvers = approvals["approvers"]
-    deploy_results = [
+def deploy_step_status(environment: dict[str, str], deployment_results: list[dict], blocked: str | None) -> str:
+    """Aggregate the deploy step: SKIPPED if nothing ran and nothing was blocked, FAILED on any failure."""
+    ran = [
         environment[key]
         for key in ("deploy_dev_result", "deploy_preprod_result", "deploy_prod_result")
+        if environment[key] != "skipped"
     ]
-    ran_deploy_results = [result for result in deploy_results if result != "skipped"]
-    blocked = blocked_reason(environment, approvers)
-    has_failed_deployment = (
+    if not ran and blocked is None:
+        return "SKIPPED"
+    failed = (
         blocked is not None
-        or any(result in ("failure", "cancelled") for result in ran_deploy_results)
-        or any(result.get("result_error") for result in deployment_results or [])
+        or any(result in ("failure", "cancelled") for result in ran)
+        or any(result.get("result_error") for result in deployment_results)
     )
-    deploy_status = (
-        "SKIPPED"
-        if not ran_deploy_results and blocked is None
-        else "FAILED"
-        if has_failed_deployment
-        else "PASSED"
-    )
+    return "FAILED" if failed else "PASSED"
+
+
+def environment_entries(deployment_results: list[dict], planned: list[dict], blocked: str | None) -> list[dict]:
+    """One entry per deployment that ran, plus SKIPPED Production entries when approval blocked it."""
     environments = [
         {
             "name": result["name"],
@@ -127,11 +121,11 @@ def create_report(
             "verified_at": result.get("verified_at"),
             **({"error": result["result_error"]} if result.get("result_error") else {}),
         }
-        for result in deployment_results or []
+        for result in deployment_results
         if result["deploy_outcome"] != "skipped"
     ]
     if blocked is not None:
-        image_tags = [result.get("image_tag") for result in deployment_results or [] if result.get("image_tag")]
+        image_tags = [result.get("image_tag") for result in deployment_results if result.get("image_tag")]
         environments.extend(
             {
                 "name": deployment["name"],
@@ -142,9 +136,34 @@ def create_report(
                 "verified_at": None,
                 "skipped_reason": blocked,
             }
-            for deployment in planned or []
+            for deployment in planned
             if deployment["category"] == "Production"
         )
+    return environments
+
+
+def governance_block(environment: dict[str, str], approvals: dict) -> dict[str, object]:
+    mode = environment.get("approval_mode")
+    return {
+        # TODO: Populate compliance_verdict after parsing the settings contract.
+        "compliance_verdict": None,
+        "approval_mode": mode or None,
+        "exception_id": (environment.get("approval_exception_id") or None) if mode == "unattended" else None,
+        "approvers": approvals["approvers"],
+        **({"approvals_unavailable": True} if approvals["unavailable"] else {}),
+    }
+
+
+def create_report(
+    environment: dict[str, str],
+    end_time: str,
+    deployment_results: list[dict] | None = None,
+    approvals: dict | None = None,
+    planned: list[dict] | None = None,
+) -> dict[str, object]:
+    approvals = approvals or {"approvers": [], "unavailable": False}
+    deployment_results = deployment_results or []
+    blocked = blocked_reason(environment, approvals["approvers"])
 
     return {
         "context": {
@@ -166,22 +185,11 @@ def create_report(
             "test": map_result(environment["test_result"]),
             "scan": map_result(environment["scan_result"]),
             "build": map_result(environment["build_result"]),
-            "deploy": deploy_status,
+            "deploy": deploy_step_status(environment, deployment_results, blocked),
         },
-        "environments": environments,
-        "simulated_stages": simulated_stages(deployment_results or []),
-        "governance": {
-            # TODO: Populate compliance_verdict after parsing the settings contract.
-            "compliance_verdict": None,
-            "approval_mode": environment.get("approval_mode") or None,
-            "exception_id": (
-                environment.get("approval_exception_id") or None
-                if environment.get("approval_mode") == "unattended"
-                else None
-            ),
-            "approvers": approvers,
-            **({"approvals_unavailable": True} if approvals["unavailable"] else {}),
-        },
+        "environments": environment_entries(deployment_results, planned or [], blocked),
+        "simulated_stages": simulated_stages(deployment_results),
+        "governance": governance_block(environment, approvals),
     }
 
 
