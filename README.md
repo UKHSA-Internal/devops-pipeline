@@ -9,7 +9,8 @@ This repository is open source and developed in the open by the UKHSA Platform
 Team.
 
 It is a new project in active development, so behaviour may change as features
-and standards evolve.
+and standards evolve. The [roadmap](ROADMAP.md) says what the pipeline does
+today and what is planned.
 
 This repository is supported for UKHSA teams only.
 
@@ -20,6 +21,7 @@ This repository is supported for UKHSA teams only.
 
 ## Get started
 
+- **See what the pipeline does today:** read the [roadmap](ROADMAP.md) before adopting.
 - **Use the pipeline:** follow the [consumer guide](docs/consumer-guide.md).
 - **Develop and test locally:** see the [local development guide](docs/local-development.md).
 - **Release the workflow package:** use the [release guide](docs/workflow-release.md).
