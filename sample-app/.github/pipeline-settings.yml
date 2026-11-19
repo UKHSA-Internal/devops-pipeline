@@ -2,7 +2,7 @@ version: "1.0"
 
 service:
   name: "sample-app"
-  owner_team: "platform-team"
+  owner_team: "platform-leads"
   language: "python"
   test_command: "python3 -m unittest discover -s tests -v"
 
@@ -35,4 +35,8 @@ verification:
 
 deploy:
   production:
-    approval_mode: "all-approvers"
+    # The platform repository has no approval environments. Production
+    # approval is skipped under an exception that marks this as a platform
+    # test; sample-app deploys to an external sandbox.
+    approval_mode: "unattended"
+    exception_id: "PLATFORM-SAMPLE-APP"

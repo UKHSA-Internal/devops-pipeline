@@ -7,6 +7,7 @@ The settings checker validates the settings first; this script only reads them.
 import json
 import os
 import posixpath
+import re
 import secrets
 import sys
 from pathlib import Path
@@ -15,6 +16,45 @@ CATEGORIES = {"Development": "dev", "Pre-production": "preprod", "Production": "
 DEPLOYMENT_FIELDS = ("name", "category", "account_id", "role_name", "region")
 DEFAULT_HEALTH_ENDPOINT = "/health"
 DEFAULT_TIMEOUT_SECONDS = 60
+DEFAULT_APPROVAL_MODE = "all-approvers"
+APPROVAL_ENVIRONMENT = "production-approval"
+# GitHub limits environment names to 255 characters.
+MAX_GROUP_LENGTH = 255 - len(APPROVAL_ENVIRONMENT) - 1
+GROUP_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+def resolve_approval(settings: dict) -> dict:
+    """Plan the Production approval jobs: one gated environment per group, one in total, or none."""
+    deploy = settings.get("deploy")
+    production = deploy.get("production") if isinstance(deploy, dict) else None
+    production = production if isinstance(production, dict) else {}
+    mode = production.get("approval_mode", DEFAULT_APPROVAL_MODE)
+    exception_id = str(production.get("exception_id") or "").strip()
+    if mode == "unattended":
+        return {"approval_mode": mode, "approval_environments": [], "approval_exception_id": exception_id}
+
+    governance = settings.get("governance")
+    groups = governance.get("approvers") if isinstance(governance, dict) else None
+    if not isinstance(groups, list) or not groups:
+        raise ValueError("governance.approvers must list at least one approver group")
+    groups = [str(group).strip() for group in groups]
+    seen = set()
+    for group in groups:
+        if not GROUP_NAME.fullmatch(group) or len(group) > MAX_GROUP_LENGTH:
+            raise ValueError(
+                f"approver group {group!r} cannot be used in a GitHub environment name "
+                f"(letters, digits, '.', '_' and '-'; at most {MAX_GROUP_LENGTH} characters)"
+            )
+        # GitHub treats environment names and concurrency groups as case-insensitive.
+        if group.lower() in seen:
+            raise ValueError(f"approver group {group!r} is listed more than once (names are case-insensitive)")
+        seen.add(group.lower())
+
+    if mode == "single-approver":
+        environments = [{"environment": APPROVAL_ENVIRONMENT, "groups": groups}]
+    else:
+        environments = [{"environment": f"{APPROVAL_ENVIRONMENT}-{group}", "groups": [group]} for group in groups]
+    return {"approval_mode": mode, "approval_environments": environments, "approval_exception_id": exception_id}
 
 
 # service.test_command is shorthand for one suite with this name.
@@ -102,6 +142,7 @@ def resolve(settings: dict, service_directory: str = ".") -> dict:
         "deployments": [item for key in CATEGORIES.values() for item in by_category[key]],
         "health_endpoint": verification.get("health_endpoint", DEFAULT_HEALTH_ENDPOINT),
         "timeout_seconds": verification.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
+        **resolve_approval(settings),
     }
 
 

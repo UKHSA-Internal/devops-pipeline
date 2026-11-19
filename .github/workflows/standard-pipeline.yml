@@ -8,13 +8,17 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: read
+# No workflow-level permissions: a called workflow can only reduce what its
+# caller grants, so every job sets contents: read itself. Only approval-guard
+# and publish-report set none, so they inherit the caller's token and can read
+# environments and the approval history when the caller grants actions: read.
 
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       start_time: ${{ steps.started.outputs.start_time }}
       settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
@@ -35,6 +39,9 @@ jobs:
       deployments: ${{ steps.deployments.outputs.deployments }}
       health_endpoint: ${{ steps.deployments.outputs.health_endpoint }}
       timeout_seconds: ${{ steps.deployments.outputs.timeout_seconds }}
+      approval_mode: ${{ steps.deployments.outputs.approval_mode }}
+      approval_environments: ${{ steps.deployments.outputs.approval_environments }}
+      approval_exception_id: ${{ steps.deployments.outputs.approval_exception_id }}
       # Pull requests build nothing and deploy nowhere; Pre-production and
       # Production deploy only on a push to main. Computed once here so every
       # downstream job references the same named condition instead of
@@ -125,6 +132,8 @@ jobs:
     needs: check
     if: needs.check.outputs.test_has_cache == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -283,6 +292,8 @@ jobs:
     name: Scan
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -296,6 +307,8 @@ jobs:
     needs: [check, scan]
     if: needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       image_tag: ${{ steps.build.outputs.image_tag }}
       checksum: ${{ steps.build.outputs.checksum }}
@@ -316,6 +329,8 @@ jobs:
     needs: [check, build]
     if: needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: true
       max-parallel: 1
@@ -384,12 +399,16 @@ jobs:
           image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy.outcome }}
           verify_outcome: ${{ steps.verify.outcome }}
+          deploy_simulated: ${{ steps.deploy.outputs.simulated }}
+          verify_simulated: ${{ steps.verify.outputs.simulated }}
 
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
     needs: [check, build, deploy-dev]
     if: needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: true
       max-parallel: 1
@@ -457,12 +476,93 @@ jobs:
           image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy.outcome }}
           verify_outcome: ${{ steps.verify.outcome }}
+          deploy_simulated: ${{ steps.deploy.outputs.simulated }}
+          verify_simulated: ${{ steps.verify.outputs.simulated }}
+
+  # Approval gate. Each approve job only logs a marker; the required reviewers on
+  # its GitHub environment do the gating. The guard fails first if an environment
+  # is missing or has no reviewers, because GitHub would otherwise auto-create
+  # a missing environment with no protection.
+  approval-guard:
+    name: Approval Guard
+    needs: [check, deploy-preprod]
+    if: needs.check.outputs.should_deploy_main_only == 'true'
+    runs-on: ubuntu-latest
+    # No permissions block on purpose: inherit the caller's token, which needs
+    # actions: read to read environment settings.
+    outputs:
+      gate_opened_at: ${{ steps.guard.outputs.gate_opened_at }}
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Check Approval Environments
+        id: guard
+        uses: ./packages/shared-workflows/actions/approval-guard
+        with:
+          approval_environments: ${{ needs.check.outputs.approval_environments }}
+
+      - name: Log Unattended Exception
+        if: needs.check.outputs.approval_mode == 'unattended'
+        shell: bash
+        env:
+          EXCEPTION_ID: ${{ needs.check.outputs.approval_exception_id }}
+        run: |
+          printf '[STEP: APPROVAL] unattended Production deployment under exception %s; no approval jobs.\n' "$EXCEPTION_ID"
+
+  approve:
+    name: Approve Production (${{ matrix.approval.environment }})
+    # The report finds this job by name: keep it equal to APPROVAL_JOB_NAME in
+    # publish-run-report/approvals.py (a test checks).
+    needs: [check, approval-guard]
+    if: needs.check.outputs.should_deploy_main_only == 'true' && needs.check.outputs.approval_mode != 'unattended'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: ${{ matrix.approval.environment }}
+    strategy:
+      # A rejection cancels the sibling approvals still waiting.
+      fail-fast: true
+      matrix:
+        approval: ${{ fromJSON(needs.check.outputs.approval_environments || '[]') }}
+    # A newer run reaching this gate supersedes an older run still waiting on it.
+    concurrency:
+      group: approval-gate-${{ needs.check.outputs.settings_path }}-${{ matrix.approval.environment }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Confirm Approval
+        uses: ./packages/shared-workflows/actions/approval-confirm
+        with:
+          environment: ${{ matrix.approval.environment }}
+          groups: ${{ join(matrix.approval.groups, ', ') }}
+          gate_opened_at: ${{ needs.approval-guard.outputs.gate_opened_at }}
+          max_age_hours: '24'
 
   deploy-prod:
     name: Deploy Production (${{ matrix.deployment.name }})
-    needs: [check, build, deploy-preprod]
-    if: needs.check.outputs.should_deploy_main_only == 'true'
+    needs: [check, build, deploy-preprod, approval-guard, approve]
+    # !cancelled() replaces the implicit success() so Production can still run
+    # when approve is skipped (unattended). Every dependency is checked
+    # explicitly, and only the exact string 'unattended' accepts a skipped
+    # approve, so a failed Check (empty outputs) can never open the gate.
+    if: >-
+      !cancelled()
+      && needs.check.outputs.should_deploy_main_only == 'true'
+      && needs.build.result == 'success'
+      && needs.deploy-preprod.result == 'success'
+      && needs.approval-guard.result == 'success'
+      && (
+        (needs.check.outputs.approval_mode != 'unattended' && needs.approve.result == 'success')
+        || (needs.check.outputs.approval_mode == 'unattended' && needs.approve.result == 'skipped')
+      )
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: true
       max-parallel: 1
@@ -471,7 +571,6 @@ jobs:
     concurrency:
       group: deployment-${{ matrix.deployment.name }}
       cancel-in-progress: false
-    # TODO: Add the Production approval gate when deployment environments are introduced.
     steps:
       - name: Mark Deployment Started
         shell: bash
@@ -531,12 +630,17 @@ jobs:
           image_tag: ${{ needs.build.outputs.image_tag }}
           deploy_outcome: ${{ steps.deploy.outcome }}
           verify_outcome: ${{ steps.verify.outcome }}
+          deploy_simulated: ${{ steps.deploy.outputs.simulated }}
+          verify_simulated: ${{ steps.verify.outputs.simulated }}
 
   publish-report:
     name: Publish Run Report
-    needs: [check, test, scan, build, deploy-dev, deploy-preprod, deploy-prod]
+    needs: [check, test, scan, build, deploy-dev, deploy-preprod, approval-guard, approve, deploy-prod]
     if: always()
     runs-on: ubuntu-latest
+    # No permissions block on purpose: inherit the caller's token, which needs
+    # actions: read to read the approval history. Without it the run record
+    # sets approvals_unavailable.
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -555,5 +659,11 @@ jobs:
           test_suites: ${{ needs.check.outputs.test_suites }}
           test_final_name: ${{ needs.check.outputs.test_final_name }}
           deployments: ${{ needs.check.outputs.deployments }}
+          approval_mode: ${{ needs.check.outputs.approval_mode }}
+          approval_exception_id: ${{ needs.check.outputs.approval_exception_id }}
+          approval_environments: ${{ needs.check.outputs.approval_environments }}
+          approval_guard_result: ${{ needs.approval-guard.result }}
+          approve_result: ${{ needs.approve.result }}
+          gate_opened_at: ${{ needs.approval-guard.outputs.gate_opened_at }}
           start_time: ${{ needs.check.outputs.start_time }}
           trigger_type: ${{ github.event_name }}

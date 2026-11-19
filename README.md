@@ -38,6 +38,18 @@ python3 -m unittest discover -s tests
 Running the shared pipeline and pre-gate locally also requires `act` and Docker;
 see the [local development guide](docs/local-development.md).
 
+## Simulated stages
+
+Deploy and Verify are placeholders. They touch no infrastructure. Each run
+record lists them under `simulated_stages`, and the job summary names them.
+The placeholder actions are:
+
+- Deploy: `packages/shared-workflows/actions/deploy`
+- Verify: `packages/shared-workflows/actions/verify-app`
+
+A real implementation removes its action's `simulated` output, and the stage
+drops off the list.
+
 ## Repository structure
 
 | Path | Purpose |

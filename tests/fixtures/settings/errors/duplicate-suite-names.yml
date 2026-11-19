@@ -3,7 +3,7 @@ version: "1.1"
 
 service:
   name: "fixture-service"
-  owner_team: "platform-team"
+  owner_team: "platform-leads"
   language: "python"
   test:
     suites:

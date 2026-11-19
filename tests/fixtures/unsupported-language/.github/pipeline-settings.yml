@@ -3,7 +3,7 @@ version: "1.0"
 
 service:
   name: "unsupported-language"
-  owner_team: "platform-team"
+  owner_team: "platform-leads"
   language: "go"
   test_command: "echo 'no runtime set up for this language'"
 

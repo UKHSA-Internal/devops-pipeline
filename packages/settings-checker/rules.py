@@ -378,7 +378,7 @@ def every_category_mapped(settings, report):
 # governance
 
 
-# TODO: Also check each approver group exists in the platform approver config, once that config exists.
+# The owner team stands in for the platform approver configuration until that exists.
 @rule("CHK-05", ERROR)
 def approvers(settings, report):
     governance = report.section(settings, "governance")
@@ -386,6 +386,13 @@ def approvers(settings, report):
         report.value(
             governance, "governance.approvers", is_approver_list, "must be a list of at least one approver group"
         )
+        approver_list = governance.get("approvers")
+        service = settings.get("service")
+        owner_team = service.get("owner_team") if isinstance(service, dict) else None
+        # A missing or blank owner_team is CHK-02's to report.
+        if is_approver_list(approver_list) and is_text(owner_team):
+            if owner_team.strip().casefold() not in {item.strip().casefold() for item in approver_list}:
+                report.problem("governance.approvers", f"must include service.owner_team ('{owner_team}')")
 
 
 @rule("CHK-06", WARNING)

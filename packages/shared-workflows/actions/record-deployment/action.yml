@@ -17,6 +17,14 @@ inputs:
   verify_outcome:
     description: Outcome of the verify step
     required: true
+  deploy_simulated:
+    description: Simulated output of the deploy step, 'true' for a placeholder
+    required: false
+    default: ''
+  verify_simulated:
+    description: Simulated output of the verify step, 'true' for a placeholder
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -29,6 +37,8 @@ runs:
         IMAGE_TAG: ${{ inputs.image_tag }}
         DEPLOY_OUTCOME: ${{ inputs.deploy_outcome }}
         VERIFY_OUTCOME: ${{ inputs.verify_outcome }}
+        DEPLOY_SIMULATED: ${{ inputs.deploy_simulated }}
+        VERIFY_SIMULATED: ${{ inputs.verify_simulated }}
       run: |
         set -euo pipefail
         if [[ "${ACT:-}" == "true" ]]; then
@@ -55,6 +65,8 @@ runs:
             "deploy_outcome": os.environ["DEPLOY_OUTCOME"],
             "verify_outcome": verify_outcome,
             "verified_at": verified_at,
+            "deploy_simulated": os.environ["DEPLOY_SIMULATED"] == "true",
+            "verify_simulated": os.environ["VERIFY_SIMULATED"] == "true",
         }
         Path(sys.argv[1]).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
         PY

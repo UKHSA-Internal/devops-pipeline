@@ -95,7 +95,7 @@ required or optional, its default, and the rule ID that checks it.
 | CHK-02 | `service.name`, `owner_team` and `language` are present | Warning |
 | CHK-03 | Each environment has `name`, `category`, `account_id`, `role_name` and `region`, and `category` is valid. Names must be unique and contain only letters, numbers, `.`, `_` and `-`. `account_id` must be a 12-digit string, not all zeros | Error |
 | CHK-04 | Every category (Development, Pre-production, Production) has at least one environment | Error |
-| CHK-05 | `governance.approvers` is a non-empty list | Error |
+| CHK-05 | `governance.approvers` is a non-empty list that includes `service.owner_team` (ignoring case) | Error |
 | CHK-06 | `governance.retention_days` is an integer greater than zero | Warning |
 | CHK-07 | `verification.health_endpoint`, if set, is a URL path starting with `/`; `verification.timeout_seconds`, if set, is an integer greater than zero. Both are optional; when missing, the defaults apply | Error |
 | CHK-08 | Each custom check has a non-empty `name` and `command`, and an explicit boolean `allow_failure` | Error |
@@ -110,8 +110,9 @@ required or optional, its default, and the rule ID that checks it.
 | CHK-23 | When `service.test` is set: `setup` (if set), every suite `command` and `final.command` are single, non-empty lines | Error |
 | CHK-24 | When `service.test` is set: `cache.paths` and `collect` are relative paths inside the repository, with no `..`; `cache` needs both `paths` and `key_files`, and neither may be empty | Error |
 
-TODO (CHK-05): also check that each approver group exists in the platform
-approver config, once that config exists.
+The owner team stands in for the platform approver configuration (CHK-05) until
+that configuration exists; the checker does not yet verify that each approver
+group exists there.
 
 ## Changing a rule
 
