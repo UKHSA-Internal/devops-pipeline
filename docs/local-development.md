@@ -102,6 +102,7 @@ make test-pipeline-node                    # node: set up from .nvmrc, every sta
 make test-pipeline-missing-version-file    # python with no .python-version: test FAILED, downstream SKIPPED
 make test-pipeline-unsupported-language    # unsupported language: no runtime, warning, test still runs
 make test-pipeline-pinned-python-version   # python pinned to a specific minor version via .python-version: test PASSED
+make test-pipeline-structured-test         # three parallel suites and a final step: test PASSED, all four in test_suites
 ```
 
 The python path is already covered by `make test-standard-pipeline-local`,
@@ -116,6 +117,13 @@ proves `actions/setup-python` installs the exact requested version from
 `.python-version` and that the test command then runs successfully against
 it, rather than failing because only a different python version was
 preinstalled on the bare runner.
+
+`test-pipeline-structured-test` uses `tests/fixtures/structured-test/` to cover
+the `service.test` block. It has no cache, because act skips `actions/cache`
+and the artifact steps. The jobs share the bound workspace, so the final step
+still sees the files every suite collected. Caching and artifact transfer
+between jobs can only be tested on GitHub, for example with the
+[smoke test](workflow-release.md#canary-smoke-test) after a release.
 
 #### Apple Silicon
 
@@ -134,8 +142,9 @@ those targets, changing `settings_path` for each one:
 ```
 
 This affects `make test-standard-pipeline-local`,
-`make test-pipeline-failing-test`, `make test-pipeline-settings-warnings` and
-`make test-pipeline-pinned-python-version`. Hosted runs are unaffected.
+`make test-pipeline-failing-test`, `make test-pipeline-settings-warnings`,
+`make test-pipeline-pinned-python-version` and
+`make test-pipeline-structured-test`. Hosted runs are unaffected.
 
 ### Pre-gate checks
 

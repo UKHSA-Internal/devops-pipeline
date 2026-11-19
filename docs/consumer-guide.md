@@ -42,9 +42,58 @@ copying the template without editing it does not pass unnoticed: each
 placeholder with the service's real tests. The
 [sample app](../sample-app/README.md) shows a working example.
 
+### Structured tests (contract 1.1)
+
+For more than one command, use a `service.test` block instead of
+`test_command` (set exactly one of them). `test_command` stays valid: it is
+shorthand for one suite named `test`, with no setup, cache or final step.
+
+```yaml
+version: "1.1"
+
+service:
+  test:
+    setup: "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+    cache:
+      paths: [".venv"]
+      key_files: ["requirements*.txt", ".python-version"]
+    suites:
+      - name: unit
+        command: ".venv/bin/python -m pytest tests/unit --junitxml=test-results/unit.xml"
+      - name: api
+        command: ".venv/bin/python -m pytest tests/api --junitxml=test-results/api.xml"
+    collect: [".coverage.*"]
+    final:
+      name: coverage
+      command: ".venv/bin/python -m coverage combine && .venv/bin/python -m coverage report"
+```
+
+- **Suites** (1 to 10) always run in parallel, each as its own "Test (name)"
+  job. To run commands in order, chain them in one suite.
+- **Setup and cache.** With `cache`, a "Test setup" job runs `setup` once and
+  saves the cache, and every suite restores it. On a miss, they run `setup`
+  themselves. Without `cache`, each suite runs `setup` first. Cache `paths`,
+  `key_files` and `collect` are relative to the service directory and can't
+  contain `..`. The key covers the OS, architecture, language version, the
+  `setup` command and the `key_files`.
+- **Collect and final.** Each suite uploads the `collect` files. The `final`
+  step runs only if every suite passed, with all of them downloaded into the
+  service directory, so it can combine coverage without running tests again.
+- **Reports.** Write JUnit XML to `test-results/*.xml`. Each suite's job
+  summary shows its tests, failures, errors and duration; without XML only the
+  result is shown.
+- **One result.** The Test stage passes only if every suite and the final step
+  pass. The run record's `steps.test` keeps that meaning, and `test_suites`
+  lists each suite and the final step. A step that never ran is `SKIPPED`.
+
+Every command is a single line. The checker rules are CHK-20 to CHK-24 in the
+[checker reference](../packages/settings-checker/README.md). See the
+[tested example](examples/pipeline-settings.yml) and the
+[decision record](adr/0008-structured-test-settings.md).
+
 ### Test runtime
 
-The Test stage sets up a language runtime before running `test_command`, based
+The Test stage sets up a language runtime before running `test_command` (or each suite, and the setup), based
 on `service.language`. The runner has no particular version pre-installed, so
 the service must declare the version it needs:
 
@@ -81,7 +130,8 @@ for the complete contract and options.
 ## What the pipeline does
 
 The Check stage validates settings, then the pipeline sets up the service's
-language runtime and runs the configured test command and placeholder scan.
+language runtime and runs the configured tests (`test_command`, or the suites
+of a `test` block) and the placeholder scan.
 Pushes additionally build, deploy and verify the service; pull requests stop
 after Scan, so they never build an image or deploy. It records a run report
 and passes the full-commit-SHA image tag to each deployment. Deployments

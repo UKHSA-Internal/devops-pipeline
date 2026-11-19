@@ -18,6 +18,10 @@ ENVIRONMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 URL_PATH = re.compile(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*")
 ACCOUNT_ID = re.compile(r"[0-9]{12}")
 PLACEHOLDER = re.compile(r"replace-with-|todo", re.IGNORECASE)
+SUPPORTED_SETTINGS_VERSION = (1, 1)
+SETTINGS_VERSION = re.compile(r"[0-9]+(\.[0-9]+)*")
+SUITE_NAME = re.compile(r"[a-z0-9-]{1,32}")
+MAX_SUITES = 10
 
 
 class Rule(NamedTuple):
@@ -63,6 +67,16 @@ def is_valid_account_id(value) -> bool:
 
 def is_approver_list(value) -> bool:
     return isinstance(value, list) and bool(value) and all(is_text(item) for item in value)
+
+
+def is_relative_path(value) -> bool:
+    """A non-empty path that stays inside the repository: not absolute and with no ".." part."""
+    return (
+        is_single_line(value)
+        and not value.startswith(("/", "\\", "~"))
+        and re.match(r"[A-Za-z]:", value) is None
+        and ".." not in re.split(r"[/\\]", value)
+    )
 
 
 def one_of(options):
@@ -188,6 +202,22 @@ def version(settings, report):
     report.value(settings, "version", lambda value: isinstance(value, str), 'must be text in quotes, for example "1.0"')
 
 
+@rule("CHK-20", ERROR)
+def supported_version(settings, report):
+    value = settings.get("version")
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return  # Reported by CHK-01.
+    text = str(value).strip()
+    if SETTINGS_VERSION.fullmatch(text) is None:
+        return  # Reported by CHK-01 only when it is not text.
+    parts = tuple(int(part) for part in text.split("."))
+    width = max(len(parts), len(SUPPORTED_SETTINGS_VERSION))
+    pad = lambda numbers: numbers + (0,) * (width - len(numbers))
+    if pad(parts) > pad(SUPPORTED_SETTINGS_VERSION):
+        supported = ".".join(str(part) for part in SUPPORTED_SETTINGS_VERSION)
+        report.problem("version", f"{text} is newer than this pipeline supports (up to {supported})")
+
+
 # service
 
 
@@ -203,7 +233,106 @@ def service_details(settings, report):
 def test_command(settings, report):
     service = report.section(settings, "service")
     if service is not None:
-        report.value(service, "service.test_command", is_single_line, "must be a single line, not empty")
+        # CHK-21 reports when neither test_command nor test is set.
+        report.value(
+            service, "service.test_command", is_single_line, "must be a single line, not empty", required=False
+        )
+
+
+@rule("CHK-21", ERROR)
+def one_way_to_test(settings, report):
+    service = settings.get("service")
+    if not isinstance(service, dict):
+        return  # Reported by CHK-02 and CHK-11.
+    has_test, has_test_command = "test" in service, "test_command" in service
+    if has_test and has_test_command:
+        report.problem("service", "set only one of test and test_command, not both")
+    elif not has_test and not has_test_command:
+        report.problem("service", "set one of test and test_command")
+
+
+def _test_block(settings):
+    """Return the service.test mapping, or None when it is absent or not a mapping."""
+    service = settings.get("service")
+    test = service.get("test") if isinstance(service, dict) else None
+    return test if isinstance(test, dict) else None
+
+
+def _suite_names(test) -> set:
+    suites = test.get("suites")
+    entries = suites if isinstance(suites, list) else []
+    return {entry["name"] for entry in entries if isinstance(entry, dict) and isinstance(entry.get("name"), str)}
+
+
+NAME_MESSAGE = "must be 1 to 32 lowercase letters, digits and hyphens"
+
+
+@rule("CHK-22", ERROR)
+def test_suites(settings, report):
+    service = settings.get("service")
+    if not isinstance(service, dict) or "test" not in service:
+        return
+    test = report.section(service, "service.test")
+    if test is None:
+        return
+    suites = report.entries(test, "service.test.suites")
+    if isinstance(test.get("suites"), list) and not 1 <= len(test["suites"]) <= MAX_SUITES:
+        report.problem("service.test.suites", f"must have 1 to {MAX_SUITES} suites")
+    names = set()
+    for field, suite in suites:
+        report.value(suite, f"{field}.name", matches(SUITE_NAME), NAME_MESSAGE)
+        name = suite.get("name")
+        if isinstance(name, str) and SUITE_NAME.fullmatch(name):
+            if name in names:
+                report.problem(f"{field}.name", f"'{name}' is used by more than one suite")
+            names.add(name)
+    final = report.section(test, "service.test.final", required=False)
+    if final is not None:
+        report.value(final, "service.test.final.name", matches(SUITE_NAME), NAME_MESSAGE)
+        if final.get("name") in names:
+            report.problem("service.test.final.name", "must differ from every suite name")
+
+
+@rule("CHK-23", ERROR)
+def test_commands(settings, report):
+    test = _test_block(settings)
+    if test is None:
+        return  # Reported by CHK-22.
+    message = "must be a single line, not empty"
+    report.value(test, "service.test.setup", is_single_line, message, required=False)
+    suites = test.get("suites")
+    for index, suite in enumerate(suites if isinstance(suites, list) else []):
+        if isinstance(suite, dict):  # Other entries are reported by CHK-22.
+            report.value(suite, f"service.test.suites[{index}].command", is_single_line, message)
+    final = test.get("final")
+    if isinstance(final, dict):
+        report.value(final, "service.test.final.command", is_single_line, message)
+
+
+def _path_list(report, parent, field, valid, message, required):
+    """Report field if it is not a list of valid items; a required list must also be non-empty."""
+    report.value(
+        parent,
+        field,
+        lambda value: isinstance(value, list) and (not required or bool(value)) and all(valid(item) for item in value),
+        message,
+        required=required,
+    )
+
+
+@rule("CHK-24", ERROR)
+def test_paths(settings, report):
+    test = _test_block(settings)
+    if test is None:
+        return  # Reported by CHK-22.
+    paths_message = "must be a list of relative paths inside the repository, without '..'"
+    cache = report.section(test, "service.test.cache", required=False)
+    if cache is not None:
+        _path_list(report, cache, "service.test.cache.paths", is_relative_path, paths_message, required=True)
+        _path_list(
+            report, cache, "service.test.cache.key_files", is_single_line, "must be a list of file patterns", required=True
+        )
+    _path_list(report, test, "service.test.collect", is_relative_path, paths_message, required=False)
 
 
 # environments

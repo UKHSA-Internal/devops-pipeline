@@ -20,6 +20,29 @@
     "build": "PASSED",
     "deploy": "PASSED"
   },
+  "test_suites": [
+    {
+      "name": "unit",
+      "result": "PASSED",
+      "tests": 120,
+      "failures": 0,
+      "duration_seconds": 41.2
+    },
+    {
+      "name": "integration",
+      "result": "PASSED",
+      "tests": 34,
+      "failures": 0,
+      "duration_seconds": 96.5
+    },
+    {
+      "name": "coverage",
+      "result": "PASSED",
+      "tests": null,
+      "failures": null,
+      "duration_seconds": null
+    }
+  ],
   "environments": [
     {
       "name": "dev-env-1",

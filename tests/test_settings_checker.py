@@ -27,6 +27,11 @@ EXPECTED_FIXTURE_RULES = {
     "health-endpoint-without-leading-slash.yml": "CHK-07",
     "environment-missing-role-name.yml": "CHK-03",
     "missing-test-command.yml": "CHK-11",
+    "newer-settings-version.yml": "CHK-20",
+    "test-and-test-command.yml": "CHK-21",
+    "duplicate-suite-names.yml": "CHK-22",
+    "multiline-suite-command.yml": "CHK-23",
+    "cache-without-key-files.yml": "CHK-24",
     "no-approvers.yml": "CHK-05",
     "no-production-environment.yml": "CHK-04",
     "unattended-without-exception-id.yml": "CHK-10",
@@ -100,6 +105,38 @@ def delete_path(path):
         del target[last]
 
     return change
+
+
+STRUCTURED_TEST = {
+    "setup": "python3 -m venv .venv",
+    "cache": {"paths": [".venv"], "key_files": ["requirements*.txt", ".python-version"]},
+    "suites": [
+        {"name": "unit", "command": "python3 -m unittest discover -s tests/unit"},
+        {"name": "integration", "command": "python3 -m unittest discover -s tests/integration"},
+    ],
+    "collect": [".coverage.*"],
+    "final": {"name": "coverage", "command": "python3 -m coverage combine"},
+}
+
+
+def structured(*changes):
+    """Replace test_command with the full test block, then apply each change to the settings."""
+
+    def change(values):
+        del values["service"]["test_command"]
+        values["service"]["test"] = copy.deepcopy(STRUCTURED_TEST)
+        for each in changes:
+            each(values)
+
+    return change
+
+
+def test_block(key, value):
+    return structured(set_path(["service", "test", key], value))
+
+
+def suites(count):
+    return test_block("suites", [{"name": f"suite-{number}", "command": "true"} for number in range(count)])
 
 
 # rule -> (label -> change). Every change must violate that rule and no other.
@@ -191,11 +228,61 @@ FAILING_CASES = {
         "missing verification": delete_path(["verification"]),
     },
     "CHK-11": {
-        "missing test_command": delete_path(["service", "test_command"]),
         "blank test_command": set_path(["service", "test_command"], "  "),
         "multiline test_command": set_path(["service", "test_command"], "a\nb"),
         "numeric test_command": set_path(["service", "test_command"], 1),
         "empty test_command": set_path(["service", "test_command"], None),
+    },
+    "CHK-20": {
+        "newer minor version": set_path(["version"], "1.2"),
+        "newer major version": set_path(["version"], "2.0"),
+        "compared as numbers, not text": set_path(["version"], "1.10"),
+        "three part version": set_path(["version"], "1.1.1"),
+    },
+    "CHK-21": {
+        "neither test nor test_command": delete_path(["service", "test_command"]),
+        "both test and test_command": lambda v: v["service"].update(test=copy.deepcopy(STRUCTURED_TEST)),
+    },
+    "CHK-22": {
+        "test not a mapping": structured(set_path(["service", "test"], "unit")),
+        "missing suites": structured(delete_path(["service", "test", "suites"])),
+        "suites not a list": test_block("suites", "unit"),
+        "no suites": test_block("suites", []),
+        "eleven suites": suites(11),
+        "suite not a mapping": test_block("suites", ["unit"]),
+        "missing suite name": structured(delete_path(["service", "test", "suites", 0, "name"])),
+        "uppercase suite name": structured(set_path(["service", "test", "suites", 0, "name"], "Unit")),
+        "underscore suite name": structured(set_path(["service", "test", "suites", 0, "name"], "unit_tests")),
+        "suite name over 32 characters": structured(set_path(["service", "test", "suites", 0, "name"], "a" * 33)),
+        "duplicate suite names": structured(set_path(["service", "test", "suites", 1, "name"], "unit")),
+        "bad final name": structured(set_path(["service", "test", "final", "name"], "Coverage Report")),
+        "missing final name": structured(delete_path(["service", "test", "final", "name"])),
+        "final name matches a suite": structured(set_path(["service", "test", "final", "name"], "unit")),
+        "final not a mapping": test_block("final", "coverage"),
+    },
+    "CHK-23": {
+        "multiline setup": test_block("setup", "make deps\nmake more"),
+        "blank setup": test_block("setup", " "),
+        "numeric setup": test_block("setup", 1),
+        "missing suite command": structured(delete_path(["service", "test", "suites", 0, "command"])),
+        "blank suite command": structured(set_path(["service", "test", "suites", 0, "command"], "")),
+        "multiline suite command": structured(set_path(["service", "test", "suites", 1, "command"], "a\nb")),
+        "missing final command": structured(delete_path(["service", "test", "final", "command"])),
+        "multiline final command": structured(set_path(["service", "test", "final", "command"], "a\r\nb")),
+    },
+    "CHK-24": {
+        "cache not a mapping": test_block("cache", ".venv"),
+        "cache without key_files": structured(delete_path(["service", "test", "cache", "key_files"])),
+        "cache without paths": structured(delete_path(["service", "test", "cache", "paths"])),
+        "empty cache paths": structured(set_path(["service", "test", "cache", "paths"], [])),
+        "empty key_files": structured(set_path(["service", "test", "cache", "key_files"], [])),
+        "absolute cache path": structured(set_path(["service", "test", "cache", "paths"], ["/opt/venv"])),
+        "parent cache path": structured(set_path(["service", "test", "cache", "paths"], ["../venv"])),
+        "nested parent cache path": structured(set_path(["service", "test", "cache", "paths"], ["a/../../b"])),
+        "cache paths not a list": structured(set_path(["service", "test", "cache", "paths"], ".venv")),
+        "absolute collect path": test_block("collect", ["/tmp/.coverage"]),
+        "parent collect path": test_block("collect", ["../.coverage"]),
+        "collect not a list": test_block("collect", ".coverage.*"),
     },
     "CHK-13": {
         "replace-with placeholder": set_path(["service", "name"], "replace-with-service-name"),
@@ -206,7 +293,7 @@ FAILING_CASES = {
 }
 
 PASSING_CASES = {
-    "CHK-01": {"string version": set_path(["version"], "2")},
+    "CHK-01": {"string version": set_path(["version"], "1")},
     "CHK-02": {"other language": set_path(["service", "language"], "java")},
     "CHK-03": {
         "several deployments per category": lambda v: v["environments"].append(environment("dev-2", "Development")),
@@ -230,6 +317,33 @@ PASSING_CASES = {
     },
     "CHK-10": {
         "exception_id not needed": set_path(["deploy", "production"], {"approval_mode": "all-approvers"}),
+    },
+    "CHK-20": {
+        "current version": set_path(["version"], "1.1"),
+        "older version": set_path(["version"], "1.0"),
+        "same version with trailing zero": set_path(["version"], "1.1.0"),
+        "older patch version": set_path(["version"], "1.0.9"),
+    },
+    "CHK-21": {"only test": structured()},
+    "CHK-22": {
+        "ten suites": suites(10),
+        "one suite": suites(1),
+        "no final step": structured(delete_path(["service", "test", "final"])),
+        "name with digits and hyphens": structured(set_path(["service", "test", "suites", 0, "name"], "unit-2")),
+        "name of 32 characters": structured(set_path(["service", "test", "suites", 0, "name"], "a" * 32)),
+    },
+    "CHK-23": {
+        "setup omitted": structured(delete_path(["service", "test", "setup"])),
+        "command with arguments": structured(
+            set_path(["service", "test", "suites", 0, "command"], "pytest -m 'not slow' tests/")
+        ),
+    },
+    "CHK-24": {
+        "cache omitted": structured(delete_path(["service", "test", "cache"])),
+        "collect omitted": structured(delete_path(["service", "test", "collect"])),
+        "empty collect": test_block("collect", []),
+        "nested relative paths": structured(set_path(["service", "test", "cache", "paths"], ["build/.venv", "./cache"])),
+        "dots inside a name": structured(set_path(["service", "test", "collect"], ["reports/a..b.xml"])),
     },
     "CHK-11": {"command with arguments": set_path(["service", "test_command"], "make test ARGS='-v'")},
     "CHK-12": {"db check required": set_path(["verification", "db_check_required"], True)},
@@ -258,10 +372,11 @@ def rule_ids():
 class RuleTests(unittest.TestCase):
     def test_rule_ids_are_unique_and_complete(self):
         ids = [rule.id for rule in RULES.RULES]
-        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 14)])
+        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in list(range(1, 14)) + list(range(20, 25))])
 
     def test_severities_match_contract(self):
         errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-07", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
+        errors |= {"CHK-20", "CHK-21", "CHK-22", "CHK-23", "CHK-24"}
         for rule in RULES.RULES:
             with self.subTest(rule.id):
                 self.assertEqual(rule.severity, RULES.ERROR if rule.id in errors else RULES.WARNING)
@@ -347,7 +462,7 @@ class RuleTests(unittest.TestCase):
 
     def test_messages_say_what_is_wrong(self):
         cases = [
-            (delete_path(["service", "test_command"]), "service.test_command", "is required"),
+            (delete_path(["service", "test_command"]), "service", "set one of test and test_command"),
             (set_path(["service", "test_command"], "a\nb"), "service.test_command", "must be a single line, not empty"),
             (set_path(["deploy"], "x"), "deploy", "must be a mapping"),
             (set_path(["verification", "custom_checks"], "smoke"), "verification.custom_checks", "must be a list"),
@@ -450,7 +565,7 @@ class CliTests(unittest.TestCase):
     MODES = ((), ("--strict",), ("--report-only",))
 
     def expected_exit(self, fixture, mode):
-        if "--report-only" in mode or fixture.name == "compliant.yml":
+        if "--report-only" in mode or fixture.name in ("compliant.yml", "structured-test.yml"):
             return 0
         if fixture.name == "warnings-only.yml":
             return 1 if "--strict" in mode else 0
@@ -458,7 +573,7 @@ class CliTests(unittest.TestCase):
 
     def test_fixtures_are_the_expected_set(self):
         self.assertEqual(
-            {path.name for path in FIXTURES.glob("*.yml")}, {"compliant.yml", "warnings-only.yml", "unparseable.yml"}
+            {path.name for path in FIXTURES.glob("*.yml")}, {"compliant.yml", "structured-test.yml", "warnings-only.yml", "unparseable.yml"}
         )
         self.assertEqual({path.name for path in ERROR_FIXTURES.glob("*.yml")}, set(EXPECTED_FIXTURE_RULES))
 

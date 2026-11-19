@@ -241,10 +241,59 @@ class RunReportTests(unittest.TestCase):
         )
 
 
+class TestSuitesTests(unittest.TestCase):
+    def recorded(self, name, result="PASSED", tests=10, failures=0, duration=1.5):
+        return {
+            "name": name,
+            "kind": "suite",
+            "result": result,
+            "tests": tests,
+            "failures": failures,
+            "errors": 0,
+            "duration_seconds": duration,
+        }
+
+    def test_lists_suites_then_the_final_step_in_plan_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            results = Path(directory)
+            for recorded in (
+                self.recorded("unit", tests=7, duration=2.5),
+                self.recorded("api", result="FAILED", failures=2),
+                {**self.recorded("coverage"), "kind": "final", "tests": None, "failures": None, "duration_seconds": None},
+            ):
+                (results / f"{recorded['name']}.json").write_text(json.dumps(recorded), encoding="utf-8")
+
+            suites = REPORT.load_test_suites(["unit", "api", "coverage"], results, "failure")
+
+        self.assertEqual([suite["name"] for suite in suites], ["unit", "api", "coverage"])
+        self.assertEqual(
+            suites[0], {"name": "unit", "result": "PASSED", "tests": 7, "failures": 0, "duration_seconds": 2.5}
+        )
+        self.assertEqual((suites[1]["result"], suites[1]["failures"]), ("FAILED", 2))
+        self.assertEqual(
+            suites[2], {"name": "coverage", "result": "PASSED", "tests": None, "failures": None, "duration_seconds": None}
+        )
+        self.assertNotIn("errors", suites[1])
+
+    def test_planned_step_without_a_result_file_is_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            suites = REPORT.load_test_suites(["unit", "coverage"], Path(directory), "failure")
+
+        self.assertEqual([suite["result"] for suite in suites], ["SKIPPED", "SKIPPED"])
+        self.assertIsNone(suites[0]["tests"])
+
+    def test_nothing_is_listed_when_the_test_stage_was_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(REPORT.load_test_suites(["unit"], Path(directory), "skipped"), [])
+
+    def test_report_without_test_suites_has_an_empty_list(self):
+        self.assertEqual(REPORT.create_report(report_inputs(), END_TIME)["test_suites"], [])
+
+
 class RunRecordFileTests(unittest.TestCase):
     TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
-    def generate(self, **overrides):
+    def generate(self, test_results=None, test_suites=(), test_final_name="", **overrides):
         values = report_inputs(**overrides)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -255,12 +304,19 @@ class RunRecordFileTests(unittest.TestCase):
             (results / "dev-env-1.json").write_text(
                 json.dumps(deployment_result("dev-env-1", "Development")), encoding="utf-8"
             )
+            suite_results = root / "test-suites"
+            suite_results.mkdir()
+            for name, result in (test_results or {}).items():
+                (suite_results / f"{name}.json").write_text(json.dumps(result), encoding="utf-8")
             environment = {
                 **os.environ,
                 **{key.upper(): value for key, value in values.items()},
                 "DEPLOYMENTS": json.dumps([{"name": "dev-env-1", "category": "Development"}]),
                 "RESULTS_DIR": str(results),
                 "STARTED_DIR": str(root / "started"),
+                "TEST_RESULTS_DIR": str(suite_results),
+                "TEST_SUITES": json.dumps([{"name": name, "command": "true"} for name in test_suites]),
+                "TEST_FINAL_NAME": test_final_name,
                 "REPORT_PATH": str(root / "run-record.json"),
                 "GITHUB_STEP_SUMMARY": str(root / "summary.md"),
                 "VERSION_FILE": str(version_file),
@@ -277,7 +333,7 @@ class RunRecordFileTests(unittest.TestCase):
         record = self.generate(deploy_preprod_result="skipped")
 
         self.assertEqual(
-            set(record), {"context", "timestamps", "steps", "environments", "governance"}
+            set(record), {"context", "timestamps", "steps", "test_suites", "environments", "governance"}
         )
         self.assertEqual(
             set(record["context"]),
@@ -298,6 +354,19 @@ class RunRecordFileTests(unittest.TestCase):
             self.assertRegex(value, self.TIMESTAMP)
         self.assertEqual(record["environments"][0]["image_tag"], "sample-app:abcdef123456")
         self.assertEqual(record["context"]["workflow_package_version"], "0.7.3")
+
+    def test_run_record_file_includes_test_suites_and_keeps_the_stage_result(self):
+        recorded = {"name": "unit", "kind": "suite", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0, "duration_seconds": 0.5}
+        record = self.generate(test_results={"unit": recorded}, test_suites=["unit"], test_final_name="coverage")
+
+        self.assertEqual(record["steps"]["test"], "PASSED")
+        self.assertEqual(
+            record["test_suites"],
+            [
+                {"name": "unit", "result": "PASSED", "tests": 3, "failures": 0, "duration_seconds": 0.5},
+                {"name": "coverage", "result": "SKIPPED", "tests": None, "failures": None, "duration_seconds": None},
+            ],
+        )
 
     def test_invalid_or_missing_version_fails(self):
         with tempfile.TemporaryDirectory() as directory:

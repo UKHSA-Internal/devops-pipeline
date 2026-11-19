@@ -6,6 +6,7 @@ The settings checker validates the settings first; this script only reads them.
 
 import json
 import os
+import posixpath
 import secrets
 import sys
 from pathlib import Path
@@ -16,8 +17,66 @@ DEFAULT_HEALTH_ENDPOINT = "/health"
 DEFAULT_TIMEOUT_SECONDS = 60
 
 
-def resolve(settings: dict) -> dict:
-    """Build the deployment plan from settings already validated by the settings checker."""
+# service.test_command is shorthand for one suite with this name.
+SHORTHAND_SUITE = "test"
+
+
+def resolve_test(service: dict) -> dict:
+    """Turn service.test or service.test_command into one test plan.
+
+    Paths in the plan are relative to the service directory. The settings checker
+    reports bad values first; this raises ValueError only for what the plan can't be built without.
+    """
+    if "test" not in service:
+        return {
+            "setup": "",
+            "cache": None,
+            "suites": [{"name": SHORTHAND_SUITE, "command": service["test_command"].strip()}],
+            "collect": [],
+            "final": None,
+        }
+
+    test = service["test"]
+    cache = test.get("cache")
+    if cache is not None:
+        for key in ("paths", "key_files"):
+            if not cache.get(key):
+                raise ValueError(f"service.test.cache.{key} is required when service.test.cache is set")
+        cache = {"paths": list(cache["paths"]), "key_files": list(cache["key_files"])}
+    final = test.get("final")
+    return {
+        "setup": (test.get("setup") or "").strip(),
+        "cache": cache,
+        "suites": [{"name": suite["name"], "command": suite["command"].strip()} for suite in test["suites"]],
+        "collect": list(test.get("collect") or []),
+        "final": {"name": final["name"], "command": final["command"].strip()} if final else None,
+    }
+
+
+def in_service(service_directory: str, paths: list) -> str:
+    """Return the paths, one per line, relative to the repository root, as the cache action and hashFiles need."""
+    return "\n".join(posixpath.normpath(posixpath.join(service_directory, path)) for path in paths)
+
+
+def test_outputs(plan: dict, service_directory: str) -> dict:
+    """Flatten the test plan into the values the workflow jobs read."""
+    cache, final = plan["cache"], plan["final"]
+    return {
+        "test_plan": plan,
+        "test_suites": plan["suites"],
+        "test_setup": plan["setup"],
+        "test_has_cache": "true" if cache else "false",
+        "test_cache_paths": in_service(service_directory, cache["paths"]) if cache else "",
+        "test_cache_key_files": in_service(service_directory, cache["key_files"]) if cache else "",
+        "test_collect": "\n".join(plan["collect"]),
+        "test_has_final": "true" if final else "false",
+        "test_final_name": final["name"] if final else "",
+        "test_final_command": final["command"] if final else "",
+    }
+
+
+def resolve(settings: dict, service_directory: str = ".") -> dict:
+    """Build the deployment and test plan from settings already validated by the settings checker."""
     by_category = {key: [] for key in CATEGORIES.values()}
     for environment in settings["environments"]:
         deployment = {field: str(environment[field]).strip() for field in DEPLOYMENT_FIELDS}
@@ -35,7 +94,7 @@ def resolve(settings: dict) -> dict:
     language = language.strip().lower() if isinstance(language, str) else ""
 
     return {
-        "test_command": settings["service"]["test_command"].strip(),
+        **test_outputs(resolve_test(settings["service"]), service_directory),
         "language": language,
         "dev_deployments": by_category["dev"],
         "preprod_deployments": by_category["preprod"],
@@ -63,6 +122,14 @@ def append_summary(plan: dict, summary_path: Path) -> None:
                 f"| {deployment['category']} | `{deployment['name']}` | {deployment['region']} |\n"
             )
         summary.write("\n")
+        plan = plan["test_plan"]
+        summary.write("### Test plan\n\n")
+        names = ", ".join("`" + item["name"] + "`" for item in plan["suites"])
+        summary.write(f"- Suites (run in parallel): {names}\n")
+        summary.write(f"- Cached setup: {'yes' if plan['cache'] else 'no'}\n")
+        if plan["final"]:
+            summary.write(f"- Final step: `{plan['final']['name']}`\n")
+        summary.write("\n")
 
 
 def main() -> int:
@@ -70,8 +137,9 @@ def main() -> int:
 
     settings_path = Path(sys.argv[1])
     try:
-        plan = resolve(yaml.safe_load(settings_path.read_text(encoding="utf-8")))
-    except (OSError, yaml.YAMLError) as error:
+        service_directory = posixpath.dirname(posixpath.dirname(settings_path.as_posix())) or "."
+        plan = resolve(yaml.safe_load(settings_path.read_text(encoding="utf-8")), service_directory)
+    except (OSError, yaml.YAMLError, ValueError) as error:
         print(f"ERROR: Unable to resolve deployments from {settings_path}: {error}", file=sys.stderr)
         return 1
 

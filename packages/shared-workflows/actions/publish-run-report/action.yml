@@ -23,6 +23,14 @@ inputs:
   deploy_prod_result:
     description: Deploy Production job result
     required: true
+  test_suites:
+    description: JSON list of the planned test suites ({name, command})
+    required: false
+    default: ''
+  test_final_name:
+    description: Name of the final test step, or empty when there is none
+    required: false
+    default: ''
   deployments:
     description: JSON list of the planned deployments in promotion order
     required: false
@@ -47,6 +55,15 @@ runs:
         path: deployment-results
         merge-multiple: true
 
+    - name: Download Test Suite Results
+      if: ${{ env.ACT != 'true' }}
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: suite-result-*
+        path: test-suite-results
+        merge-multiple: true
+
     - name: Download Deployment Started Markers
       if: ${{ env.ACT != 'true' }}
       continue-on-error: true
@@ -69,6 +86,8 @@ runs:
         TRIGGER_TYPE: ${{ inputs.trigger_type }}
         START_TIME: ${{ inputs.start_time }}
         DEPLOYMENTS: ${{ inputs.deployments }}
+        TEST_SUITES: ${{ inputs.test_suites }}
+        TEST_FINAL_NAME: ${{ inputs.test_final_name }}
         CHECK_RESULT: ${{ inputs.check_result }}
         TEST_RESULT: ${{ inputs.test_result }}
         SCAN_RESULT: ${{ inputs.scan_result }}
@@ -82,10 +101,12 @@ runs:
           export REPORT_PATH=".act-artifacts/run-record.json"
           export RESULTS_DIR=".act-artifacts/deployments"
           export STARTED_DIR=".act-artifacts/started"
+          export TEST_RESULTS_DIR=".act-artifacts/test-suites"
         else
           export REPORT_PATH="run-record.json"
           export RESULTS_DIR="deployment-results"
           export STARTED_DIR="deployment-started"
+          export TEST_RESULTS_DIR="test-suite-results"
         fi
         python3 "${{ github.action_path }}/generate_run_report.py"
 

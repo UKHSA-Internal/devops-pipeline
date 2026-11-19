@@ -3,5 +3,7 @@ __pycache__/
 .venv/
 .act/
 .act-artifacts/
+tests/fixtures/structured-test/test-results/
+tests/fixtures/structured-test/.coverage.*
 .DS_Store
 CLAUDE.local.md

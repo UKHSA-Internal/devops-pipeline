@@ -1,7 +1,7 @@
 """Tests for the Test step's runtime resolution.
 
 The logic lives in the "Resolve Test Runtime" step of
-packages/shared-workflows/actions/test/action.yml. These tests extract that
+packages/shared-workflows/actions/test-runtime/action.yml. These tests extract that
 script from the action and run it with bash, so the shell behaviour is tested
 rather than a copy of it.
 """
@@ -20,7 +20,7 @@ ACTION_PATH = (
     / "packages"
     / "shared-workflows"
     / "actions"
-    / "test"
+    / "test-runtime"
     / "action.yml"
 )
 STEP_NAME = "Resolve Test Runtime"
