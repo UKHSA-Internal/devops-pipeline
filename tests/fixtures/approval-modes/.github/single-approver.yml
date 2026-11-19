@@ -3,7 +3,7 @@ version: "1.0"
 
 service:
   name: "approval-modes"
-  owner_team: "platform-team"
+  owner_team: "platform-leads"
   language: "python"
   test_command: "python3 -c 'print(\"no tests in this fixture\")'"
 

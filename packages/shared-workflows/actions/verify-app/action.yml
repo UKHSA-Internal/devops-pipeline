@@ -18,10 +18,18 @@ inputs:
     description: Image tag deployed to this environment
     required: true
 
+# A real implementation removes this output and its line in the step below; the run record
+# then stops listing "verify" as a simulated stage.
+outputs:
+  simulated:
+    description: "'true' while this action is a placeholder that verifies nothing"
+    value: ${{ steps.placeholder.outputs.simulated }}
+
 runs:
   using: composite
   steps:
     - name: Run Verify Placeholder
+      id: placeholder
       shell: bash
       env:
         DEPLOYMENT_NAME: ${{ inputs.deployment_name }}
@@ -30,6 +38,7 @@ runs:
         TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
         IMAGE_TAG: ${{ inputs.image_tag }}
       run: |
+        echo "simulated=true" >> "$GITHUB_OUTPUT"
         # TODO: Resolve the deployment base URL and call the health endpoint.
         printf '[STEP: VERIFY] Verify %s (%s): would check %s within %ss for image %s; not yet implemented.\n' \
           "$DEPLOYMENT_NAME" "$CATEGORY" "$HEALTH_ENDPOINT" "$TIMEOUT_SECONDS" "$IMAGE_TAG"

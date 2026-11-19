@@ -3,7 +3,7 @@ version: "1.0"
 
 service:
   name: "node-service"
-  owner_team: "platform-team"
+  owner_team: "platform-leads"
   language: "node"
   test_command: "node --version && node tests/test_placeholder.js"
 

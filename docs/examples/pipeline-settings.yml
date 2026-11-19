@@ -13,7 +13,7 @@ version: "1.0" # required (string); CHK-01 warns if missing or not text
 
 service:
   name: "payments-api" # required; CHK-02 warns if empty
-  owner_team: "payments-platform" # required; CHK-02 warns if empty
+  owner_team: "payments-platform-leads" # required; CHK-02 warns if empty; must be in governance.approvers (CHK-05)
   language: "python" # required; CHK-02 warns if empty. Accepted values: python, node
   test_command: "python3 -m unittest discover -s tests" # required, single line, non-empty; CHK-11 (Error)
 
@@ -39,7 +39,7 @@ environments:
 
 governance:
   retention_days: 30 # required; whole number > 0; CHK-06 (Warning)
-  approvers: # required; non-empty list of approver group names; CHK-05 (Error)
+  approvers: # required; non-empty list of approver group names that includes service.owner_team (ignoring case); CHK-05 (Error)
     - "payments-platform-leads"
 
 verification:

@@ -7,7 +7,7 @@ version: "1.0"
 
 service:
   name: "pinned-python-version"
-  owner_team: "platform-team"
+  owner_team: "platform-leads"
   language: "python"
   test_command: "python3.12 --version && python3.12 tests/test_placeholder.py"
 
