@@ -35,4 +35,8 @@ verification:
 
 deploy:
   production:
-    approval_mode: "all-approvers"
+    # The platform repository has no approval environments. Production
+    # approval is skipped under an exception that marks this as a platform
+    # test; sample-app deploys to an external sandbox.
+    approval_mode: "unattended"
+    exception_id: "PLATFORM-SAMPLE-APP"
