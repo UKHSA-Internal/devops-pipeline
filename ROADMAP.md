@@ -62,7 +62,7 @@ Not committed, not scheduled, not assigned.
 Considered and ruled out. Listed with the reason so the same question does not come back.
 
 - **Diagram source as code.** Diagrams are kept in a format on the agency's approved tooling list. The text-based alternatives are not on that list.
-- **The standards check blocking a merge.** The check reports and never blocks. A rule that has to stop a change belongs in the pipeline itself, where the outcome appears in the run record.
+- **The standards check blocking a merge.** The check reports on a pull request and does not stop it merging. A missing or invalid setting still fails the Check step, so the run stops before anything deploys.
 - **The pipeline owning performance baselines and trend tracking.** A service can already run a performance check through its test command. Owning baselines and trends is a separate piece of work, and the test pack and thresholds sit with the agency's central testing function.
 - **On-premises hosting.** Out of scope for this phase of the work.
 - **Measuring how long an approval takes.** The pipeline does not record it, so the figure would be estimated rather than measured.
