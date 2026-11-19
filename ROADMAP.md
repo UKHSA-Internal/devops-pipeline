@@ -27,10 +27,11 @@ A service declares itself in a settings file, gets the steps run in a fixed orde
 | Test | Sets up the runtime the service declares, then runs the service's own test command |
 | Scan | Simulated. No scanning tool runs |
 | Build | Builds and saves a container image. It is not published to a registry |
+| Approve | A production deployment waits for the approver groups named in the settings file. Approvals expire after 24 hours. With Deploy not implemented there is nothing yet to hold back |
 | Deploy | Not implemented. The shared pipeline carries no cloud deployment code |
 | Verify | Calls the service's health endpoint after a deployment. With Deploy not implemented there is nothing real to check |
 
-So a service adopting today gets the step order, the settings file, the standards check and the run record. It does not get scanning, a published image or a deployment.
+So a service adopting today gets the step order, the settings file, the standards check, the approval gate and the run record. It does not get scanning, a published image or a deployment.
 
 ## Planned
 
@@ -40,7 +41,6 @@ Intended before March 2027. Nothing here has a date, and some of it has not star
 |---|---|
 | Deployment to AWS | Deploy stops being a stub. A service deploys to its own accounts through the shared pipeline |
 | Scanning tools in the Scan step | Scan runs real tools instead of a simulation. Which tools, and what stops a release, is being agreed with the agency's security function |
-| Production approval gate | A deployment to production waits for a named approver group to sign off |
 | Secrets after authentication | A service reaches the secrets it needs once the pipeline has authenticated to its cloud account |
 | AI-assisted code review | A pull request carries review comments from a tool. Inform only, it blocks nothing |
 
