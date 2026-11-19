@@ -1,17 +1,26 @@
-name: Test Step
-description: Sets up the service's language runtime, then runs its test command from its pipeline settings
+name: Test Runtime
+description: Sets up the service's language runtime for a Test job and works out the first part of its cache key
 
 inputs:
   service_directory:
-    description: Service directory the test command runs in
-    required: true
-  test_command:
-    description: Test command resolved from pipeline settings (service.test_command)
+    description: Service directory that holds the language version file
     required: true
   language:
     description: Service language resolved from pipeline settings (service.language)
     required: false
     default: ''
+  setup_command:
+    description: Setup command from the test plan, hashed into the cache key
+    required: false
+    default: ''
+
+outputs:
+  language:
+    description: Language whose runtime was set up, or empty when none was
+    value: ${{ steps.runtime.outputs.language }}
+  cache_key_prefix:
+    description: Cache key without the key_files hash
+    value: ${{ steps.key.outputs.prefix }}
 
 runs:
   using: composite
@@ -72,20 +81,18 @@ runs:
         node-version-file: ${{ steps.runtime.outputs.version_file }}
         package-manager-cache: false
 
-    - name: Run Service Tests
+    - name: Compute Cache Key Prefix
+      id: key
       shell: bash
       env:
-        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
-        TEST_COMMAND: ${{ inputs.test_command }}
+        LANGUAGE: ${{ steps.runtime.outputs.language }}
+        VERSION_FILE: ${{ steps.runtime.outputs.version_file }}
+        SETUP_COMMAND: ${{ inputs.setup_command }}
       run: |
         set -euo pipefail
-        printf '[STEP: TEST] Running in %s: %s\n' "$SERVICE_DIRECTORY" "$TEST_COMMAND"
-        cd "$SERVICE_DIRECTORY"
-        status=0
-        bash -e -o pipefail -c "$TEST_COMMAND" || status=$?
-        {
-          printf -- '- Command: `%s`\n' "$TEST_COMMAND"
-          printf -- '- Exit code: **%s**\n' "$status"
-        } >> "$GITHUB_STEP_SUMMARY"
-        printf '[STEP: TEST] Exit code %s\n' "$status"
-        exit "$status"
+        version="none"
+        if [[ -n "$VERSION_FILE" ]]; then
+          version="$(tr -d '[:space:]' < "$VERSION_FILE" | tr -c 'A-Za-z0-9._-' '_')"
+        fi
+        setup_hash="$(printf '%s' "$SETUP_COMMAND" | python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())')"
+        printf 'prefix=test-%s-%s-%s-%s-%s\n' "$RUNNER_OS" "$RUNNER_ARCH" "${LANGUAGE:-none}" "$version" "$setup_hash" >> "$GITHUB_OUTPUT"

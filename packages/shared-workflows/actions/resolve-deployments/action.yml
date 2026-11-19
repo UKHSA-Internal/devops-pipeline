@@ -7,9 +7,36 @@ inputs:
     required: true
 
 outputs:
-  test_command:
-    description: Service test command run by the Test step
-    value: ${{ steps.resolve.outputs.test_command }}
+  test_plan:
+    description: JSON test plan (setup, cache, suites, collect, final) resolved from service.test or service.test_command
+    value: ${{ steps.resolve.outputs.test_plan }}
+  test_suites:
+    description: JSON list of the suites, each with a name and a command
+    value: ${{ steps.resolve.outputs.test_suites }}
+  test_setup:
+    description: Setup command, or empty
+    value: ${{ steps.resolve.outputs.test_setup }}
+  test_has_cache:
+    description: "true when the test plan has a cache"
+    value: ${{ steps.resolve.outputs.test_has_cache }}
+  test_cache_paths:
+    description: Cache paths, one per line, relative to the repository root
+    value: ${{ steps.resolve.outputs.test_cache_paths }}
+  test_cache_key_files:
+    description: Cache key file patterns, one per line, relative to the repository root
+    value: ${{ steps.resolve.outputs.test_cache_key_files }}
+  test_collect:
+    description: Files each suite uploads for the final step, one pattern per line, relative to the service directory
+    value: ${{ steps.resolve.outputs.test_collect }}
+  test_has_final:
+    description: "true when the test plan has a final step"
+    value: ${{ steps.resolve.outputs.test_has_final }}
+  test_final_name:
+    description: Name of the final step, or empty
+    value: ${{ steps.resolve.outputs.test_final_name }}
+  test_final_command:
+    description: Command of the final step, or empty
+    value: ${{ steps.resolve.outputs.test_final_command }}
   language:
     description: Service language, lower-cased, used to set up the Test step's runtime
     value: ${{ steps.resolve.outputs.language }}

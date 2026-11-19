@@ -63,6 +63,35 @@ def load_deployment_results(
     return results
 
 
+def load_test_suites(planned_names: list[str], results_dir: Path, test_result: str) -> list[dict]:
+    """Return one entry per planned suite, then the final step, in plan order.
+
+    A planned step with no result file never ran (for example its setup failed or an
+    earlier suite failed), so it is SKIPPED. Nothing is listed when the Test stage was skipped.
+    """
+    if test_result == "skipped":
+        return []
+    entries = []
+    for name in planned_names:
+        result_path = results_dir / f"{name}.json"
+        if result_path.is_file():
+            recorded = json.loads(result_path.read_text(encoding="utf-8"))
+            entries.append(
+                {
+                    "name": name,
+                    "result": recorded["result"],
+                    "tests": recorded["tests"],
+                    "failures": recorded["failures"],
+                    "duration_seconds": recorded["duration_seconds"],
+                }
+            )
+        else:
+            entries.append(
+                {"name": name, "result": "SKIPPED", "tests": None, "failures": None, "duration_seconds": None}
+            )
+    return entries
+
+
 def blocked_reason(environment: dict[str, str], approvers: list[dict] | None) -> str | None:
     """Return why Production did not deploy because of the approval gate, or None if it was not blocked."""
     if environment.get("deploy_prod_result", "skipped") != "skipped":
@@ -160,6 +189,7 @@ def create_report(
     deployment_results: list[dict] | None = None,
     approvals: dict | None = None,
     planned: list[dict] | None = None,
+    test_suites: list[dict] | None = None,
 ) -> dict[str, object]:
     approvals = approvals or {"approvers": [], "unavailable": False}
     deployment_results = deployment_results or []
@@ -187,6 +217,7 @@ def create_report(
             "build": map_result(environment["build_result"]),
             "deploy": deploy_step_status(environment, deployment_results, blocked),
         },
+        "test_suites": test_suites or [],
         "environments": environment_entries(deployment_results, planned or [], blocked),
         "simulated_stages": simulated_stages(deployment_results),
         "governance": governance_block(environment, approvals),
@@ -237,6 +268,12 @@ def append_summary(report: dict[str, object], summary_path: Path) -> None:
         for step, result in steps.items():
             summary.write(f"| {step.replace('-', ' ').title()} | **{result}** |\n")
         summary.write("\n")
+        if report["test_suites"]:
+            summary.write("| Test | Result | Tests | Failures | Duration (s) |\n| --- | --- | --- | --- | --- |\n")
+            for suite in report["test_suites"]:
+                counts = [("-" if suite[key] is None else suite[key]) for key in ("tests", "failures", "duration_seconds")]
+                summary.write(f"| {suite['name']} | **{suite['result']}** | {counts[0]} | {counts[1]} | {counts[2]} |\n")
+            summary.write("\n")
         summary.write("| Deployment | Category | Deploy | Verify |\n| --- | --- | --- | --- |\n")
         for deployment in report["environments"]:
             summary.write(
@@ -320,6 +357,12 @@ def main() -> None:
     for result in deployment_results:
         if result.get("result_error"):
             print(f"ERROR: {result['result_error']}")
+    planned_test_names = [suite["name"] for suite in json.loads(os.environ.get("TEST_SUITES") or "[]")]
+    if os.environ.get("TEST_FINAL_NAME"):
+        planned_test_names.append(os.environ["TEST_FINAL_NAME"])
+    test_suites = load_test_suites(
+        planned_test_names, Path(os.environ["TEST_RESULTS_DIR"]), normalized_environment["test_result"]
+    )
     end_time = utc_now()
     report = create_report(
         normalized_environment,
@@ -327,6 +370,7 @@ def main() -> None:
         deployment_results,
         collect_approvals(normalized_environment),
         planned_deployments,
+        test_suites=test_suites,
     )
     output_path = Path(os.environ["REPORT_PATH"])
     output_path.parent.mkdir(parents=True, exist_ok=True)

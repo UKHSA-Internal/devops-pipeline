@@ -68,7 +68,12 @@ def generated_clean_run_record() -> dict:
         deployment("preprod-env-1", "Pre-production", "2026-11-12T09:08:00Z"),
         deployment("prod-env-1", "Production", "2026-11-12T09:12:00Z"),
     ]
-    return REPORT.create_report(environment, "2026-11-12T09:13:00Z", deployment_results)
+    test_suites = [
+        {"name": "unit", "result": "PASSED", "tests": 120, "failures": 0, "duration_seconds": 41.2},
+        {"name": "integration", "result": "PASSED", "tests": 34, "failures": 0, "duration_seconds": 96.5},
+        {"name": "coverage", "result": "PASSED", "tests": None, "failures": None, "duration_seconds": None},
+    ]
+    return REPORT.create_report(environment, "2026-11-12T09:13:00Z", deployment_results, test_suites=test_suites)
 
 
 def assert_same_structure(actual, expected, path="$"):
