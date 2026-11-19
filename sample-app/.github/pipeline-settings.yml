@@ -1,10 +1,15 @@
-version: "1.0"
+version: "1.1"
 
 service:
   name: "sample-app"
   owner_team: "platform-leads"
   language: "python"
-  test_command: "python3 -m unittest discover -s tests -v"
+  test:
+    suites:
+      - name: unit
+        command: "python3 -m unittest discover -s tests/unit -v"
+      - name: integration
+        command: "python3 -m unittest discover -s tests/integration -v"
 
 environments:
   - name: dev-env-1

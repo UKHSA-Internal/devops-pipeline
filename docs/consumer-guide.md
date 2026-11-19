@@ -47,6 +47,8 @@ placeholder with the service's real tests. The
 For more than one command, use a `service.test` block instead of
 `test_command` (set exactly one of them). `test_command` stays valid: it is
 shorthand for one suite named `test`, with no setup, cache or final step.
+The [sample app](../sample-app/README.md) runs `unit` and `integration` suites
+this way.
 
 ```yaml
 version: "1.1"

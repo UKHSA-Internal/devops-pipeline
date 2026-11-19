@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-APP_DIRECTORY = Path(__file__).resolve().parents[1]
+APP_DIRECTORY = Path(__file__).resolve().parents[2]
 
 
 class SampleAppTests(unittest.TestCase):
