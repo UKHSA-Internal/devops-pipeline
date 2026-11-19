@@ -429,6 +429,13 @@ class ApprovalRecordTests(unittest.TestCase):
                 [entry] = APPROVALS.build_approvers(PLAN, reviews, jobs, GATE_OPENED, 24)
                 self.assertEqual(entry["decision"], expected)
 
+    def test_approval_with_no_job_to_measure_against_is_expired(self):
+        reviews = [review("production-approval-platform-leads", "approved", "alice")]
+
+        [entry] = APPROVALS.build_approvers(PLAN, reviews, [], GATE_OPENED, 24)
+
+        self.assertEqual((entry["decision"], entry["timestamp"]), ("expired", None))
+
     def test_reviews_for_other_environments_and_unfinished_reviews_are_ignored(self):
         reviews = [
             review("production-approval-other", "approved", "carol"),
@@ -470,6 +477,16 @@ class ApprovalRecordTests(unittest.TestCase):
         record = REPORT.create_report(gate_inputs(), END_TIME, [], approvals)
         self.assertIsNone(record["governance"]["approvers"])
         self.assertIs(record["governance"]["approvals_unavailable"], True)
+
+    def test_rerun_attempt_is_unavailable_rather_than_misattributed(self):
+        reviews = [review("production-approval-platform-leads", "approved", "alice")]
+
+        with unittest.mock.patch.dict(os.environ, {"GH_TOKEN": "token", "ACT": "", "RUN_ATTEMPT": "2"}):
+            approvals = REPORT.collect_approvals(
+                gate_inputs(), get_reviews=lambda *_: reviews, get_jobs=lambda *_: []
+            )
+
+        self.assertEqual(approvals, {"approvers": None, "unavailable": True})
 
     def test_unattended_and_skipped_approval_read_nothing(self):
         for inputs in (

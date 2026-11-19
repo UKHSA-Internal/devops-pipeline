@@ -86,14 +86,17 @@ def parse_time(value: str) -> datetime:
 def decide(state: str, started_at: str | None, gate_opened_at: str, window_hours: float) -> str | None:
     """Return approved, rejected or expired for one review, or None for an unfinished one.
 
-    Expired means the leg started more than the window after the gate opened. An approved leg
-    that failed for any other reason is still approved.
+    Expired means the leg started more than the window after the gate opened, or that there is
+    no start time to measure (an approval that cannot be tied to a job is not trusted). An
+    approved leg that failed for any other reason is still approved.
     """
     if state == "rejected":
         return "rejected"
     if state != "approved":
         return None
-    if started_at and gate_opened_at:
+    if not started_at:
+        return "expired"
+    if gate_opened_at:
         try:
             if parse_time(started_at) - parse_time(gate_opened_at) > timedelta(hours=window_hours):
                 return "expired"

@@ -207,6 +207,10 @@ def collect_approvals(environment: dict[str, str], get_reviews=None, get_jobs=No
             raise approvals_api.ApprovalsUnavailable("the review history is not available under act")
         repository, run_id = environment["repository"], environment["run_id"]
         token, attempt = os.environ["GH_TOKEN"], os.environ.get("RUN_ATTEMPT") or "1"
+        if attempt != "1":
+            # The review history has no attempt field, so earlier attempts' reviews cannot be
+            # told apart from this attempt's and would be timed against the wrong job.
+            raise approvals_api.ApprovalsUnavailable("the review history cannot be matched to a re-run attempt")
         reviews = (get_reviews or approvals_api.fetch_reviews)(repository, run_id, token)
         jobs = (get_jobs or approvals_api.fetch_jobs)(repository, run_id, attempt, token)
         approvers = approvals_api.build_approvers(
