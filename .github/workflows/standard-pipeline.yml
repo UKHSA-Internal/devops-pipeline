@@ -103,13 +103,13 @@ jobs:
 
       - name: Execute Check Step
         id: check
-        uses: ./packages/shared-workflows/actions/check
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/check@54e07b78f46857d220a48ee75546f193c252e456
         with:
           settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
 
       - name: Resolve Deployments
         id: deployments
-        uses: ./packages/shared-workflows/actions/resolve-deployments
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/resolve-deployments@54e07b78f46857d220a48ee75546f193c252e456
         with:
           settings_path: ${{ steps.resolve-settings.outputs.settings_path }}
 
@@ -143,13 +143,13 @@ jobs:
 
       - name: Set Up Runtime
         id: runtime
-        uses: ./packages/shared-workflows/actions/test-runtime
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/test-runtime@54e07b78f46857d220a48ee75546f193c252e456
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           language: ${{ needs.check.outputs.language }}
 
       - name: Run Suite
-        uses: ./packages/shared-workflows/actions/test-run
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/test-run@54e07b78f46857d220a48ee75546f193c252e456
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           kind: suite
@@ -177,7 +177,7 @@ jobs:
 
       - name: Set Up Runtime
         id: runtime
-        uses: ./packages/shared-workflows/actions/test-runtime
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/test-runtime@54e07b78f46857d220a48ee75546f193c252e456
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           language: ${{ needs.check.outputs.language }}
@@ -205,7 +205,7 @@ jobs:
           merge-multiple: true
 
       - name: Run Final Step
-        uses: ./packages/shared-workflows/actions/test-run
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/test-run@54e07b78f46857d220a48ee75546f193c252e456
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           kind: final
@@ -258,7 +258,7 @@ jobs:
         if: ${{ env.ACT != 'true' }}
 
       - name: Execute Scan Step
-        uses: ./packages/shared-workflows/actions/scan
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/scan@54e07b78f46857d220a48ee75546f193c252e456
 
   build:
     name: Build
@@ -280,7 +280,7 @@ jobs:
 
       - name: Execute Build Step
         id: build
-        uses: ./packages/shared-workflows/actions/build-app
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/build-app@54e07b78f46857d220a48ee75546f193c252e456
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           commit_sha: ${{ github.sha }}
@@ -334,7 +334,7 @@ jobs:
 
       - name: Execute Deploy Step
         id: deploy
-        uses: ./packages/shared-workflows/actions/deploy
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/deploy@54e07b78f46857d220a48ee75546f193c252e456
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -346,7 +346,7 @@ jobs:
 
       - name: Verify Deployment
         id: verify
-        uses: ./packages/shared-workflows/actions/verify-app
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/verify-app@54e07b78f46857d220a48ee75546f193c252e456
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -356,7 +356,7 @@ jobs:
 
       - name: Record Deployment Result
         if: always()
-        uses: ./packages/shared-workflows/actions/record-deployment
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/record-deployment@54e07b78f46857d220a48ee75546f193c252e456
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -415,7 +415,7 @@ jobs:
 
       - name: Execute Deploy Step
         id: deploy
-        uses: ./packages/shared-workflows/actions/deploy
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/deploy@54e07b78f46857d220a48ee75546f193c252e456
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -427,7 +427,7 @@ jobs:
 
       - name: Verify Deployment
         id: verify
-        uses: ./packages/shared-workflows/actions/verify-app
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/verify-app@54e07b78f46857d220a48ee75546f193c252e456
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -437,7 +437,7 @@ jobs:
 
       - name: Record Deployment Result
         if: always()
-        uses: ./packages/shared-workflows/actions/record-deployment
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/record-deployment@54e07b78f46857d220a48ee75546f193c252e456
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -470,7 +470,7 @@ jobs:
 
       - name: Check Approval Environments
         id: guard
-        uses: ./packages/shared-workflows/actions/approval-guard
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/approval-guard@54e07b78f46857d220a48ee75546f193c252e456
         with:
           approval_environments: ${{ needs.check.outputs.approval_environments }}
 
@@ -511,7 +511,7 @@ jobs:
         if: ${{ env.ACT != 'true' }}
 
       - name: Confirm Approval
-        uses: ./packages/shared-workflows/actions/approval-confirm
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/approval-confirm@54e07b78f46857d220a48ee75546f193c252e456
         with:
           environment: ${{ matrix.approval.environment }}
           groups: ${{ join(matrix.approval.groups, ', ') }}
@@ -576,7 +576,7 @@ jobs:
 
       - name: Execute Deploy Step
         id: deploy
-        uses: ./packages/shared-workflows/actions/deploy
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/deploy@54e07b78f46857d220a48ee75546f193c252e456
         with:
           environment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -588,7 +588,7 @@ jobs:
 
       - name: Verify Deployment
         id: verify
-        uses: ./packages/shared-workflows/actions/verify-app
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/verify-app@54e07b78f46857d220a48ee75546f193c252e456
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -598,7 +598,7 @@ jobs:
 
       - name: Record Deployment Result
         if: always()
-        uses: ./packages/shared-workflows/actions/record-deployment
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/record-deployment@54e07b78f46857d220a48ee75546f193c252e456
         with:
           deployment_name: ${{ matrix.deployment.name }}
           category: ${{ matrix.deployment.category }}
@@ -622,7 +622,7 @@ jobs:
         if: ${{ env.ACT != 'true' }}
 
       - name: Publish Run Report
-        uses: ./packages/shared-workflows/actions/publish-run-report
+        uses: UKHSA-Internal/devops-pipeline/packages/shared-workflows/actions/publish-run-report@54e07b78f46857d220a48ee75546f193c252e456
         with:
           check_result: ${{ needs.check.result }}
           test_result: ${{ needs.test.result }}
