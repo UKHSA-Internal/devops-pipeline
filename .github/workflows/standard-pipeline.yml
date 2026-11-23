@@ -160,7 +160,7 @@ jobs:
           collect: ${{ needs.check.outputs.test_collect }}
 
   test-final:
-    name: Test (${{ needs.check.outputs.test_final_name }})
+    name: Test (final step)
     needs: [check, test-suites]
     if: >-
       !cancelled() && needs.check.result == 'success'
