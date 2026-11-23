@@ -125,4 +125,5 @@ runs:
         name: suite-result-${{ inputs.name }}
         path: ${{ runner.temp }}/test-suite-result
         if-no-files-found: ignore
-        retention-days: 1
+        # Kept for GitHub's longest approval wait; the run record is written after Production approval
+        retention-days: 30

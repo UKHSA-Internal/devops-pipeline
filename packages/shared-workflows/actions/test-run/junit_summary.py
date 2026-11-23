@@ -26,14 +26,19 @@ def junit_totals(results_directory: Path) -> dict | None:
             continue
         suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
         for suite in suites:
-            found = True
             try:
-                totals["tests"] += int(suite.get("tests", 0))
-                totals["failures"] += int(suite.get("failures", 0))
-                totals["errors"] += int(suite.get("errors", 0))
-                totals["duration_seconds"] += float(suite.get("time", 0))
+                tests = int(suite.get("tests", 0))
+                failures = int(suite.get("failures", 0))
+                errors = int(suite.get("errors", 0))
+                duration = float(suite.get("time", 0))
             except ValueError:
                 print(f"WARNING: Ignoring a malformed testsuite in {path}", file=sys.stderr)
+                continue
+            found = True
+            totals["tests"] += tests
+            totals["failures"] += failures
+            totals["errors"] += errors
+            totals["duration_seconds"] += duration
     if not found:
         return None
     totals["duration_seconds"] = round(totals["duration_seconds"], 3)

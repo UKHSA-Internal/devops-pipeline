@@ -42,6 +42,13 @@ class JUnitTotalsTests(unittest.TestCase):
     def test_unreadable_xml_is_ignored(self):
         self.assertIsNone(self.totals(**{"broken.xml": "<testsuite"}))
 
+    def test_suite_with_an_unparsable_value_adds_nothing(self):
+        malformed = '<testsuite tests="5" failures="unknown" errors="0" time="1"/>'
+
+        self.assertIsNone(self.totals(**{"a.xml": malformed}))
+        totals = self.totals(**{"a.xml": malformed, "b.xml": '<testsuite tests="2" failures="0" errors="0" time="0.5"/>'})
+        self.assertEqual(totals, {"tests": 2, "failures": 0, "errors": 0, "duration_seconds": 0.5})
+
     def test_without_xml_only_the_result_is_reported(self):
         result = SUMMARY.build_result("unit", "suite", "failure", None)
 

@@ -395,6 +395,22 @@ class RunRecordFileTests(unittest.TestCase):
             ],
         )
 
+    def test_cancelled_run_lists_finished_suites_and_records_test_as_failed(self):
+        unit = {"name": "unit", "kind": "suite", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0, "duration_seconds": 0.5}
+        record = self.generate(
+            test_result="cancelled",
+            test_results={"unit": unit},
+            test_suites=["unit", "api"],
+            test_final_name="coverage",
+        )
+
+        self.assertEqual(record["steps"]["test"], "FAILED")
+        self.assertEqual(
+            [(suite["name"], suite["result"]) for suite in record["test_suites"]],
+            [("unit", "PASSED"), ("api", "SKIPPED"), ("coverage", "SKIPPED")],
+        )
+        self.assertEqual(record["test_suites"][0]["tests"], 3)
+
     def test_invalid_or_missing_version_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             version_file = Path(directory) / "VERSION"

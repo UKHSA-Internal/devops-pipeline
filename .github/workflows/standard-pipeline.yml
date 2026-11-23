@@ -181,6 +181,19 @@ jobs:
           service_directory: ${{ needs.check.outputs.service_directory }}
           language: ${{ needs.check.outputs.language }}
 
+      # Setup runs before the download, so it can never delete the downloaded files.
+      - name: Run Setup
+        if: ${{ needs.check.outputs.test_setup != '' }}
+        shell: bash
+        working-directory: ${{ needs.check.outputs.service_directory }}
+        env:
+          SETUP_COMMAND: ${{ needs.check.outputs.test_setup }}
+          FINAL_NAME: ${{ needs.check.outputs.test_final_name }}
+        run: |
+          set -euo pipefail
+          printf '[STEP: TEST] %s: running setup: %s\n' "$FINAL_NAME" "$SETUP_COMMAND"
+          bash -e -o pipefail -c "$SETUP_COMMAND"
+
       # Under act the jobs share the bound workspace, so the files are already there.
       - name: Download Suite Files
         if: ${{ env.ACT != 'true' }}
@@ -197,15 +210,16 @@ jobs:
           kind: final
           name: ${{ needs.check.outputs.test_final_name }}
           command: ${{ needs.check.outputs.test_final_command }}
-          setup_command: ${{ needs.check.outputs.test_setup }}
-          run_setup: ${{ needs.check.outputs.test_setup != '' }}
+          run_setup: 'false'
 
   # One result for the whole Test stage, so Scan and the run record don't need
   # to know how many jobs it has. Skipped when Check fails.
   test:
     name: Test
     needs: [check, test-suites, test-final]
-    if: ${{ !cancelled() && needs.check.result == 'success' }}
+    # Runs even when cancelled: it runs no service code and has no permissions, and
+    # it must record suites that finished.
+    if: ${{ always() && needs.check.result == 'success' }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
