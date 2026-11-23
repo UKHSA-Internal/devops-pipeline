@@ -278,7 +278,7 @@ class TestSuitesTests(unittest.TestCase):
         self.assertEqual([suite["name"] for suite in suites], ["unit", "api", "coverage"])
         self.assertEqual(
             suites[0],
-            {"name": "unit", "result": "PASSED", "tests": 7, "failures": 0, "errors": 0, "duration_seconds": 2.5},
+            {"name": "unit", "result": "PASSED", "tests": 7, "failures": 0, "errors": 0, "duration_seconds": 2.5, "coverage_percent": None},
         )
         self.assertEqual((suites[1]["result"], suites[1]["failures"]), ("FAILED", 2))
         self.assertEqual(
@@ -290,6 +290,7 @@ class TestSuitesTests(unittest.TestCase):
                 "failures": None,
                 "errors": None,
                 "duration_seconds": None,
+                "coverage_percent": None,
             },
         )
         self.assertEqual(suites[1]["errors"], 0)
@@ -383,7 +384,7 @@ class RunRecordFileTests(unittest.TestCase):
         self.assertEqual(
             record["test_suites"],
             [
-                {"name": "unit", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0, "duration_seconds": 0.5},
+                {"name": "unit", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0, "duration_seconds": 0.5, "coverage_percent": None},
                 {
                     "name": "coverage",
                     "result": "SKIPPED",
@@ -391,6 +392,7 @@ class RunRecordFileTests(unittest.TestCase):
                     "failures": None,
                     "errors": None,
                     "duration_seconds": None,
+                    "coverage_percent": None,
                 },
             ],
         )
@@ -410,6 +412,18 @@ class RunRecordFileTests(unittest.TestCase):
             [("unit", "PASSED"), ("api", "SKIPPED"), ("coverage", "SKIPPED")],
         )
         self.assertEqual(record["test_suites"][0]["tests"], 3)
+
+    def test_coverage_and_timing_come_through_for_any_step_name(self):
+        suite = {"name": "unit", "kind": "suite", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0,
+                 "duration_seconds": 0.5, "coverage_percent": 91.2}
+        final = {"name": "report", "kind": "final", "result": "PASSED", "tests": None, "failures": None, "errors": None,
+                 "duration_seconds": 4.0, "coverage_percent": 87.5}
+        record = self.generate(test_results={"unit": suite, "report": final}, test_suites=["unit"], test_final_name="report")
+
+        self.assertEqual(
+            [(item["name"], item["duration_seconds"], item["coverage_percent"]) for item in record["test_suites"]],
+            [("unit", 0.5, 91.2), ("report", 4.0, 87.5)],
+        )
 
     def test_invalid_or_missing_version_fails(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -721,6 +735,38 @@ class ApprovalRecordTests(unittest.TestCase):
         self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [real_verify])["simulated_stages"], ["deploy"])
         self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [skipped])["simulated_stages"], [])
         self.assertEqual(REPORT.create_report(report_inputs(), END_TIME, [])["simulated_stages"], [])
+
+    def summary(self, report):
+        with tempfile.TemporaryDirectory() as directory:
+            summary = Path(directory) / "summary.md"
+            REPORT.append_summary(report, summary)
+            return summary.read_text(encoding="utf-8")
+
+    def test_summary_test_table_has_coverage_with_dashes_for_null(self):
+        suites = [
+            {"name": "unit", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0, "duration_seconds": 0.5,
+             "coverage_percent": 91.25},
+            {"name": "gate", "result": "PASSED", "tests": None, "failures": None, "errors": None,
+             "duration_seconds": 2.0, "coverage_percent": None},
+        ]
+        text = self.summary(REPORT.create_report(report_inputs(), END_TIME, test_suites=suites))
+
+        self.assertIn("| Test | Result | Tests | Failures | Errors | Duration (s) | Coverage |", text)
+        self.assertIn("| unit | **PASSED** | 3 | 0 | 0 | 0.5 | 91.2% |", text)
+        self.assertIn("| gate | **PASSED** | - | - | - | 2.0 | - |", text)
+
+    def test_pull_request_summary_has_no_deployment_table(self):
+        text = self.summary(REPORT.create_report(report_inputs(trigger_type="pull_request"), END_TIME))
+
+        self.assertNotIn("| Deployment |", text)
+        self.assertIn("Deploy stages don't run on pull requests.", text)
+
+    def test_summary_keeps_the_deployment_table_when_deployments_ran(self):
+        report = REPORT.create_report(report_inputs(trigger_type="push"), END_TIME, [deployment_result("dev-env-1", "Development")])
+        text = self.summary(report)
+
+        self.assertIn("| Deployment | Category | Deploy | Verify |", text)
+        self.assertNotIn("pull requests", text)
 
     def test_summary_lists_simulated_stages(self):
         simulated = {**deployment_result("dev-env-1", "Development"), "deploy_simulated": True}

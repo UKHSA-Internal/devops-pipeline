@@ -84,6 +84,7 @@ def load_test_suites(planned_names: list[str], results_dir: Path, test_result: s
                     "failures": recorded["failures"],
                     "errors": recorded["errors"],
                     "duration_seconds": recorded["duration_seconds"],
+                    "coverage_percent": recorded.get("coverage_percent"),
                 }
             )
         else:
@@ -95,6 +96,7 @@ def load_test_suites(planned_names: list[str], results_dir: Path, test_result: s
                     "failures": None,
                     "errors": None,
                     "duration_seconds": None,
+                    "coverage_percent": None,
                 }
             )
     return entries
@@ -277,16 +279,26 @@ def append_summary(report: dict[str, object], summary_path: Path) -> None:
             summary.write(f"| {step.replace('-', ' ').title()} | **{result}** |\n")
         summary.write("\n")
         if report["test_suites"]:
-            summary.write("| Test | Result | Tests | Failures | Errors | Duration (s) |\n| --- | --- | --- | --- | --- | --- |\n")
+            summary.write(
+                "| Test | Result | Tests | Failures | Errors | Duration (s) | Coverage |\n"
+                "| --- | --- | --- | --- | --- | --- | --- |\n"
+            )
             for suite in report["test_suites"]:
                 counts = [
                     "-" if suite[key] is None else suite[key] for key in ("tests", "failures", "errors", "duration_seconds")
                 ]
+                coverage = "-" if suite["coverage_percent"] is None else f"{suite['coverage_percent']:.1f}%"
                 summary.write(
-                    f"| {suite['name']} | **{suite['result']}** | {counts[0]} | {counts[1]} | {counts[2]} | {counts[3]} |\n"
+                    f"| {suite['name']} | **{suite['result']}** | {counts[0]} | {counts[1]} | {counts[2]} "
+                    f"| {counts[3]} | {coverage} |\n"
                 )
             summary.write("\n")
-        summary.write("| Deployment | Category | Deploy | Verify |\n| --- | --- | --- | --- |\n")
+        if report["environments"]:
+            summary.write("| Deployment | Category | Deploy | Verify |\n| --- | --- | --- | --- |\n")
+        elif report["context"]["trigger_type"] == "pull_request":
+            summary.write("Deploy stages don't run on pull requests.\n\n")
+        else:
+            summary.write("No deployments ran.\n\n")
         for deployment in report["environments"]:
             summary.write(
                 f"| {deployment['name']} | {deployment['category']} | "

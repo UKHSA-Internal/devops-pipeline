@@ -1,5 +1,5 @@
 name: Test Run
-description: Runs one test suite or the final step from the test plan, then records its result and uploads its files
+description: Runs one test suite or the final step from the test plan, times it, then records its result and uploads its files
 
 inputs:
   service_directory:
@@ -22,6 +22,10 @@ inputs:
     description: Set to true to run the setup command before the command
     required: false
     default: 'false'
+  runtime:
+    description: Runtime description from test-runtime, shown in the step's job summary
+    required: false
+    default: ''
   collect:
     description: Newline-separated files to upload besides test-results/*.xml, relative to the service directory
     required: false
@@ -44,6 +48,17 @@ runs:
         cd "$SERVICE_DIRECTORY"
         bash -e -o pipefail -c "$SETUP_COMMAND"
 
+    # Lets the result ignore test-results files that were there before the command ran,
+    # such as the ones the final step downloads from the suites.
+    - name: Snapshot Test Results
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        SNAPSHOT_FILE: ${{ runner.temp }}/test-results-before-${{ inputs.name }}.json
+      run: |
+        set -euo pipefail
+        python3 "${{ github.action_path }}/junit_summary.py" snapshot
+
     - name: Run Command
       id: run
       shell: bash
@@ -57,7 +72,9 @@ runs:
         printf '[STEP: TEST] %s (%s): running in %s: %s\n' "$STEP_NAME" "$STEP_KIND" "$SERVICE_DIRECTORY" "$COMMAND"
         cd "$SERVICE_DIRECTORY"
         status=0
+        started="$(date +%s%N)"
         bash -e -o pipefail -c "$COMMAND" || status=$?
+        printf 'duration_ms=%s\n' "$(( ($(date +%s%N) - started) / 1000000 ))" >> "$GITHUB_OUTPUT"
         printf '[STEP: TEST] %s (%s): exit code %s\n' "$STEP_NAME" "$STEP_KIND" "$status"
         exit "$status"
 
@@ -69,6 +86,9 @@ runs:
         SUITE_NAME: ${{ inputs.name }}
         STEP_KIND: ${{ inputs.kind }}
         RUN_OUTCOME: ${{ steps.run.outcome }}
+        DURATION_MS: ${{ steps.run.outputs.duration_ms }}
+        RUNTIME_DESCRIPTION: ${{ inputs.runtime }}
+        SNAPSHOT_FILE: ${{ runner.temp }}/test-results-before-${{ inputs.name }}.json
       run: |
         set -euo pipefail
         if [[ "${ACT:-}" == "true" ]]; then

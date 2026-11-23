@@ -14,6 +14,9 @@ outputs:
   language:
     description: Language whose runtime was set up, or empty when none was
     value: ${{ steps.runtime.outputs.language }}
+  description:
+    description: The runtime and where its version came from, for the job summary
+    value: ${{ steps.runtime.outputs.description }}
 
 runs:
   using: composite
@@ -31,7 +34,6 @@ runs:
         language="$(printf '%s' "$LANGUAGE" | tr '[:upper:]' '[:lower:]')"
         language="${language#"${language%%[![:space:]]*}"}"
         language="${language%"${language##*[![:space:]]}"}"
-        printf '## Test\n\n' >> "$GITHUB_STEP_SUMMARY"
 
         case "$language" in
           python) version_files=(".python-version") ;;
@@ -39,8 +41,8 @@ runs:
           *)
             printf '[STEP: TEST] WARNING: No runtime set up for service.language "%s". The test command runs on the runner as-is.\n' \
               "$language"
-            printf -- '- Runtime: **none** (no setup for `service.language`: `%s`)\n' "${language:-unset}" >> "$GITHUB_STEP_SUMMARY"
             printf 'language=\n' >> "$GITHUB_OUTPUT"
+            printf 'description=no runtime set up\n' >> "$GITHUB_OUTPUT"
             exit 0
             ;;
         esac
@@ -48,7 +50,7 @@ runs:
         for candidate in "${version_files[@]}"; do
           if [[ -f "$SERVICE_DIRECTORY/$candidate" ]]; then
             printf '[STEP: TEST] Using %s version from %s/%s\n' "$language" "$SERVICE_DIRECTORY" "$candidate"
-            printf -- '- Runtime: **%s** from `%s`\n' "$language" "$candidate" >> "$GITHUB_STEP_SUMMARY"
+            printf 'description=%s from %s\n' "$language" "$candidate" >> "$GITHUB_OUTPUT"
             printf 'language=%s\n' "$language" >> "$GITHUB_OUTPUT"
             printf 'version_file=%s\n' "$SERVICE_DIRECTORY/$candidate" >> "$GITHUB_OUTPUT"
             exit 0

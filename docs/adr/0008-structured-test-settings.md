@@ -48,6 +48,11 @@ Other decisions:
   in one suite.
 - At most 10 suites, to cap runner minutes.
 - JUnit XML in `test-results/` is a convention, not a setting.
+- The pipeline times each suite and the final step itself.
+- Failed tests are listed in the job summary (up to 10) from JUnit.
+- Coverage is read from Cobertura XML at `test-results/coverage.xml`. Like
+  JUnit, it's a convention, not a setting, and applies to any step.
+- The pipeline never treats a step differently because of its name.
 - Each suite's results, from the JUnit files in `test-results/`, appear in the
   job summary and in the run record's `test_suites[]`.
 - New rules CHK-20 to CHK-24 are Errors. CHK-11 now applies only when

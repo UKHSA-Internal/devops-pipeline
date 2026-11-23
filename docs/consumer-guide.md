@@ -72,16 +72,38 @@ service:
 - **Setup.** `setup` runs at the start of each suite job and of the final
   step. `collect` paths are relative to the service directory and can't
   contain `..`.
-- **Collect and final.** Each suite uploads the `collect` files. The `final`
-  step runs only if every suite passed, with all of them downloaded into the
-  service directory, so it can combine coverage without running tests again.
-- **Reports.** Write JUnit XML to `test-results/*.xml`. Each suite's job
-  summary shows its tests, failures, errors and duration; without XML only the
-  result is shown.
+- **Collect and final.** Each suite uploads the `collect` files. `final` is a
+  command that runs once every suite has passed, with all the collected files
+  downloaded into the service directory. Use it to combine coverage, merge
+  reports or apply a quality gate, without running the tests again. The
+  pipeline treats it like a suite and never by its name.
+- **Reports.** Each suite and the final step is timed by the pipeline. Its job
+  summary has one line with the result, duration, runtime, counts and coverage
+  when known. See [Test reports](#test-reports).
 - **One result.** The Test stage passes only if every suite and the final step
   pass. The run record's `steps.test` keeps that meaning, and `test_suites`
-  lists each suite and the final step with its tests, failures, errors and
-  duration. A step that never ran is `SKIPPED`.
+  lists each suite and the final step with its tests, failures, errors,
+  duration and coverage. A step that never ran is `SKIPPED`.
+
+#### Test reports
+
+Two optional files in `test-results/` give a step more detail. Both are
+conventions, not settings, and work the same for any suite or the final step:
+
+- **JUnit XML**, `test-results/*.xml`. The job summary and the run record get
+  the tests, failures, errors and duration (JUnit's duration wins over the
+  pipeline's timing), and the job summary lists up to 10 failed tests with the
+  first line of each message, and how many more there are. With pytest:
+  `pytest --junitxml=test-results/<suite>.xml`
+- **Cobertura XML**, `test-results/coverage.xml`. The root `line-rate` becomes
+  the step's `coverage_percent` (one decimal place) in the run record and
+  "Coverage: NN.N%" in the job summary. An unreadable file gives a warning and
+  no percentage, never a failure. With coverage.py:
+  `coverage xml -o test-results/coverage.xml`
+
+Only files a step writes while it runs are read for that step, so the final
+step's own files are reported, not the ones it downloaded from the suites. With
+neither file, the step shows its result and its duration.
 
 Every command is a single line. The checker rules are CHK-20 to CHK-24 in the
 [checker reference](../packages/settings-checker/README.md). See the

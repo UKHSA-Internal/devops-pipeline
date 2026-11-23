@@ -69,9 +69,9 @@ def generated_clean_run_record() -> dict:
         deployment("prod-env-1", "Production", "2026-11-12T09:12:00Z"),
     ]
     test_suites = [
-        {"name": "unit", "result": "PASSED", "tests": 120, "failures": 0, "errors": 0, "duration_seconds": 41.2},
-        {"name": "integration", "result": "PASSED", "tests": 34, "failures": 0, "errors": 0, "duration_seconds": 96.5},
-        {"name": "coverage", "result": "PASSED", "tests": None, "failures": None, "errors": None, "duration_seconds": None},
+        {"name": "unit", "result": "PASSED", "tests": 120, "failures": 0, "errors": 0, "duration_seconds": 41.2, "coverage_percent": None},
+        {"name": "integration", "result": "PASSED", "tests": 34, "failures": 0, "errors": 0, "duration_seconds": 96.5, "coverage_percent": None},
+        {"name": "report", "result": "PASSED", "tests": None, "failures": None, "errors": None, "duration_seconds": 8.4, "coverage_percent": 87.5},
     ]
     return REPORT.create_report(environment, "2026-11-12T09:13:00Z", deployment_results, test_suites=test_suites)
 

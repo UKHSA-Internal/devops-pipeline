@@ -27,7 +27,8 @@
       "tests": 120,
       "failures": 0,
       "errors": 0,
-      "duration_seconds": 41.2
+      "duration_seconds": 41.2,
+      "coverage_percent": null
     },
     {
       "name": "integration",
@@ -35,15 +36,17 @@
       "tests": 34,
       "failures": 0,
       "errors": 0,
-      "duration_seconds": 96.5
+      "duration_seconds": 96.5,
+      "coverage_percent": null
     },
     {
-      "name": "coverage",
+      "name": "report",
       "result": "PASSED",
       "tests": null,
       "failures": null,
       "errors": null,
-      "duration_seconds": null
+      "duration_seconds": 8.4,
+      "coverage_percent": 87.5
     }
   ],
   "environments": [
