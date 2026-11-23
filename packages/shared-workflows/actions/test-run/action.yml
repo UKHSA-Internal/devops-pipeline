@@ -14,14 +14,6 @@ inputs:
   command:
     description: Single-line command from the test plan
     required: true
-  setup_command:
-    description: Setup command from the test plan
-    required: false
-    default: ''
-  run_setup:
-    description: Set to true to run the setup command before the command
-    required: false
-    default: 'false'
   runtime:
     description: Runtime description from test-runtime, shown in the step's job summary
     required: false
@@ -34,20 +26,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Run Setup
-      id: setup
-      if: ${{ inputs.run_setup == 'true' && inputs.setup_command != '' }}
-      shell: bash
-      env:
-        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
-        SETUP_COMMAND: ${{ inputs.setup_command }}
-        STEP_NAME: ${{ inputs.name }}
-      run: |
-        set -euo pipefail
-        printf '[STEP: TEST] %s: running setup in %s: %s\n' "$STEP_NAME" "$SERVICE_DIRECTORY" "$SETUP_COMMAND"
-        cd "$SERVICE_DIRECTORY"
-        bash -e -o pipefail -c "$SETUP_COMMAND"
-
     # Lets the result ignore test-results files that were there before the command ran,
     # such as the ones the final step downloads from the suites.
     - name: Snapshot Test Results
@@ -57,7 +35,7 @@ runs:
         SNAPSHOT_FILE: ${{ runner.temp }}/test-results-before-${{ inputs.name }}.json
       run: |
         set -euo pipefail
-        python3 "${{ github.action_path }}/junit_summary.py" snapshot
+        python3 "${{ github.action_path }}/record_result.py" snapshot
 
     - name: Run Command
       id: run
@@ -96,7 +74,7 @@ runs:
         else
           export RESULT_DIRECTORY="$RUNNER_TEMP/test-suite-result"
         fi
-        python3 "${{ github.action_path }}/junit_summary.py"
+        python3 "${{ github.action_path }}/record_result.py"
 
     # The test-<suite> artifact holds the collect files and test-results/*.xml. Each suite's
     # summary (tests, failures, errors, duration) is built from its own XML before this upload,

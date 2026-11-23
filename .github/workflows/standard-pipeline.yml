@@ -29,7 +29,6 @@ jobs:
       test_suites: ${{ steps.deployments.outputs.test_suites }}
       test_setup: ${{ steps.deployments.outputs.test_setup }}
       test_collect: ${{ steps.deployments.outputs.test_collect }}
-      test_has_final: ${{ steps.deployments.outputs.test_has_final }}
       test_final_name: ${{ steps.deployments.outputs.test_final_name }}
       test_final_command: ${{ steps.deployments.outputs.test_final_command }}
       language: ${{ steps.deployments.outputs.language }}
@@ -148,6 +147,18 @@ jobs:
           service_directory: ${{ needs.check.outputs.service_directory }}
           language: ${{ needs.check.outputs.language }}
 
+      - name: Run Setup
+        if: ${{ needs.check.outputs.test_setup != '' }}
+        shell: bash
+        working-directory: ${{ needs.check.outputs.service_directory }}
+        env:
+          SETUP_COMMAND: ${{ needs.check.outputs.test_setup }}
+          SUITE_NAME: ${{ matrix.suite.name }}
+        run: |
+          set -euo pipefail
+          printf '[STEP: TEST] %s: running setup: %s\n' "$SUITE_NAME" "$SETUP_COMMAND"
+          bash -e -o pipefail -c "$SETUP_COMMAND"
+
       - name: Run Suite
         uses: ./packages/shared-workflows/actions/test-run
         with:
@@ -156,8 +167,6 @@ jobs:
           name: ${{ matrix.suite.name }}
           command: ${{ matrix.suite.command }}
           runtime: ${{ steps.runtime.outputs.description }}
-          setup_command: ${{ needs.check.outputs.test_setup }}
-          run_setup: ${{ needs.check.outputs.test_setup != '' }}
           collect: ${{ needs.check.outputs.test_collect }}
 
   test-final:
@@ -165,7 +174,7 @@ jobs:
     needs: [check, test-suites]
     if: >-
       !cancelled() && needs.check.result == 'success'
-      && needs.check.outputs.test_has_final == 'true'
+      && needs.check.outputs.test_final_name != ''
       && needs.test-suites.result == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -212,7 +221,6 @@ jobs:
           name: ${{ needs.check.outputs.test_final_name }}
           command: ${{ needs.check.outputs.test_final_command }}
           runtime: ${{ steps.runtime.outputs.description }}
-          run_setup: 'false'
 
   # One result for the whole Test stage, so Scan and the run record don't need
   # to know how many jobs it has. Skipped when Check fails.
@@ -228,7 +236,7 @@ jobs:
       - name: Aggregate Test Results
         shell: bash
         env:
-          HAS_FINAL: ${{ needs.check.outputs.test_has_final }}
+          HAS_FINAL: ${{ needs.check.outputs.test_final_name != '' }}
           SUITES_RESULT: ${{ needs.test-suites.result }}
           FINAL_RESULT: ${{ needs.test-final.result }}
         run: |

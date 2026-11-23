@@ -89,11 +89,9 @@ def test_outputs(plan: dict, service_directory: str) -> dict:
     """Flatten the test plan into the values the workflow jobs read."""
     final = plan["final"]
     return {
-        "test_plan": plan,
         "test_suites": plan["suites"],
         "test_setup": plan["setup"],
         "test_collect": "\n".join(plan["collect"]),
-        "test_has_final": "true" if final else "false",
         "test_final_name": final["name"] if final else "",
         "test_final_command": final["command"] if final else "",
     }
@@ -147,12 +145,11 @@ def append_summary(plan: dict, summary_path: Path) -> None:
                 f"| {deployment['category']} | `{deployment['name']}` | {deployment['region']} |\n"
             )
         summary.write("\n")
-        plan = plan["test_plan"]
         summary.write("### Test plan\n\n")
-        names = ", ".join("`" + item["name"] + "`" for item in plan["suites"])
+        names = ", ".join("`" + item["name"] + "`" for item in plan["test_suites"])
         summary.write(f"- Suites (run in parallel): {names}\n")
-        if plan["final"]:
-            summary.write(f"- Final step: `{plan['final']['name']}`\n")
+        if plan["test_final_name"]:
+            summary.write(f"- Final step: `{plan['test_final_name']}`\n")
         summary.write("\n")
 
 

@@ -53,15 +53,8 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in plan["prod_deployments"]], ["prod"])
         self.assertEqual(plan["health_endpoint"], "/health")
         self.assertEqual(plan["timeout_seconds"], 60)
-        self.assertEqual(
-            plan["test_plan"],
-            {
-                "setup": "",
-                "suites": [{"name": "test", "command": "python3 -m unittest discover"}],
-                "collect": [],
-                "final": None,
-            },
-        )
+        self.assertEqual(plan["test_suites"], [{"name": "test", "command": "python3 -m unittest discover"}])
+        self.assertEqual((plan["test_setup"], plan["test_collect"], plan["test_final_name"]), ("", "", ""))
 
     def test_supports_multiple_deployments_per_category_in_promotion_order(self):
         plan = RESOLVER.resolve(
@@ -128,16 +121,15 @@ class ResolveDeploymentsTests(unittest.TestCase):
 
     def test_outputs_are_delimited_so_values_cannot_add_outputs(self):
         plan = RESOLVER.resolve(
-            settings(verification={"health_endpoint": "/health\ntest_plan=injected", "timeout_seconds": 60})
+            settings(verification={"health_endpoint": "/health\nlanguage=injected", "timeout_seconds": 60})
         )
         with tempfile.TemporaryDirectory() as directory:
             output_path = Path(directory) / "output"
             RESOLVER.write_outputs(plan, output_path)
             lines = output_path.read_text(encoding="utf-8").splitlines()
 
-        self.assertEqual(sum(line.startswith("test_plan<<") for line in lines), 1)
-        self.assertIn("test_plan=injected", lines)
-        self.assertTrue(lines[0].startswith("test_plan<<EOF_"))
+        self.assertEqual(sum(line.startswith("language<<") for line in lines), 1)
+        self.assertIn("language=injected", lines)
 
 
 STRUCTURED_TEST = {
@@ -167,17 +159,15 @@ class ResolveTestPlanTests(unittest.TestCase):
 
         self.assertEqual(plan["test_suites"], [{"name": "test", "command": "make test"}])
         self.assertEqual(plan["test_setup"], "")
-        self.assertEqual(plan["test_has_final"], "false")
+        self.assertEqual(plan["test_final_name"], "")
         self.assertEqual(plan["test_collect"], "")
 
     def test_full_test_block(self):
         plan = RESOLVER.resolve(structured_settings())
 
-        self.assertEqual(plan["test_plan"], STRUCTURED_TEST)
         self.assertEqual([suite["name"] for suite in plan["test_suites"]], ["unit", "api"])
         self.assertEqual(plan["test_setup"], "python3 -m venv .venv")
         self.assertEqual(plan["test_collect"], ".coverage.*")
-        self.assertEqual(plan["test_has_final"], "true")
         self.assertEqual((plan["test_final_name"], plan["test_final_command"]), ("coverage", "python3 -m coverage combine"))
 
     def test_optional_parts_can_be_left_out(self):
@@ -187,7 +177,7 @@ class ResolveTestPlanTests(unittest.TestCase):
 
         plan = RESOLVER.resolve(values)
 
-        self.assertEqual(plan["test_has_final"], "false")
+        self.assertEqual(plan["test_final_name"], "")
         self.assertEqual(plan["test_setup"], "")
         self.assertEqual(len(plan["test_suites"]), 2)
 

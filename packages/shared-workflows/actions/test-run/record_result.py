@@ -6,7 +6,7 @@ and the optional files the step wrote to <service directory>/test-results/: JUni
 (*.xml) and a Cobertura coverage.xml. Only files written or changed while the step's command
 ran are read, so files downloaded from other jobs are never counted for this step.
 
-`junit_summary.py snapshot` records the files that exist before the command runs. With no
+`record_result.py snapshot` records the files that exist before the command runs. With no
 argument, the script writes the result file the run record is built from and appends this
 step's summary to the job summary.
 """

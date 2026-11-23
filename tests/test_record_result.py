@@ -14,11 +14,11 @@ SUMMARY_PATH = (
     / "shared-workflows"
     / "actions"
     / "test-run"
-    / "junit_summary.py"
+    / "record_result.py"
 )
-SPEC = importlib.util.spec_from_file_location("junit_summary", SUMMARY_PATH)
+SPEC = importlib.util.spec_from_file_location("record_result", SUMMARY_PATH)
 if SPEC is None or SPEC.loader is None:
-    raise ImportError(f"Unable to load JUnit summary from {SUMMARY_PATH}")
+    raise ImportError(f"Unable to load record_result from {SUMMARY_PATH}")
 SUMMARY = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY)
 
