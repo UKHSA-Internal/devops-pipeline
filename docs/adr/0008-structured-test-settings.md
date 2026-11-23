@@ -75,5 +75,7 @@ Other decisions:
 - Services that use `test` need the pipeline release that adds contract 1.1.
   From then on, CHK-20 stops a pipeline from running settings written for a
   newer contract than it understands.
-- Services with `test_command` behave as before, as one suite. The sample app,
-  the app template and the smoke test stay on `test_command`.
+- Services with `test_command` behave as before, as one suite. The app
+  template and the smoke test stay on `test_command`. The sample app uses
+  `test` with `unit` and `integration` suites, so the platform's own pipeline
+  exercises parallel suites.
