@@ -82,12 +82,20 @@ def load_test_suites(planned_names: list[str], results_dir: Path, test_result: s
                     "result": recorded["result"],
                     "tests": recorded["tests"],
                     "failures": recorded["failures"],
+                    "errors": recorded["errors"],
                     "duration_seconds": recorded["duration_seconds"],
                 }
             )
         else:
             entries.append(
-                {"name": name, "result": "SKIPPED", "tests": None, "failures": None, "duration_seconds": None}
+                {
+                    "name": name,
+                    "result": "SKIPPED",
+                    "tests": None,
+                    "failures": None,
+                    "errors": None,
+                    "duration_seconds": None,
+                }
             )
     return entries
 
@@ -269,10 +277,14 @@ def append_summary(report: dict[str, object], summary_path: Path) -> None:
             summary.write(f"| {step.replace('-', ' ').title()} | **{result}** |\n")
         summary.write("\n")
         if report["test_suites"]:
-            summary.write("| Test | Result | Tests | Failures | Duration (s) |\n| --- | --- | --- | --- | --- |\n")
+            summary.write("| Test | Result | Tests | Failures | Errors | Duration (s) |\n| --- | --- | --- | --- | --- | --- |\n")
             for suite in report["test_suites"]:
-                counts = [("-" if suite[key] is None else suite[key]) for key in ("tests", "failures", "duration_seconds")]
-                summary.write(f"| {suite['name']} | **{suite['result']}** | {counts[0]} | {counts[1]} | {counts[2]} |\n")
+                counts = [
+                    "-" if suite[key] is None else suite[key] for key in ("tests", "failures", "errors", "duration_seconds")
+                ]
+                summary.write(
+                    f"| {suite['name']} | **{suite['result']}** | {counts[0]} | {counts[1]} | {counts[2]} | {counts[3]} |\n"
+                )
             summary.write("\n")
         summary.write("| Deployment | Category | Deploy | Verify |\n| --- | --- | --- | --- |\n")
         for deployment in report["environments"]:

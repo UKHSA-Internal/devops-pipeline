@@ -78,6 +78,10 @@ runs:
         fi
         python3 "${{ github.action_path }}/junit_summary.py"
 
+    # The test-<suite> artifact holds the collect files and test-results/*.xml. Each suite's
+    # summary (tests, failures, errors, duration) is built from its own XML before this upload,
+    # so the final step's download merging same-named XML files from several suites, with
+    # one overwriting another, doesn't change any result.
     - name: Stage Suite Files
       if: ${{ always() && inputs.kind == 'suite' && env.ACT != 'true' }}
       shell: bash

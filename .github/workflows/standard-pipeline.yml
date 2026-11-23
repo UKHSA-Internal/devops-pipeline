@@ -134,10 +134,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # The suites and the final step use this hash, so every job shares one cache key.
+    outputs:
+      key_hash: ${{ steps.key.outputs.hash }}
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
+
+      - name: Hash Cache Key Files
+        id: key
+        shell: bash
+        env:
+          KEY_HASH: ${{ hashFiles(needs.check.outputs.test_cache_key_files) }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEY_HASH" ]]; then
+            printf '::error title=Test setup::service.test.cache.key_files matched no files\n'
+            exit 1
+          fi
+          printf 'hash=%s\n' "$KEY_HASH" >> "$GITHUB_OUTPUT"
 
       - name: Set Up Runtime
         id: runtime
@@ -154,7 +170,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ needs.check.outputs.test_cache_paths }}
-          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ hashFiles(needs.check.outputs.test_cache_key_files) }}
+          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ steps.key.outputs.hash }}
 
       - name: Run Setup
         if: ${{ steps.cache.outputs.cache-hit != 'true' && needs.check.outputs.test_setup != '' }}
@@ -171,9 +187,11 @@ jobs:
     name: Test (${{ matrix.suite.name }})
     needs: [check, test-setup]
     if: >-
-      always() && needs.check.result == 'success'
+      !cancelled() && needs.check.result == 'success'
       && (needs.test-setup.result == 'success' || needs.test-setup.result == 'skipped')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -197,7 +215,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ needs.check.outputs.test_cache_paths }}
-          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ hashFiles(needs.check.outputs.test_cache_key_files) }}
+          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ needs.test-setup.outputs.key_hash }}
 
       - name: Run Suite
         uses: ./packages/shared-workflows/actions/test-run
@@ -214,11 +232,13 @@ jobs:
     name: Test (${{ needs.check.outputs.test_final_name }})
     needs: [check, test-setup, test-suites]
     if: >-
-      always() && needs.check.result == 'success'
+      !cancelled() && needs.check.result == 'success'
       && needs.check.outputs.test_has_final == 'true'
       && needs.test-suites.result == 'success'
       && (needs.test-setup.result == 'success' || needs.test-setup.result == 'skipped')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout Caller Repo
         uses: actions/checkout@v7
@@ -238,7 +258,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ needs.check.outputs.test_cache_paths }}
-          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ hashFiles(needs.check.outputs.test_cache_key_files) }}
+          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ needs.test-setup.outputs.key_hash }}
 
       # Under act the jobs share the bound workspace, so the files are already there.
       - name: Download Suite Files
@@ -264,8 +284,9 @@ jobs:
   test:
     name: Test
     needs: [check, test-setup, test-suites, test-final]
-    if: always() && needs.check.result == 'success'
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Aggregate Test Results
         shell: bash

@@ -86,7 +86,8 @@ service:
   result is shown.
 - **One result.** The Test stage passes only if every suite and the final step
   pass. The run record's `steps.test` keeps that meaning, and `test_suites`
-  lists each suite and the final step. A step that never ran is `SKIPPED`.
+  lists each suite and the final step with its tests, failures, errors and
+  duration. A step that never ran is `SKIPPED`.
 
 Every command is a single line. The checker rules are CHK-20 to CHK-24 in the
 [checker reference](../packages/settings-checker/README.md). See the

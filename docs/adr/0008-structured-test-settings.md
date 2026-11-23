@@ -1,6 +1,6 @@
 # 8. Structured test settings with parallel suites
 
-* **Status:** Accepted
+* **Status:** Approved
 * **Date:** 2026-11-19
 
 ## Context

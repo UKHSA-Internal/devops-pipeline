@@ -262,7 +262,14 @@ class TestSuitesTests(unittest.TestCase):
             for recorded in (
                 self.recorded("unit", tests=7, duration=2.5),
                 self.recorded("api", result="FAILED", failures=2),
-                {**self.recorded("coverage"), "kind": "final", "tests": None, "failures": None, "duration_seconds": None},
+                {
+                    **self.recorded("coverage"),
+                    "kind": "final",
+                    "tests": None,
+                    "failures": None,
+                    "errors": None,
+                    "duration_seconds": None,
+                },
             ):
                 (results / f"{recorded['name']}.json").write_text(json.dumps(recorded), encoding="utf-8")
 
@@ -270,13 +277,22 @@ class TestSuitesTests(unittest.TestCase):
 
         self.assertEqual([suite["name"] for suite in suites], ["unit", "api", "coverage"])
         self.assertEqual(
-            suites[0], {"name": "unit", "result": "PASSED", "tests": 7, "failures": 0, "duration_seconds": 2.5}
+            suites[0],
+            {"name": "unit", "result": "PASSED", "tests": 7, "failures": 0, "errors": 0, "duration_seconds": 2.5},
         )
         self.assertEqual((suites[1]["result"], suites[1]["failures"]), ("FAILED", 2))
         self.assertEqual(
-            suites[2], {"name": "coverage", "result": "PASSED", "tests": None, "failures": None, "duration_seconds": None}
+            suites[2],
+            {
+                "name": "coverage",
+                "result": "PASSED",
+                "tests": None,
+                "failures": None,
+                "errors": None,
+                "duration_seconds": None,
+            },
         )
-        self.assertNotIn("errors", suites[1])
+        self.assertEqual(suites[1]["errors"], 0)
 
     def test_planned_step_without_a_result_file_is_skipped(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -367,8 +383,15 @@ class RunRecordFileTests(unittest.TestCase):
         self.assertEqual(
             record["test_suites"],
             [
-                {"name": "unit", "result": "PASSED", "tests": 3, "failures": 0, "duration_seconds": 0.5},
-                {"name": "coverage", "result": "SKIPPED", "tests": None, "failures": None, "duration_seconds": None},
+                {"name": "unit", "result": "PASSED", "tests": 3, "failures": 0, "errors": 0, "duration_seconds": 0.5},
+                {
+                    "name": "coverage",
+                    "result": "SKIPPED",
+                    "tests": None,
+                    "failures": None,
+                    "errors": None,
+                    "duration_seconds": None,
+                },
             ],
         )
 
