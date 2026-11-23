@@ -70,44 +70,28 @@ def resolve_test(service: dict) -> dict:
     if "test" not in service:
         return {
             "setup": "",
-            "cache": None,
             "suites": [{"name": SHORTHAND_SUITE, "command": service["test_command"].strip()}],
             "collect": [],
             "final": None,
         }
 
     test = service["test"]
-    cache = test.get("cache")
-    if cache is not None:
-        for key in ("paths", "key_files"):
-            if not cache.get(key):
-                raise ValueError(f"service.test.cache.{key} is required when service.test.cache is set")
-        cache = {"paths": list(cache["paths"]), "key_files": list(cache["key_files"])}
     final = test.get("final")
     return {
         "setup": (test.get("setup") or "").strip(),
-        "cache": cache,
         "suites": [{"name": suite["name"], "command": suite["command"].strip()} for suite in test["suites"]],
         "collect": list(test.get("collect") or []),
         "final": {"name": final["name"], "command": final["command"].strip()} if final else None,
     }
 
 
-def in_service(service_directory: str, paths: list) -> str:
-    """Return the paths, one per line, relative to the repository root, as the cache action and hashFiles need."""
-    return "\n".join(posixpath.normpath(posixpath.join(service_directory, path)) for path in paths)
-
-
 def test_outputs(plan: dict, service_directory: str) -> dict:
     """Flatten the test plan into the values the workflow jobs read."""
-    cache, final = plan["cache"], plan["final"]
+    final = plan["final"]
     return {
         "test_plan": plan,
         "test_suites": plan["suites"],
         "test_setup": plan["setup"],
-        "test_has_cache": "true" if cache else "false",
-        "test_cache_paths": in_service(service_directory, cache["paths"]) if cache else "",
-        "test_cache_key_files": in_service(service_directory, cache["key_files"]) if cache else "",
         "test_collect": "\n".join(plan["collect"]),
         "test_has_final": "true" if final else "false",
         "test_final_name": final["name"] if final else "",
@@ -167,7 +151,6 @@ def append_summary(plan: dict, summary_path: Path) -> None:
         summary.write("### Test plan\n\n")
         names = ", ".join("`" + item["name"] + "`" for item in plan["suites"])
         summary.write(f"- Suites (run in parallel): {names}\n")
-        summary.write(f"- Cached setup: {'yes' if plan['cache'] else 'no'}\n")
         if plan["final"]:
             summary.write(f"- Final step: `{plan['final']['name']}`\n")
         summary.write("\n")

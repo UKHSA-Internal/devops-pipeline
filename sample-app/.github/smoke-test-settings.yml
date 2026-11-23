@@ -4,7 +4,7 @@
 # an exception that marks this as a platform test. The service directory is still
 # sample-app, because it is the parent of this .github directory. It uses the
 # structured test settings so the smoke test covers the whole Test stage on hosted
-# runners: the cached setup job, parallel suites, collected files and the final step.
+# runners: setup, parallel suites, collected files and the final step.
 version: "1.1"
 
 service:
@@ -12,15 +12,12 @@ service:
   owner_team: "platform-leads"
   language: "python"
   test:
-    setup: "mkdir -p .test-cache && echo ready > .test-cache/ready"
-    cache:
-      paths: [".test-cache"]
-      key_files: [".python-version"]
+    setup: "echo ready > .smoke-setup"
     suites:
       - name: unit
-        command: "test -f .test-cache/ready && python3 -m unittest discover -s tests/unit -v && echo unit > .smoke-unit.done"
+        command: "test -f .smoke-setup && python3 -m unittest discover -s tests/unit -v && echo unit > .smoke-unit.done"
       - name: integration
-        command: "test -f .test-cache/ready && python3 -m unittest discover -s tests/integration -v && echo integration > .smoke-integration.done"
+        command: "test -f .smoke-setup && python3 -m unittest discover -s tests/integration -v && echo integration > .smoke-integration.done"
     collect: [".smoke-*.done"]
     final:
       name: verify

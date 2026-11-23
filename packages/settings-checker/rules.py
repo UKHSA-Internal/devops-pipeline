@@ -326,12 +326,6 @@ def test_paths(settings, report):
     if test is None:
         return  # Reported by CHK-22.
     paths_message = "must be a list of relative paths inside the repository, without '..'"
-    cache = report.section(test, "service.test.cache", required=False)
-    if cache is not None:
-        _path_list(report, cache, "service.test.cache.paths", is_relative_path, paths_message, required=True)
-        _path_list(
-            report, cache, "service.test.cache.key_files", is_single_line, "must be a list of file patterns", required=True
-        )
     _path_list(report, test, "service.test.collect", is_relative_path, paths_message, required=False)
 
 

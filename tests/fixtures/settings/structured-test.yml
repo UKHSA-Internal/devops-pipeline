@@ -7,9 +7,6 @@ service:
   language: "python"
   test:
     setup: "python3 -m venv .venv"
-    cache:
-      paths: [".venv"]
-      key_files: ["requirements*.txt", ".python-version"]
     suites:
       - name: unit
         command: "python3 -m unittest discover -s tests/unit"

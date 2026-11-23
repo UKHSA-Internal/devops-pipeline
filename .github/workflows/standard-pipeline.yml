@@ -28,9 +28,6 @@ jobs:
       prod_deployments: ${{ steps.deployments.outputs.prod_deployments }}
       test_suites: ${{ steps.deployments.outputs.test_suites }}
       test_setup: ${{ steps.deployments.outputs.test_setup }}
-      test_has_cache: ${{ steps.deployments.outputs.test_has_cache }}
-      test_cache_paths: ${{ steps.deployments.outputs.test_cache_paths }}
-      test_cache_key_files: ${{ steps.deployments.outputs.test_cache_key_files }}
       test_collect: ${{ steps.deployments.outputs.test_collect }}
       test_has_final: ${{ steps.deployments.outputs.test_has_final }}
       test_final_name: ${{ steps.deployments.outputs.test_final_name }}
@@ -125,70 +122,13 @@ jobs:
           printf '[STEP: CHECK] %s\n' "$CHECK_RESULT"
           printf -- '- Check action: **%s**\n' "$CHECK_RESULT" >> "$GITHUB_STEP_SUMMARY"
 
-  # The Test stage is several jobs: an optional cached setup, one job per suite,
-  # an optional final step, and the "test" job that gives the stage one result.
-  test-setup:
-    name: Test setup
-    needs: check
-    if: needs.check.outputs.test_has_cache == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    # The suites and the final step use this hash, so every job shares one cache key.
-    outputs:
-      key_hash: ${{ steps.key.outputs.hash }}
-    steps:
-      - name: Checkout Caller Repo
-        uses: actions/checkout@v7
-        if: ${{ env.ACT != 'true' }}
-
-      - name: Hash Cache Key Files
-        id: key
-        shell: bash
-        env:
-          KEY_HASH: ${{ hashFiles(needs.check.outputs.test_cache_key_files) }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$KEY_HASH" ]]; then
-            printf '::error title=Test setup::service.test.cache.key_files matched no files\n'
-            exit 1
-          fi
-          printf 'hash=%s\n' "$KEY_HASH" >> "$GITHUB_OUTPUT"
-
-      - name: Set Up Runtime
-        id: runtime
-        uses: ./packages/shared-workflows/actions/test-runtime
-        with:
-          service_directory: ${{ needs.check.outputs.service_directory }}
-          language: ${{ needs.check.outputs.language }}
-          setup_command: ${{ needs.check.outputs.test_setup }}
-
-      # Saves the cache after the job when the restore missed.
-      - name: Restore Cache
-        id: cache
-        if: ${{ env.ACT != 'true' }}
-        uses: actions/cache@v6
-        with:
-          path: ${{ needs.check.outputs.test_cache_paths }}
-          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ steps.key.outputs.hash }}
-
-      - name: Run Setup
-        if: ${{ steps.cache.outputs.cache-hit != 'true' && needs.check.outputs.test_setup != '' }}
-        shell: bash
-        working-directory: ${{ needs.check.outputs.service_directory }}
-        env:
-          SETUP_COMMAND: ${{ needs.check.outputs.test_setup }}
-        run: |
-          set -euo pipefail
-          printf '[STEP: TEST] Setup: cache miss, running: %s\n' "$SETUP_COMMAND"
-          bash -e -o pipefail -c "$SETUP_COMMAND"
-
+  # The Test stage is several jobs: one job per suite, an optional final step,
+  # and the "test" job that gives the stage one result. Setup runs at the start of
+  # each suite job and of the final step.
   test-suites:
     name: Test (${{ matrix.suite.name }})
-    needs: [check, test-setup]
-    if: >-
-      !cancelled() && needs.check.result == 'success'
-      && (needs.test-setup.result == 'success' || needs.test-setup.result == 'skipped')
+    needs: check
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -207,15 +147,6 @@ jobs:
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           language: ${{ needs.check.outputs.language }}
-          setup_command: ${{ needs.check.outputs.test_setup }}
-
-      - name: Restore Cache
-        id: cache
-        if: ${{ needs.check.outputs.test_has_cache == 'true' && env.ACT != 'true' }}
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ needs.check.outputs.test_cache_paths }}
-          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ needs.test-setup.outputs.key_hash }}
 
       - name: Run Suite
         uses: ./packages/shared-workflows/actions/test-run
@@ -225,17 +156,16 @@ jobs:
           name: ${{ matrix.suite.name }}
           command: ${{ matrix.suite.command }}
           setup_command: ${{ needs.check.outputs.test_setup }}
-          run_setup: ${{ needs.check.outputs.test_setup != '' && steps.cache.outputs.cache-hit != 'true' }}
+          run_setup: ${{ needs.check.outputs.test_setup != '' }}
           collect: ${{ needs.check.outputs.test_collect }}
 
   test-final:
     name: Test (${{ needs.check.outputs.test_final_name }})
-    needs: [check, test-setup, test-suites]
+    needs: [check, test-suites]
     if: >-
       !cancelled() && needs.check.result == 'success'
       && needs.check.outputs.test_has_final == 'true'
       && needs.test-suites.result == 'success'
-      && (needs.test-setup.result == 'success' || needs.test-setup.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -250,15 +180,6 @@ jobs:
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
           language: ${{ needs.check.outputs.language }}
-          setup_command: ${{ needs.check.outputs.test_setup }}
-
-      - name: Restore Cache
-        id: cache
-        if: ${{ needs.check.outputs.test_has_cache == 'true' && env.ACT != 'true' }}
-        uses: actions/cache/restore@v6
-        with:
-          path: ${{ needs.check.outputs.test_cache_paths }}
-          key: ${{ steps.runtime.outputs.cache_key_prefix }}-${{ needs.test-setup.outputs.key_hash }}
 
       # Under act the jobs share the bound workspace, so the files are already there.
       - name: Download Suite Files
@@ -277,13 +198,13 @@ jobs:
           name: ${{ needs.check.outputs.test_final_name }}
           command: ${{ needs.check.outputs.test_final_command }}
           setup_command: ${{ needs.check.outputs.test_setup }}
-          run_setup: ${{ needs.check.outputs.test_setup != '' && steps.cache.outputs.cache-hit != 'true' }}
+          run_setup: ${{ needs.check.outputs.test_setup != '' }}
 
   # One result for the whole Test stage, so Scan and the run record don't need
   # to know how many jobs it has. Skipped when Check fails.
   test:
     name: Test
-    needs: [check, test-setup, test-suites, test-final]
+    needs: [check, test-suites, test-final]
     if: ${{ !cancelled() && needs.check.result == 'success' }}
     runs-on: ubuntu-latest
     permissions: {}
@@ -291,21 +212,18 @@ jobs:
       - name: Aggregate Test Results
         shell: bash
         env:
-          HAS_CACHE: ${{ needs.check.outputs.test_has_cache }}
           HAS_FINAL: ${{ needs.check.outputs.test_has_final }}
-          SETUP_RESULT: ${{ needs.test-setup.result }}
           SUITES_RESULT: ${{ needs.test-suites.result }}
           FINAL_RESULT: ${{ needs.test-final.result }}
         run: |
           set -euo pipefail
           status=0
-          [[ "$HAS_CACHE" != "true" || "$SETUP_RESULT" == "success" ]] || status=1
           [[ "$SUITES_RESULT" == "success" ]] || status=1
           [[ "$HAS_FINAL" != "true" || "$FINAL_RESULT" == "success" ]] || status=1
-          printf '[STEP: TEST] Setup: %s, suites: %s, final: %s\n' "$SETUP_RESULT" "$SUITES_RESULT" "$FINAL_RESULT"
+          printf '[STEP: TEST] Suites: %s, final: %s\n' "$SUITES_RESULT" "$FINAL_RESULT"
           {
             printf '## Test\n\n'
-            printf -- '- Setup: **%s**\n- Suites: **%s**\n- Final step: **%s**\n' "$SETUP_RESULT" "$SUITES_RESULT" "$FINAL_RESULT"
+            printf -- '- Suites: **%s**\n- Final step: **%s**\n' "$SUITES_RESULT" "$FINAL_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
@@ -313,7 +231,7 @@ jobs:
     name: Scan
     needs: test
     # Explicit status checks: the default success() also skips a job when any
-    # ancestor was skipped, and Test setup and the final step skip by design.
+    # ancestor was skipped, and the final step skips by design.
     if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:

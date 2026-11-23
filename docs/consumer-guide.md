@@ -46,7 +46,7 @@ placeholder with the service's real tests. The
 
 For more than one command, use a `service.test` block instead of
 `test_command` (set exactly one of them). `test_command` stays valid: it is
-shorthand for one suite named `test`, with no setup, cache or final step.
+shorthand for one suite named `test`, with no setup or final step.
 The [sample app](../sample-app/README.md) runs `unit` and `integration` suites
 this way.
 
@@ -56,9 +56,6 @@ version: "1.1"
 service:
   test:
     setup: "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
-    cache:
-      paths: [".venv"]
-      key_files: ["requirements*.txt", ".python-version"]
     suites:
       - name: unit
         command: ".venv/bin/python -m pytest tests/unit --junitxml=test-results/unit.xml"
@@ -72,12 +69,9 @@ service:
 
 - **Suites** (1 to 10) always run in parallel, each as its own "Test (name)"
   job. To run commands in order, chain them in one suite.
-- **Setup and cache.** With `cache`, a "Test setup" job runs `setup` once and
-  saves the cache, and every suite restores it. On a miss, they run `setup`
-  themselves. Without `cache`, each suite runs `setup` first. Cache `paths`,
-  `key_files` and `collect` are relative to the service directory and can't
-  contain `..`. The key covers the OS, architecture, language version, the
-  `setup` command and the `key_files`.
+- **Setup.** `setup` runs at the start of each suite job and of the final
+  step. `collect` paths are relative to the service directory and can't
+  contain `..`.
 - **Collect and final.** Each suite uploads the `collect` files. The `final`
   step runs only if every suite passed, with all of them downloaded into the
   service directory, so it can combine coverage without running tests again.

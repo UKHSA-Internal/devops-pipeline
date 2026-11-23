@@ -8,7 +8,7 @@ inputs:
 
 outputs:
   test_plan:
-    description: JSON test plan (setup, cache, suites, collect, final) resolved from service.test or service.test_command
+    description: JSON test plan (setup, suites, collect, final) resolved from service.test or service.test_command
     value: ${{ steps.resolve.outputs.test_plan }}
   test_suites:
     description: JSON list of the suites, each with a name and a command
@@ -16,15 +16,6 @@ outputs:
   test_setup:
     description: Setup command, or empty
     value: ${{ steps.resolve.outputs.test_setup }}
-  test_has_cache:
-    description: "true when the test plan has a cache"
-    value: ${{ steps.resolve.outputs.test_has_cache }}
-  test_cache_paths:
-    description: Cache paths, one per line, relative to the repository root
-    value: ${{ steps.resolve.outputs.test_cache_paths }}
-  test_cache_key_files:
-    description: Cache key file patterns, one per line, relative to the repository root
-    value: ${{ steps.resolve.outputs.test_cache_key_files }}
   test_collect:
     description: Files each suite uploads for the final step, one pattern per line, relative to the service directory
     value: ${{ steps.resolve.outputs.test_collect }}

@@ -119,10 +119,9 @@ it, rather than failing because only a different python version was
 preinstalled on the bare runner.
 
 `test-pipeline-structured-test` uses `tests/fixtures/structured-test/` to cover
-the `service.test` block. It has no cache, because act skips `actions/cache`
-and the artifact steps. The jobs share the bound workspace, so the final step
-still sees the files every suite collected. Caching and artifact transfer
-between jobs can only be tested on GitHub, for example with the
+the `service.test` block. Act skips the artifact steps. The jobs share the bound
+workspace, so the final step still sees the files every suite collected.
+Artifact transfer between jobs can only be tested on GitHub, for example with the
 [smoke test](workflow-release.md#canary-smoke-test) after a release.
 
 #### Apple Silicon

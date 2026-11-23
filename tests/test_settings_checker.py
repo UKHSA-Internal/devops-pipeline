@@ -31,7 +31,6 @@ EXPECTED_FIXTURE_RULES = {
     "test-and-test-command.yml": "CHK-21",
     "duplicate-suite-names.yml": "CHK-22",
     "multiline-suite-command.yml": "CHK-23",
-    "cache-without-key-files.yml": "CHK-24",
     "no-approvers.yml": "CHK-05",
     "no-production-environment.yml": "CHK-04",
     "unattended-without-exception-id.yml": "CHK-10",
@@ -109,7 +108,6 @@ def delete_path(path):
 
 STRUCTURED_TEST = {
     "setup": "python3 -m venv .venv",
-    "cache": {"paths": [".venv"], "key_files": ["requirements*.txt", ".python-version"]},
     "suites": [
         {"name": "unit", "command": "python3 -m unittest discover -s tests/unit"},
         {"name": "integration", "command": "python3 -m unittest discover -s tests/integration"},
@@ -272,15 +270,6 @@ FAILING_CASES = {
         "multiline final command": structured(set_path(["service", "test", "final", "command"], "a\r\nb")),
     },
     "CHK-24": {
-        "cache not a mapping": test_block("cache", ".venv"),
-        "cache without key_files": structured(delete_path(["service", "test", "cache", "key_files"])),
-        "cache without paths": structured(delete_path(["service", "test", "cache", "paths"])),
-        "empty cache paths": structured(set_path(["service", "test", "cache", "paths"], [])),
-        "empty key_files": structured(set_path(["service", "test", "cache", "key_files"], [])),
-        "absolute cache path": structured(set_path(["service", "test", "cache", "paths"], ["/opt/venv"])),
-        "parent cache path": structured(set_path(["service", "test", "cache", "paths"], ["../venv"])),
-        "nested parent cache path": structured(set_path(["service", "test", "cache", "paths"], ["a/../../b"])),
-        "cache paths not a list": structured(set_path(["service", "test", "cache", "paths"], ".venv")),
         "absolute collect path": test_block("collect", ["/tmp/.coverage"]),
         "parent collect path": test_block("collect", ["../.coverage"]),
         "collect not a list": test_block("collect", ".coverage.*"),
@@ -349,10 +338,9 @@ PASSING_CASES = {
         ),
     },
     "CHK-24": {
-        "cache omitted": structured(delete_path(["service", "test", "cache"])),
         "collect omitted": structured(delete_path(["service", "test", "collect"])),
         "empty collect": test_block("collect", []),
-        "nested relative paths": structured(set_path(["service", "test", "cache", "paths"], ["build/.venv", "./cache"])),
+        "nested relative paths": structured(set_path(["service", "test", "collect"], ["build/out", "./reports"])),
         "dots inside a name": structured(set_path(["service", "test", "collect"], ["reports/a..b.xml"])),
     },
     "CHK-11": {"command with arguments": set_path(["service", "test_command"], "make test ARGS='-v'")},

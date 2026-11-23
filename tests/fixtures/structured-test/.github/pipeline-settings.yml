@@ -1,4 +1,4 @@
-# Structured test settings: three parallel suites and a final step, with no cache.
+# Structured test settings: three parallel suites and a final step.
 version: "1.1"
 
 service:

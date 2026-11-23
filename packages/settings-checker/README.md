@@ -108,7 +108,7 @@ required or optional, its default, and the rule ID that checks it.
 | CHK-21 | Exactly one of `service.test` and `service.test_command` is set | Error |
 | CHK-22 | When `service.test` is set: 1 to 10 `suites`; each suite `name` is 1 to 32 lowercase letters, digits and hyphens, and unique; `final.name` has the same format and differs from every suite name | Error |
 | CHK-23 | When `service.test` is set: `setup` (if set), every suite `command` and `final.command` are single, non-empty lines | Error |
-| CHK-24 | When `service.test` is set: `cache.paths` and `collect` are relative paths inside the repository, with no `..`; `cache` needs both `paths` and `key_files`, and neither may be empty | Error |
+| CHK-24 | When `service.test` is set: `collect` holds relative paths inside the repository, with no `..` | Error |
 
 The owner team stands in for the platform approver configuration (CHK-05) until
 that configuration exists; the checker does not yet verify that each approver
