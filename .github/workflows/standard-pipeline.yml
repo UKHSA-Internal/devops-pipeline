@@ -291,6 +291,9 @@ jobs:
   scan:
     name: Scan
     needs: test
+    # Explicit status checks: the default success() also skips a job when any
+    # ancestor was skipped, and Test setup and the final step skip by design.
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -305,7 +308,10 @@ jobs:
   build:
     name: Build
     needs: [check, scan]
-    if: needs.check.outputs.should_build_and_deploy == 'true'
+    if: >-
+      !cancelled()
+      && needs.scan.result == 'success'
+      && needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -327,7 +333,10 @@ jobs:
   deploy-dev:
     name: Deploy Development (${{ matrix.deployment.name }})
     needs: [check, build]
-    if: needs.check.outputs.should_build_and_deploy == 'true'
+    if: >-
+      !cancelled()
+      && needs.build.result == 'success'
+      && needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -405,7 +414,11 @@ jobs:
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
     needs: [check, build, deploy-dev]
-    if: needs.check.outputs.should_deploy_main_only == 'true'
+    if: >-
+      !cancelled()
+      && needs.build.result == 'success'
+      && needs.deploy-dev.result == 'success'
+      && needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -486,7 +499,10 @@ jobs:
   approval-guard:
     name: Approval Guard
     needs: [check, deploy-preprod]
-    if: needs.check.outputs.should_deploy_main_only == 'true'
+    if: >-
+      !cancelled()
+      && needs.deploy-preprod.result == 'success'
+      && needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
     # No permissions block on purpose: inherit the caller's token, which needs
     # actions: read to read environment settings.
@@ -516,7 +532,11 @@ jobs:
     # The report finds this job by name: keep it equal to APPROVAL_JOB_NAME in
     # publish-run-report/approvals.py (a test checks).
     needs: [check, approval-guard]
-    if: needs.check.outputs.should_deploy_main_only == 'true' && needs.check.outputs.approval_mode != 'unattended'
+    if: >-
+      !cancelled()
+      && needs.approval-guard.result == 'success'
+      && needs.check.outputs.should_deploy_main_only == 'true'
+      && needs.check.outputs.approval_mode != 'unattended'
     runs-on: ubuntu-latest
     permissions:
       contents: read
