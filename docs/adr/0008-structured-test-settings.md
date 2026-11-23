@@ -47,7 +47,6 @@ Other decisions:
 - Suites always run in parallel. A service that needs an order chains commands
   in one suite.
 - At most 10 suites, to cap runner minutes.
-- `test_command` stays valid permanently, as shorthand for one suite.
 - JUnit XML in `test-results/` is a convention, not a setting.
 - Each suite's results, from the JUnit files in `test-results/`, appear in the
   job summary and in the run record's `test_suites[]`.

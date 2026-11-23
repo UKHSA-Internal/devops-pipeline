@@ -289,7 +289,8 @@ def test_suites(settings, report):
     final = report.section(test, "service.test.final", required=False)
     if final is not None:
         report.value(final, "service.test.final.name", matches(SUITE_NAME), NAME_MESSAGE)
-        if final.get("name") in names:
+        name = final.get("name")
+        if isinstance(name, str) and name in names:
             report.problem("service.test.final.name", "must differ from every suite name")
 
 

@@ -30,6 +30,7 @@ EXPECTED_FIXTURE_RULES = {
     "newer-settings-version.yml": "CHK-20",
     "test-and-test-command.yml": "CHK-21",
     "duplicate-suite-names.yml": "CHK-22",
+    "final-name-is-a-list.yml": "CHK-22",
     "multiline-suite-command.yml": "CHK-23",
     "no-approvers.yml": "CHK-05",
     "no-production-environment.yml": "CHK-04",
@@ -258,6 +259,7 @@ FAILING_CASES = {
         "missing final name": structured(delete_path(["service", "test", "final", "name"])),
         "final name matches a suite": structured(set_path(["service", "test", "final", "name"], "unit")),
         "final not a mapping": test_block("final", "coverage"),
+        "final name is a list": structured(set_path(["service", "test", "final", "name"], ["coverage"])),
     },
     "CHK-23": {
         "multiline setup": test_block("setup", "make deps\nmake more"),
