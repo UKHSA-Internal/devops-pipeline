@@ -42,7 +42,23 @@ copying the template without editing it does not pass unnoticed: each
 placeholder with the service's real tests. The
 [sample app](../sample-app/README.md) shows a working example.
 
-### Structured tests (contract 1.1)
+### Settings file versions
+
+The `version` field at the top of your settings file says which settings it
+uses. It's separate from the pipeline release you call (for example `@v1` or
+`v1.3.0`).
+
+| `version` | Adds | Needs pipeline release | ADR |
+| --- | --- | --- | --- |
+| `"1.0"` | The original settings | Any v1 | — |
+| `"1.1"` | `service.test`: named suites, setup, collect, final | The release that adds structured tests | [0007](adr/0007-structured-test-settings.md) |
+
+Use the lowest version that covers the settings you use. A version newer than
+the pipeline release supports fails Check (CHK-14).
+
+Using a field from a newer version than your `version` fails Check (CHK-14).
+
+### Structured tests (settings file version 1.1)
 
 For more than one command, use a `service.test` block instead of
 `test_command` (set exactly one of them). `test_command` stays valid: it is

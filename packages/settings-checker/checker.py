@@ -12,7 +12,7 @@ from pathlib import Path
 
 import yaml
 
-from rules import ERROR, WARNING, check
+from rules import ERROR, LATEST_SETTINGS_VERSION, WARNING, check
 
 DEFAULT_SETTINGS = Path(".github") / "pipeline-settings.yml"
 SYMBOLS = {ERROR: "✗", WARNING: "!"}
@@ -93,6 +93,8 @@ def as_markdown(report: dict) -> str:
         f"**{headline(report)}**",
         "",
         f"Settings file: `{cell(report['settings_file'])}`",
+        "",
+        f"Accepts settings file versions up to {LATEST_SETTINGS_VERSION}",
     ]
     if report["problems"]:
         lines += ["", "| | Field | Problem | Rule |", "| --- | --- | --- | --- |"]

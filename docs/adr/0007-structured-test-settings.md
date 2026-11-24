@@ -16,7 +16,7 @@ That service is the only real consumer so far. The shape of the test settings
 is set now, before other services copy it.
 
 ## Decision
-Add a `service.test` block. It is part of settings contract version 1.1 and is
+Add a `service.test` block. It is part of settings file version 1.1 and is
 additive: existing 1.0 files keep working.
 
 - `suites` (required): 1 to 10 named suites, each with a single-line `command`.
@@ -56,6 +56,8 @@ Other decisions:
 - Coverage is read from Cobertura XML at `test-results/coverage.xml`. Like
   JUnit, it's a convention, not a setting, and applies to any step.
 - The pipeline never treats a step differently because of its name.
+- Each settings file version lists the fields it introduced, and a test fails
+  if a new field isn't added under a new version.
 - New rules CHK-14 to CHK-18 are Errors. CHK-11 now applies only when
   `test_command` is set.
 - CHK-14 rejects a settings version newer than the pipeline supports; 1.1 is
@@ -82,9 +84,9 @@ Other decisions:
 - A more complex shared workflow.
 - The low-level design changes in sections 3.1 (Test), 4.1 (test settings and
   rules), 4.2 (optional test reports) and 4.4 (run record).
-- Services that use `test` need the pipeline release that adds contract 1.1.
-  From then on, CHK-14 stops a pipeline from running settings written for a
-  newer contract than it understands.
+- Services that use `test` need the pipeline release that adds settings file
+  version 1.1. From then on, CHK-14 stops a pipeline from running settings
+  written for a newer settings file version than it understands.
 - Services with `test_command` behave as before, as one suite. The app
   template stays on `test_command`. The sample app and the release smoke test
   use `test`, so the platform's own pipeline exercises parallel suites.

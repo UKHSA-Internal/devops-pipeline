@@ -9,7 +9,7 @@
 # Validate locally:
 #   python3 packages/settings-checker/checker.py --settings docs/examples/pipeline-settings.yml --strict
 
-version: "1.1" # required (string); CHK-01 warns if missing or not text; CHK-14 (Error) if newer than 1.1. "1.0" files stay valid
+version: "1.1" # required (string); CHK-01 warns if missing or not text; CHK-14 (Error) if newer than the pipeline supports; see docs/consumer-guide.md#settings-file-versions
 
 service:
   name: "payments-api" # required; CHK-02 warns if empty

@@ -1,4 +1,4 @@
-# Compliant: the structured test block (contract 1.1), no errors or warnings.
+# Compliant: the structured test block (settings file version 1.1), no errors or warnings.
 version: "1.1"
 
 service:

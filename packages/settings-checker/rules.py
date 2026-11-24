@@ -18,10 +18,72 @@ ENVIRONMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 URL_PATH = re.compile(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*")
 ACCOUNT_ID = re.compile(r"[0-9]{12}")
 PLACEHOLDER = re.compile(r"replace-with-|todo", re.IGNORECASE)
-SUPPORTED_SETTINGS_VERSION = (1, 1)
 SETTINGS_VERSION = re.compile(r"[0-9]+(\.[0-9]+)*")
 SUITE_NAME = re.compile(r"[a-z0-9-]{1,32}")
 MAX_SUITES = 10
+
+# Settings file version -> the field paths it introduced. "[]" stands for every
+# entry of a list. A new field goes under a new version, never an existing one;
+# tests/test_settings_checker.py fails if a field the rules read is missing.
+SETTINGS_VERSIONS = {
+    "1.0": (
+        "version",
+        "service",
+        "service.name",
+        "service.owner_team",
+        "service.language",
+        "service.test_command",
+        "environments",
+        "environments[].name",
+        "environments[].category",
+        "environments[].account_id",
+        "environments[].role_name",
+        "environments[].region",
+        "governance",
+        "governance.approvers",
+        "governance.retention_days",
+        "verification",
+        "verification.health_endpoint",
+        "verification.timeout_seconds",
+        "verification.db_check_required",
+        "verification.custom_checks",
+        "verification.custom_checks[].name",
+        "verification.custom_checks[].command",
+        "verification.custom_checks[].timeout_seconds",
+        "verification.custom_checks[].allow_failure",
+        "deploy",
+        "deploy.production",
+        "deploy.production.approval_mode",
+        "deploy.production.exception_id",
+    ),
+    "1.1": (
+        "service.test",
+        "service.test.setup",
+        "service.test.suites",
+        "service.test.suites[].name",
+        "service.test.suites[].command",
+        "service.test.collect",
+        "service.test.final",
+        "service.test.final.name",
+        "service.test.final.command",
+    ),
+}
+
+
+def parse_version(text: str) -> tuple:
+    return tuple(int(part) for part in text.split("."))
+
+
+def is_newer(version: tuple, than: tuple) -> bool:
+    """Compare versions as numbers by part, treating missing parts as zero."""
+    width = max(len(version), len(than))
+    pad = lambda numbers: numbers + (0,) * (width - len(numbers))
+    return pad(version) > pad(than)
+
+
+LATEST_SETTINGS_VERSION = max(SETTINGS_VERSIONS, key=parse_version)
+SUPPORTED_SETTINGS_VERSION = parse_version(LATEST_SETTINGS_VERSION)
+FIELD_VERSIONS = {field: version for version, fields in SETTINGS_VERSIONS.items() for field in fields}
 
 
 class Rule(NamedTuple):
@@ -210,12 +272,40 @@ def supported_version(settings, report):
     text = str(value).strip()
     if SETTINGS_VERSION.fullmatch(text) is None:
         return  # Reported by CHK-01 only when it is not text.
-    parts = tuple(int(part) for part in text.split("."))
-    width = max(len(parts), len(SUPPORTED_SETTINGS_VERSION))
-    pad = lambda numbers: numbers + (0,) * (width - len(numbers))
-    if pad(parts) > pad(SUPPORTED_SETTINGS_VERSION):
-        supported = ".".join(str(part) for part in SUPPORTED_SETTINGS_VERSION)
-        report.problem("version", f"{text} is newer than this pipeline supports (up to {supported})")
+    parts = parse_version(text)
+    if is_newer(parts, SUPPORTED_SETTINGS_VERSION):
+        report.problem("version", f"{text} is newer than this pipeline supports (up to {LATEST_SETTINGS_VERSION})")
+    for field, introduced in _fields_newer_than(settings, parts):
+        report.problem(field, f"needs settings file version {introduced} or later")
+
+
+def _fields_newer_than(value, version: tuple, path: str = "", field: str = "", seen=None):
+    """Yield (field, version) for each registered field introduced after version.
+
+    Fields inside a reported field are not reported again. Like _walk_strings,
+    it tracks containers on the current path so a cyclic YAML alias cannot
+    recurse forever.
+    """
+    if seen is None:
+        seen = set()
+    if isinstance(value, dict):
+        if id(value) in seen:
+            return
+        seen = seen | {id(value)}
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            key_field = f"{field}.{key}" if field else str(key)
+            introduced = FIELD_VERSIONS.get(key_path)
+            if introduced is not None and is_newer(parse_version(introduced), version):
+                yield key_field, introduced
+            else:
+                yield from _fields_newer_than(item, version, key_path, key_field, seen)
+    elif isinstance(value, list):
+        if id(value) in seen:
+            return
+        seen = seen | {id(value)}
+        for index, item in enumerate(value):
+            yield from _fields_newer_than(item, version, f"{path}[]", f"{field}[{index}]", seen)
 
 
 # service

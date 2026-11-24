@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHECKER_DIRECTORY = REPOSITORY_ROOT / "packages" / "settings-checker"
 sys.path.insert(0, str(CHECKER_DIRECTORY))
@@ -18,6 +20,7 @@ import checker as CHECKER  # noqa: E402
 import rules as RULES  # noqa: E402
 
 FIXTURES = REPOSITORY_ROOT / "tests" / "fixtures" / "settings"
+EXAMPLE_SETTINGS = REPOSITORY_ROOT / "docs" / "examples" / "pipeline-settings.yml"
 ERROR_FIXTURES = FIXTURES / "errors"
 
 # Error fixture -> the only rule it may report.
@@ -116,9 +119,10 @@ STRUCTURED_TEST = {
 
 
 def structured(*changes):
-    """Replace test_command with the full test block, then apply each change to the settings."""
+    """Use settings file version 1.1 and replace test_command with the full test block, then apply each change."""
 
     def change(values):
+        values["version"] = "1.1"
         del values["service"]["test_command"]
         values["service"]["test"] = copy.deepcopy(STRUCTURED_TEST)
         for each in changes:
@@ -235,10 +239,14 @@ FAILING_CASES = {
         "newer major version": set_path(["version"], "2.0"),
         "compared as numbers, not text": set_path(["version"], "1.10"),
         "three part version": set_path(["version"], "1.1.1"),
+        "test block in a 1.0 file": structured(set_path(["version"], "1.0")),
     },
     "CHK-15": {
         "neither test nor test_command": delete_path(["service", "test_command"]),
-        "both test and test_command": lambda v: v["service"].update(test=copy.deepcopy(STRUCTURED_TEST)),
+        "both test and test_command": lambda v: (
+            v.update(version="1.1"),
+            v["service"].update(test=copy.deepcopy(STRUCTURED_TEST)),
+        ),
     },
     "CHK-16": {
         "test not a mapping": structured(set_path(["service", "test"], "unit")),
@@ -321,6 +329,7 @@ PASSING_CASES = {
         "older version": set_path(["version"], "1.0"),
         "same version with trailing zero": set_path(["version"], "1.1.0"),
         "older patch version": set_path(["version"], "1.0.9"),
+        "test block in a 1.1 file": structured(),
     },
     "CHK-15": {"only test": structured()},
     "CHK-16": {
@@ -519,6 +528,116 @@ class RuleTests(unittest.TestCase):
                 )
 
 
+class ReadTracker(dict):
+    """A settings mapping that records the field path of every key the rules read."""
+
+    def __init__(self, value, path, reads):
+        super().__init__({key: track(item, self._join(path, key), reads) for key, item in value.items()})
+        self._path, self._reads = path, reads
+
+    @staticmethod
+    def _join(path, key):
+        return f"{path}.{key}" if path else str(key)
+
+    def _read(self, key):
+        self._reads.add(self._join(self._path, key))
+
+    def __getitem__(self, key):
+        self._read(key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        self._read(key)
+        return super().get(key, default)
+
+    def __contains__(self, key):
+        self._read(key)
+        return super().__contains__(key)
+
+
+def track(value, path, reads):
+    if isinstance(value, dict):
+        return ReadTracker(value, path, reads)
+    if isinstance(value, list):
+        return [track(item, f"{path}[]", reads) for item in value]
+    return value
+
+
+def settings_examples():
+    """Every settings variant the tests and the repository hold, so each rule branch is exercised."""
+    examples = [copy.deepcopy(COMPLIANT)]
+    for cases in (FAILING_CASES, PASSING_CASES):
+        examples += [settings(change) for each in cases.values() for change in each.values()]
+    for path in sorted(REPOSITORY_ROOT.glob("**/*.yml")):
+        if ".git" in path.parts:
+            continue
+        try:
+            values = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            continue
+        if isinstance(values, dict) and "version" in values and "service" in values:
+            examples.append(values)
+    return examples
+
+
+class SettingsVersionTests(unittest.TestCase):
+    def test_every_field_the_rules_read_is_in_a_settings_file_version(self):
+        reads = set()
+        for values in settings_examples():
+            RULES.check(track(values, "", reads))
+
+        self.assertIn("service.test.final.command", reads)  # The tracker sees nested reads.
+        missing = sorted(reads - set(RULES.FIELD_VERSIONS))
+        self.assertEqual(
+            missing,
+            [],
+            "The rules read fields that no settings file version lists. Add them to "
+            "SETTINGS_VERSIONS in rules.py under a new version, not an existing one.",
+        )
+
+    def test_supported_version_is_the_highest_registered_version(self):
+        versions = [RULES.parse_version(version) for version in RULES.SETTINGS_VERSIONS]
+
+        self.assertEqual(RULES.SUPPORTED_SETTINGS_VERSION, max(versions))
+        self.assertEqual(RULES.parse_version(RULES.LATEST_SETTINGS_VERSION), RULES.SUPPORTED_SETTINGS_VERSION)
+
+    def test_example_settings_use_the_supported_version(self):
+        example = yaml.safe_load(EXAMPLE_SETTINGS.read_text(encoding="utf-8"))
+
+        self.assertEqual(RULES.parse_version(example["version"]), RULES.SUPPORTED_SETTINGS_VERSION)
+
+    def test_field_from_a_newer_version_is_reported_once_at_its_top(self):
+        problems = RULES.check(settings(structured(set_path(["version"], "1.0"))))
+
+        self.assertEqual(
+            problems,
+            [
+                {
+                    "field": "service.test",
+                    "severity": "Error",
+                    "message": "needs settings file version 1.1 or later",
+                    "rule": "CHK-14",
+                }
+            ],
+        )
+
+    def test_numeric_version_is_compared_like_text(self):
+        problems = RULES.check(settings(structured(set_path(["version"], 1.0))))
+
+        self.assertIn(
+            {
+                "field": "service.test",
+                "severity": "Error",
+                "message": "needs settings file version 1.1 or later",
+                "rule": "CHK-14",
+            },
+            problems,
+        )
+
+    def test_missing_version_is_left_to_chk_01(self):
+        self.assertEqual(rules(settings(structured(delete_path(["version"])))), {"CHK-01"})
+
+
 class PlaceholderWalkTests(unittest.TestCase):
     """CHK-13 walks the whole settings tree, so it must tolerate unusual YAML shapes."""
 
@@ -708,6 +827,7 @@ class CliTests(unittest.TestCase):
         _, output = run_cli("--settings", str(ERROR_FIXTURES / "missing-test-command.yml"), "--format", "markdown")
 
         self.assertIn("**Not ready: 1 error**", output)
+        self.assertIn(f"Accepts settings file versions up to {RULES.LATEST_SETTINGS_VERSION}", output)
         self.assertIn("| ✗ Error | `service.test_command` | must be a single line, not empty | CHK-11 |", output)
 
     def test_markdown_escapes_table_characters(self):
