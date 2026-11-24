@@ -109,17 +109,17 @@ never rolled back.
 The run record gains the digest, the previous and new task definitions, the
 verification results, the rollback outcome and the run attempt.
 
-### Settings format version 1.2
-A service opts in by setting `version: "1.2"` in its settings file. This is the
-settings format version. It's separate from pipeline releases (for example
-`v1.3.0`) and from the LLD's document version. Format versions so far:
+### Settings file version 1.2
+Services that use these settings set the `version` field at the top of their
+settings file to `"1.2"`. The release that adds them adds version 1.2 to the
+settings file version registry in the Settings Check tool (ADR 0007), listing
+the fields it introduces. From then on, CHK-14 does two things: it rejects a
+file that uses any of these fields without saying 1.2 or later, and an older
+pipeline release rejects a 1.2 file instead of silently ignoring it. A test
+fails if a new field isn't registered under a version. Existing 1.0 and 1.1
+files behave exactly as today.
 
-- 1.0: the original fields;
-- 1.1: adds `service.test` (ADR 0007);
-- 1.2: adds the deploy settings below (this ADR).
-
-All additions are optional. Existing 1.0 and 1.1 settings files behave
-exactly as today.
+All additions are optional.
 
 | Field | Purpose |
 |---|---|
@@ -132,6 +132,13 @@ exactly as today.
 | `environments[].verification.base_url` | Health endpoint base URL |
 | `verification.version_field` | Field that holds the deployed commit |
 
+Version 1.2 registers these field paths: `build.platform`, `build.build_args`,
+`registry`, `deploy.infrastructure`, `deploy.timeout_minutes`,
+`deploy.targets`, `environments[].template_values`,
+`environments[].verification.base_url` and `verification.version_field`.
+`deploy.production` is already a 1.0 field, so the new deploy fields are
+registered individually, not as `deploy`.
+
 The Settings Check tool gets six new rules. All are Errors.
 
 | Rule | Checks |
@@ -143,8 +150,8 @@ The Settings Check tool gets six new rules. All are Errors.
 | CHK-23 | Each deployed environment has an `https` `verification.base_url` with no path. `verification.version_field` is a simple key. |
 | CHK-24 | When `deploy` is set, environment names and `service.name` use lowercase letters, digits and hyphens, are unique ignoring case, and stay within a length limit. |
 
-A settings version newer than the pipeline supports already fails Check
-(CHK-14, ADR 0007).
+CHK-14 (ADR 0007) enforces the version rules above; this work adds no new
+version rule.
 
 Deploy and Verify become real only for services with `deploy.targets`, and
 then stop flagging themselves as simulated. Services without deploy settings,
@@ -197,6 +204,8 @@ These apply to the proof of concept only.
 
 - A new package, composite actions and Terraform modules to maintain.
 - The platform's own callers must grant `id-token: write`.
+- Version 1.2 is added to the settings file version registry, and to the
+  consumer guide's settings file versions table.
 - Until trust is pinned to the shared workflow before Production, another
   workflow in the same repository that uses the `Development` environment on
   `main` could reach the deploy role.
@@ -205,7 +214,7 @@ These apply to the proof of concept only.
 sections change: Build, Deploy, Verify and rollback; concurrency; the settings
 rules; consumer requirements (`base_url` replaces the
 `DEPLOYMENT_BASE_URL_<NAME>` variables for deployed environments); the run
-record; identity and access; and the settings format version list in section
+record; identity and access; and the settings file versions table in section
 4.1.
 
 ## After the proof of concept (not decided here)
