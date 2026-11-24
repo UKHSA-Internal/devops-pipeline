@@ -58,6 +58,10 @@ Other decisions:
 - The pipeline never treats a step differently because of its name.
 - Each settings file version lists the fields it introduced, and a test fails
   if a new field isn't added under a new version.
+- Within a major pipeline version, settings changes are additive and optional.
+  Existing files keep passing, enforced by the compatibility fixtures
+  (`tests/fixtures/settings/compatibility/`). A breaking settings change needs
+  a new major version (v2).
 - New rules CHK-14 to CHK-18 are Errors. CHK-11 now applies only when
   `test_command` is set.
 - CHK-14 rejects a settings version newer than the pipeline supports; 1.1 is

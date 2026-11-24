@@ -20,6 +20,7 @@ import checker as CHECKER  # noqa: E402
 import rules as RULES  # noqa: E402
 
 FIXTURES = REPOSITORY_ROOT / "tests" / "fixtures" / "settings"
+COMPATIBILITY_FIXTURES = FIXTURES / "compatibility"
 EXAMPLE_SETTINGS = REPOSITORY_ROOT / "docs" / "examples" / "pipeline-settings.yml"
 ERROR_FIXTURES = FIXTURES / "errors"
 
@@ -636,6 +637,29 @@ class SettingsVersionTests(unittest.TestCase):
 
     def test_missing_version_is_left_to_chk_01(self):
         self.assertEqual(rules(settings(structured(delete_path(["version"])))), {"CHK-01"})
+
+
+class CompatibilityTests(unittest.TestCase):
+    """Settings files written for each settings file version keep passing. These fixtures are never edited."""
+
+    def test_every_compatibility_file_passes_in_strict_mode(self):
+        files = sorted(COMPATIBILITY_FIXTURES.glob("*/*.yml"))
+        self.assertTrue(files)
+        for path in files:
+            with self.subTest(path=str(path.relative_to(COMPATIBILITY_FIXTURES))):
+                status, output = run_cli("--settings", str(path), "--strict")
+                self.assertEqual(status, 0, output)
+
+    def test_each_file_uses_its_folder_version(self):
+        for path in sorted(COMPATIBILITY_FIXTURES.glob("*/*.yml")):
+            with self.subTest(path=str(path.relative_to(COMPATIBILITY_FIXTURES))):
+                values = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertEqual(values["version"], path.parent.name)
+
+    def test_every_settings_file_version_has_a_folder(self):
+        folders = {path.name for path in COMPATIBILITY_FIXTURES.iterdir() if path.is_dir()}
+
+        self.assertEqual(folders, set(RULES.SETTINGS_VERSIONS))
 
 
 class PlaceholderWalkTests(unittest.TestCase):
