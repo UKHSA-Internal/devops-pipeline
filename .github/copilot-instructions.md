@@ -59,7 +59,8 @@ disagree, the specification wins.
 - Severities:
   - an Error stops the run at Check;
   - a Warning is reported but never blocks.
-- The current rules are CHK-01 to CHK-13, with the severities set out in LLD section 4.1.
+- The rules and their severities are set out in LLD section 4.1; rules.py is the
+  source of truth in code.
 - Modes:
   - default: used in pipelines; fails on errors;
   - `--strict`: used by the pre-gate and local runs; fails on warnings too;

@@ -27,8 +27,8 @@ EXPECTED_FIXTURE_RULES = {
     "health-endpoint-without-leading-slash.yml": "CHK-07",
     "environment-missing-role-name.yml": "CHK-03",
     "missing-test-command.yml": "CHK-11",
-    "newer-settings-version.yml": "CHK-20",
-    "final-name-is-a-list.yml": "CHK-22",
+    "newer-settings-version.yml": "CHK-14",
+    "final-name-is-a-list.yml": "CHK-16",
     "no-approvers.yml": "CHK-05",
     "no-production-environment.yml": "CHK-04",
     "unattended-without-exception-id.yml": "CHK-10",
@@ -230,17 +230,17 @@ FAILING_CASES = {
         "numeric test_command": set_path(["service", "test_command"], 1),
         "empty test_command": set_path(["service", "test_command"], None),
     },
-    "CHK-20": {
+    "CHK-14": {
         "newer minor version": set_path(["version"], "1.2"),
         "newer major version": set_path(["version"], "2.0"),
         "compared as numbers, not text": set_path(["version"], "1.10"),
         "three part version": set_path(["version"], "1.1.1"),
     },
-    "CHK-21": {
+    "CHK-15": {
         "neither test nor test_command": delete_path(["service", "test_command"]),
         "both test and test_command": lambda v: v["service"].update(test=copy.deepcopy(STRUCTURED_TEST)),
     },
-    "CHK-22": {
+    "CHK-16": {
         "test not a mapping": structured(set_path(["service", "test"], "unit")),
         "missing suites": structured(delete_path(["service", "test", "suites"])),
         "suites not a list": test_block("suites", "unit"),
@@ -258,7 +258,7 @@ FAILING_CASES = {
         "final not a mapping": test_block("final", "coverage"),
         "final name is a list": structured(set_path(["service", "test", "final", "name"], ["coverage"])),
     },
-    "CHK-23": {
+    "CHK-17": {
         "multiline setup": test_block("setup", "make deps\nmake more"),
         "blank setup": test_block("setup", " "),
         "numeric setup": test_block("setup", 1),
@@ -268,7 +268,7 @@ FAILING_CASES = {
         "missing final command": structured(delete_path(["service", "test", "final", "command"])),
         "multiline final command": structured(set_path(["service", "test", "final", "command"], "a\r\nb")),
     },
-    "CHK-24": {
+    "CHK-18": {
         "absolute collect path": test_block("collect", ["/tmp/.coverage"]),
         "parent collect path": test_block("collect", ["../.coverage"]),
         "collect not a list": test_block("collect", ".coverage.*"),
@@ -316,27 +316,27 @@ PASSING_CASES = {
     "CHK-10": {
         "exception_id not needed": set_path(["deploy", "production"], {"approval_mode": "all-approvers"}),
     },
-    "CHK-20": {
+    "CHK-14": {
         "current version": set_path(["version"], "1.1"),
         "older version": set_path(["version"], "1.0"),
         "same version with trailing zero": set_path(["version"], "1.1.0"),
         "older patch version": set_path(["version"], "1.0.9"),
     },
-    "CHK-21": {"only test": structured()},
-    "CHK-22": {
+    "CHK-15": {"only test": structured()},
+    "CHK-16": {
         "ten suites": suites(10),
         "one suite": suites(1),
         "no final step": structured(delete_path(["service", "test", "final"])),
         "name with digits and hyphens": structured(set_path(["service", "test", "suites", 0, "name"], "unit-2")),
         "name of 32 characters": structured(set_path(["service", "test", "suites", 0, "name"], "a" * 32)),
     },
-    "CHK-23": {
+    "CHK-17": {
         "setup omitted": structured(delete_path(["service", "test", "setup"])),
         "command with arguments": structured(
             set_path(["service", "test", "suites", 0, "command"], "pytest -m 'not slow' tests/")
         ),
     },
-    "CHK-24": {
+    "CHK-18": {
         "collect omitted": structured(delete_path(["service", "test", "collect"])),
         "empty collect": test_block("collect", []),
         "nested relative paths": structured(set_path(["service", "test", "collect"], ["build/out", "./reports"])),
@@ -369,11 +369,11 @@ def rule_ids():
 class RuleTests(unittest.TestCase):
     def test_rule_ids_are_unique_and_complete(self):
         ids = [rule.id for rule in RULES.RULES]
-        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in list(range(1, 14)) + list(range(20, 25))])
+        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 19)])
 
     def test_severities_match_contract(self):
         errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-07", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
-        errors |= {"CHK-20", "CHK-21", "CHK-22", "CHK-23", "CHK-24"}
+        errors |= {"CHK-14", "CHK-15", "CHK-16", "CHK-17", "CHK-18"}
         for rule in RULES.RULES:
             with self.subTest(rule.id):
                 self.assertEqual(rule.severity, RULES.ERROR if rule.id in errors else RULES.WARNING)

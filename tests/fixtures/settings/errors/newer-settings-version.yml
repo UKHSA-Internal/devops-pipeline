@@ -1,4 +1,4 @@
-# Error: version is newer than the pipeline supports (CHK-20).
+# Error: version is newer than the pipeline supports (CHK-14).
 version: "1.2"
 
 service:

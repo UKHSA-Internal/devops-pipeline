@@ -105,10 +105,10 @@ Only files a step writes while it runs are read for that step, so the final
 step's own files are reported, not the ones it downloaded from the suites. With
 neither file, the step shows its result and its duration.
 
-Every command is a single line. The checker rules are CHK-20 to CHK-24 in the
+Every command is a single line. The checker rules are CHK-14 to CHK-18 in the
 [checker reference](../packages/settings-checker/README.md). See the
 [tested example](examples/pipeline-settings.yml) and the
-[decision record](adr/0008-structured-test-settings.md).
+[decision record](adr/0007-structured-test-settings.md).
 
 ### Test runtime
 

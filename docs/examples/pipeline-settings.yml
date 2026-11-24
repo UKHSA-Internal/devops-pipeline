@@ -9,26 +9,26 @@
 # Validate locally:
 #   python3 packages/settings-checker/checker.py --settings docs/examples/pipeline-settings.yml --strict
 
-version: "1.1" # required (string); CHK-01 warns if missing or not text; CHK-20 (Error) if newer than 1.1. "1.0" files stay valid
+version: "1.1" # required (string); CHK-01 warns if missing or not text; CHK-14 (Error) if newer than 1.1. "1.0" files stay valid
 
 service:
   name: "payments-api" # required; CHK-02 warns if empty
   owner_team: "payments-platform-leads" # required; CHK-02 warns if empty; must be in governance.approvers (CHK-05)
   language: "python" # required; CHK-02 warns if empty. Accepted values: python, node
-  # Set exactly one of `test` and `test_command` (CHK-21, Error). `test_command` is
+  # Set exactly one of `test` and `test_command` (CHK-15, Error). `test_command` is
   # shorthand for one suite named "test", with no setup or final step:
   #   test_command: "python3 -m unittest discover -s tests" # single line, non-empty; CHK-11 (Error)
   test:
-    setup: "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" # optional; single line; CHK-23 (Error)
-    suites: # required; 1 to 10, run in parallel; CHK-22 (Error)
+    setup: "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" # optional; single line; CHK-17 (Error)
+    suites: # required; 1 to 10, run in parallel; CHK-16 (Error)
       - name: unit # lowercase letters, digits and hyphens; unique; at most 32 characters
-        command: ".venv/bin/python -m unittest discover -s tests/unit" # single line, non-empty; CHK-23 (Error)
+        command: ".venv/bin/python -m unittest discover -s tests/unit" # single line, non-empty; CHK-17 (Error)
       - name: api
         command: ".venv/bin/python -m unittest discover -s tests/api"
-    collect: [".coverage.*"] # optional; files each suite keeps for the final step; relative to the service directory, no ".."; CHK-24 (Error)
+    collect: [".coverage.*"] # optional; files each suite keeps for the final step; relative to the service directory, no ".."; CHK-18 (Error)
     final: # optional; runs only if every suite passed
-      name: coverage # same format as a suite name, and different from every suite; CHK-22 (Error)
-      command: ".venv/bin/python -m coverage combine" # single line, non-empty; CHK-23 (Error)
+      name: coverage # same format as a suite name, and different from every suite; CHK-16 (Error)
+      command: ".venv/bin/python -m coverage combine" # single line, non-empty; CHK-17 (Error)
 
 # Required list; each entry needs every field below. CHK-03 (Error) validates
 # the fields and uniqueness of `name`. CHK-04 (Error) requires at least one

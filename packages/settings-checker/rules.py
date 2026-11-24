@@ -202,7 +202,7 @@ def version(settings, report):
     report.value(settings, "version", lambda value: isinstance(value, str), 'must be text in quotes, for example "1.0"')
 
 
-@rule("CHK-20", ERROR)
+@rule("CHK-14", ERROR)
 def supported_version(settings, report):
     value = settings.get("version")
     if isinstance(value, bool) or not isinstance(value, (str, int, float)):
@@ -233,13 +233,13 @@ def service_details(settings, report):
 def test_command(settings, report):
     service = report.section(settings, "service")
     if service is not None:
-        # CHK-21 reports when neither test_command nor test is set.
+        # CHK-15 reports when neither test_command nor test is set.
         report.value(
             service, "service.test_command", is_single_line, "must be a single line, not empty", required=False
         )
 
 
-@rule("CHK-21", ERROR)
+@rule("CHK-15", ERROR)
 def one_way_to_test(settings, report):
     service = settings.get("service")
     if not isinstance(service, dict):
@@ -267,7 +267,7 @@ def _suite_names(test) -> set:
 NAME_MESSAGE = "must be 1 to 32 lowercase letters, digits and hyphens"
 
 
-@rule("CHK-22", ERROR)
+@rule("CHK-16", ERROR)
 def test_suites(settings, report):
     service = settings.get("service")
     if not isinstance(service, dict) or "test" not in service:
@@ -294,16 +294,16 @@ def test_suites(settings, report):
             report.problem("service.test.final.name", "must differ from every suite name")
 
 
-@rule("CHK-23", ERROR)
+@rule("CHK-17", ERROR)
 def test_commands(settings, report):
     test = _test_block(settings)
     if test is None:
-        return  # Reported by CHK-22.
+        return  # Reported by CHK-16.
     message = "must be a single line, not empty"
     report.value(test, "service.test.setup", is_single_line, message, required=False)
     suites = test.get("suites")
     for index, suite in enumerate(suites if isinstance(suites, list) else []):
-        if isinstance(suite, dict):  # Other entries are reported by CHK-22.
+        if isinstance(suite, dict):  # Other entries are reported by CHK-16.
             report.value(suite, f"service.test.suites[{index}].command", is_single_line, message)
     final = test.get("final")
     if isinstance(final, dict):
@@ -321,11 +321,11 @@ def _path_list(report, parent, field, valid, message, required):
     )
 
 
-@rule("CHK-24", ERROR)
+@rule("CHK-18", ERROR)
 def test_paths(settings, report):
     test = _test_block(settings)
     if test is None:
-        return  # Reported by CHK-22.
+        return  # Reported by CHK-16.
     paths_message = "must be a list of relative paths inside the repository, without '..'"
     _path_list(report, test, "service.test.collect", is_relative_path, paths_message, required=False)
 

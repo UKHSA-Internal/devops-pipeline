@@ -104,11 +104,11 @@ required or optional, its default, and the rule ID that checks it.
 | CHK-11 | `service.test_command`, when set, is a non-empty, single-line string | Error |
 | CHK-12 | `verification.db_check_required` is an explicit boolean | Warning |
 | CHK-13 | No value anywhere in the settings file contains template placeholder text (`replace-with-` or `TODO`, matched case-insensitively) | Warning |
-| CHK-20 | `version` is not newer than the settings contract this pipeline supports (currently 1.1). Versions are compared as numbers by part, so 1.10 is newer than 1.9. Applies to every settings file; CHK-01 still only warns when `version` isn't text | Error |
-| CHK-21 | Exactly one of `service.test` and `service.test_command` is set | Error |
-| CHK-22 | When `service.test` is set: 1 to 10 `suites`; each suite `name` is 1 to 32 lowercase letters, digits and hyphens, and unique; `final.name` has the same format and differs from every suite name | Error |
-| CHK-23 | When `service.test` is set: `setup` (if set), every suite `command` and `final.command` are single, non-empty lines | Error |
-| CHK-24 | When `service.test` is set: `collect` holds relative paths inside the repository, with no `..` | Error |
+| CHK-14 | `version` is not newer than the settings contract this pipeline supports (currently 1.1). Versions are compared as numbers by part, so 1.10 is newer than 1.9. Applies to every settings file; CHK-01 still only warns when `version` isn't text | Error |
+| CHK-15 | Exactly one of `service.test` and `service.test_command` is set | Error |
+| CHK-16 | When `service.test` is set: 1 to 10 `suites`; each suite `name` is 1 to 32 lowercase letters, digits and hyphens, and unique; `final.name` has the same format and differs from every suite name | Error |
+| CHK-17 | When `service.test` is set: `setup` (if set), every suite `command` and `final.command` are single, non-empty lines | Error |
+| CHK-18 | When `service.test` is set: `collect` holds relative paths inside the repository, with no `..` | Error |
 
 The owner team stands in for the platform approver configuration (CHK-05) until
 that configuration exists; the checker does not yet verify that each approver

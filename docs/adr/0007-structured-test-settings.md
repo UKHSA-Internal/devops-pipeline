@@ -1,4 +1,4 @@
-# 8. Structured test settings with parallel suites
+# 7. Structured test settings with parallel suites
 
 * **Status:** Approved
 * **Date:** 2026-11-19
@@ -35,29 +35,30 @@ The pipeline turns either form into one test plan, then runs:
 
 - a "Test (suite)" job per suite, in parallel, with fail-fast off. Each sets up
   the language runtime, runs `setup` if set, runs the command and uploads its `collect` files and `test-results/*.xml`;
-- a "Test (final)" job that downloads those files and runs the final command.
+- a "Test (final step)" job that downloads those files and runs the final command.
 
 A `Test` job gives the stage one result for Scan and the run record: PASSED only
 if every suite and the final step passed. The run record keeps `steps.test` and
-adds a `test_suites` list with each suite's and the final step's result, test
-counts and duration.
+adds a `test_suites` list with each suite and the final step: its result, tests,
+failures, errors, duration and coverage (null where not reported). Completed
+suites stay listed when a run is cancelled.
 
 Other decisions:
 
 - Suites always run in parallel. A service that needs an order chains commands
   in one suite.
 - At most 10 suites, to cap runner minutes.
-- JUnit XML in `test-results/` is a convention, not a setting.
+- Results come from JUnit XML in `test-results/`, a convention, not a setting;
+  they appear in the job summary (with up to 10 failed tests) and in
+  `test_suites[]`.
 - The pipeline times each suite and the final step itself.
 - Failed tests are listed in the job summary (up to 10) from JUnit.
 - Coverage is read from Cobertura XML at `test-results/coverage.xml`. Like
   JUnit, it's a convention, not a setting, and applies to any step.
 - The pipeline never treats a step differently because of its name.
-- Each suite's results, from the JUnit files in `test-results/`, appear in the
-  job summary and in the run record's `test_suites[]`.
-- New rules CHK-20 to CHK-24 are Errors. CHK-11 now applies only when
+- New rules CHK-14 to CHK-18 are Errors. CHK-11 now applies only when
   `test_command` is set.
-- CHK-20 rejects a settings version newer than the pipeline supports; 1.1 is
+- CHK-14 rejects a settings version newer than the pipeline supports; 1.1 is
   the first version that needs it. Versions are compared as numbers by part, so
   1.10 is newer than 1.9.
 - The release smoke test uses the structured settings, so every release
@@ -70,7 +71,6 @@ Other decisions:
   but nothing would run in parallel or share a setup.
 - **A `test_commands` list run in one job.** GitHub Actions can't create steps
   dynamically, so the suites still wouldn't be separate steps or jobs.
-- **Python-specific caching.** It ties the pipeline to one language.
 - **Caching the setup between jobs.** Deferred until run times show it's
   needed; it can be added later as an optional field without breaking existing
   settings.
@@ -80,9 +80,10 @@ Other decisions:
 - Faster wall-clock time and clear failures: each suite shows as its own job.
 - More runner minutes: one job per suite, each running `setup` itself.
 - A more complex shared workflow.
-- The low-level design changes in section 3.1 (Test) and section 4.1 (rules).
+- The low-level design changes in sections 3.1 (Test), 4.1 (test settings and
+  rules), 4.2 (optional test reports) and 4.4 (run record).
 - Services that use `test` need the pipeline release that adds contract 1.1.
-  From then on, CHK-20 stops a pipeline from running settings written for a
+  From then on, CHK-14 stops a pipeline from running settings written for a
   newer contract than it understands.
 - Services with `test_command` behave as before, as one suite. The app
   template stays on `test_command`. The sample app and the release smoke test

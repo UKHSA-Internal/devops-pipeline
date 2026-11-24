@@ -1,4 +1,4 @@
-# Error: final.name is a list, not text (CHK-22). The checker must report it, not crash.
+# Error: final.name is a list, not text (CHK-16). The checker must report it, not crash.
 version: "1.1"
 
 service:
