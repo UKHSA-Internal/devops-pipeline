@@ -109,7 +109,15 @@ never rolled back.
 The run record gains the digest, the previous and new task definitions, the
 verification results, the rollback outcome and the run attempt.
 
-### Settings contract 1.2
+### Settings format version 1.2
+A service opts in by setting `version: "1.2"` in its settings file. This is the
+settings format version. It's separate from pipeline releases (for example
+`v1.3.0`) and from the LLD's document version. Format versions so far:
+
+- 1.0: the original fields;
+- 1.1: adds `service.test` (ADR 0007);
+- 1.2: adds the deploy settings below (this ADR).
+
 All additions are optional. Existing 1.0 and 1.1 settings files behave
 exactly as today.
 
@@ -197,7 +205,8 @@ These apply to the proof of concept only.
 sections change: Build, Deploy, Verify and rollback; concurrency; the settings
 rules; consumer requirements (`base_url` replaces the
 `DEPLOYMENT_BASE_URL_<NAME>` variables for deployed environments); the run
-record; and identity and access.
+record; identity and access; and the settings format version list in section
+4.1.
 
 ## After the proof of concept (not decided here)
 The first real service is `private-api`, one of six ECS Fargate services that
