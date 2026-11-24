@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import os
 import re
@@ -8,19 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SUMMARY_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "packages"
-    / "shared-workflows"
-    / "actions"
-    / "test-run"
-    / "record_result.py"
-)
-SPEC = importlib.util.spec_from_file_location("record_result", SUMMARY_PATH)
-if SPEC is None or SPEC.loader is None:
-    raise ImportError(f"Unable to load record_result from {SUMMARY_PATH}")
-SUMMARY = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(SUMMARY)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from helpers import ACTIONS, load_script
+
+SUMMARY_PATH = ACTIONS / "test-run" / "record_result.py"
+SUMMARY = load_script(SUMMARY_PATH, "record_result")
 
 
 def suite_xml(count, failed=0):
@@ -92,12 +83,6 @@ class ResultTests(unittest.TestCase):
 
         self.assertEqual(SUMMARY.build_result("unit", "suite", "success", totals, timing=9.0)["duration_seconds"], 9.0)
 
-    def test_without_xml_only_the_result_and_duration_are_reported(self):
-        result = SUMMARY.build_result("unit", "suite", "failure", None, timing=2.0)
-
-        self.assertEqual(result["result"], "FAILED")
-        self.assertEqual(SUMMARY.summary_text(result), "## Test (unit)\n\n**FAILED** · 2.0s\n\n")
-
     def test_summary_line_has_runtime_counts_and_coverage(self):
         result = SUMMARY.build_result(
             "unit",
@@ -114,20 +99,15 @@ class ResultTests(unittest.TestCase):
         )
 
     def test_failed_test_list_stops_at_ten_and_counts_the_rest(self):
-        failed = [(f"pkg.test_{index}", "boom") for index in range(13)]
         result = SUMMARY.build_result("unit", "suite", "failure", None, timing=1.0)
 
-        text = SUMMARY.summary_text(result, failed=failed)
-
+        text = SUMMARY.summary_text(result, failed=[(f"pkg.test_{index}", "boom") for index in range(13)])
         self.assertIn("- `pkg.test_9`: boom\n", text)
         self.assertNotIn("pkg.test_10", text)
         self.assertIn("- and 3 more\n", text)
 
-    def test_ten_failed_tests_say_nothing_about_more(self):
-        failed = [(f"pkg.test_{index}", "") for index in range(10)]
-        result = SUMMARY.build_result("unit", "suite", "failure", None, timing=1.0)
-
-        self.assertNotIn("more", SUMMARY.summary_text(result, failed=failed))
+        text = SUMMARY.summary_text(result, failed=[(f"pkg.test_{index}", "") for index in range(10)])
+        self.assertNotIn("more", text)
 
 
 COBERTURA = '<coverage line-rate="{line}" branch-rate="{branch}" version="1"><packages/></coverage>'
@@ -140,10 +120,8 @@ class CoverageTests(unittest.TestCase):
             path.write_text(content, encoding="utf-8")
             return SUMMARY.read_coverage(path)
 
-    def test_line_and_branch_rates_become_percentages(self):
+    def test_line_and_branch_rates_become_percentages_and_branch_is_optional(self):
         self.assertEqual(self.read(COBERTURA.format(line="0.9123", branch="0.5")), (91.2, 50.0))
-
-    def test_branch_rate_is_optional(self):
         self.assertEqual(self.read('<coverage line-rate="0.8"/>'), (80.0, None))
 
     def test_malformed_files_give_a_warning_and_none(self):

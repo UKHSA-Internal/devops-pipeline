@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import os
 import re
@@ -11,19 +10,11 @@ from pathlib import Path
 
 import yaml
 
-REPORT_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "packages"
-    / "shared-workflows"
-    / "actions"
-    / "publish-run-report"
-    / "generate_run_report.py"
-)
-REPORT_SPEC = importlib.util.spec_from_file_location("generate_run_report", REPORT_PATH)
-if REPORT_SPEC is None or REPORT_SPEC.loader is None:
-    raise ImportError(f"Unable to load run report generator from {REPORT_PATH}")
-REPORT = importlib.util.module_from_spec(REPORT_SPEC)
-REPORT_SPEC.loader.exec_module(REPORT)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from helpers import ACTIONS, load_script
+
+REPORT_PATH = ACTIONS / "publish-run-report" / "generate_run_report.py"
+REPORT = load_script(REPORT_PATH, "generate_run_report")
 
 END_TIME = "2026-10-30T12:10:00Z"
 

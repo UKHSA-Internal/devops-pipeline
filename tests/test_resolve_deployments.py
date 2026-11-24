@@ -1,22 +1,13 @@
-import importlib.util
+import sys
 import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
 
-RESOLVER_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "packages"
-    / "shared-workflows"
-    / "actions"
-    / "resolve-deployments"
-    / "resolve_deployments.py"
-)
-RESOLVER_SPEC = importlib.util.spec_from_file_location("resolve_deployments", RESOLVER_PATH)
-if RESOLVER_SPEC is None or RESOLVER_SPEC.loader is None:
-    raise ImportError(f"Unable to load deployment resolver from {RESOLVER_PATH}")
-RESOLVER = importlib.util.module_from_spec(RESOLVER_SPEC)
-RESOLVER_SPEC.loader.exec_module(RESOLVER)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from helpers import ACTIONS, load_script
+
+RESOLVER = load_script(ACTIONS / "resolve-deployments" / "resolve_deployments.py", "resolve_deployments")
 
 
 def environment(name, category):

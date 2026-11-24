@@ -1,13 +1,11 @@
-import importlib.util
+import sys
 import unittest
 from pathlib import Path
 
-RULES_PATH = Path(__file__).resolve().parents[1] / "scripts" / "contribution_rules.py"
-RULES_SPEC = importlib.util.spec_from_file_location("contribution_rules", RULES_PATH)
-if RULES_SPEC is None or RULES_SPEC.loader is None:
-    raise ImportError(f"Unable to load contribution rules from {RULES_PATH}")
-RULES = importlib.util.module_from_spec(RULES_SPEC)
-RULES_SPEC.loader.exec_module(RULES)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from helpers import REPO_ROOT, load_script
+
+RULES = load_script(REPO_ROOT / "scripts" / "contribution_rules.py", "contribution_rules")
 
 SCOPES = RULES.SCOPES
 TYPES = RULES.TYPES

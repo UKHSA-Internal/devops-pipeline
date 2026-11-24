@@ -1,6 +1,6 @@
-import importlib.util
 import io
 import os
+import sys
 import unittest
 import unittest.mock
 import urllib.error
@@ -8,20 +8,11 @@ from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 
-ACTIONS = Path(__file__).resolve().parents[1] / "packages" / "shared-workflows" / "actions"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from helpers import ACTIONS, load_script
 
-
-def load(name, relative):
-    spec = importlib.util.spec_from_file_location(name, ACTIONS / relative)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load {relative}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-GUARD = load("approval_guard", "approval-guard/approval_guard.py")
-CONFIRM = load("approval_confirm", "approval-confirm/approval_confirm.py")
+GUARD = load_script(ACTIONS / "approval-guard" / "approval_guard.py", "approval_guard")
+CONFIRM = load_script(ACTIONS / "approval-confirm" / "approval_confirm.py", "approval_confirm")
 
 
 def gated(name, reviewers=1, prevent_self_review=True, can_admins_bypass=False):
