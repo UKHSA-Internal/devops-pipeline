@@ -81,8 +81,7 @@ wrappers around it.
 The pipeline owns the application deploy only. A deploy changes only the
 image. Every other task definition setting stays as the infrastructure
 repository set it. Concurrency is keyed on service and environment. The engine
-labels what it creates, and prunes only the task definition revisions it
-registered.
+labels what it creates.
 
 | Item | Label |
 |---|---|
@@ -108,8 +107,7 @@ restores the saved task definition, and still fails the stage. The database is
 never rolled back.
 
 The run record gains the digest, the previous and new task definitions, the
-verification results, the rollback outcome, the run attempt and the shared
-pipeline's own commit (`job.workflow_sha`, passed in as an input).
+verification results, the rollback outcome and the run attempt.
 
 ### Settings contract 1.2
 All additions are optional. Existing 1.0 and 1.1 settings files behave
@@ -232,6 +230,8 @@ separate ADR or decision log entry when it is taken.
 | Build argument | `COMMIT_SHA` also reaches the image from the service's existing publish-image action. The service's caller needs a push trigger on `main`, so both pipelines deploy the same merge | First service |
 | Restart script | Skips the service when the cluster is `uhd-dev-cluster`, and drops it from the wait-for-stable list | First service |
 | Existing push role | We recommend narrowing it from every branch to `main`. Not blocking | First service |
+| Pruning | The engine prunes only the task definition revisions it registered | First service |
+| Pipeline commit in the run record | Record `job.workflow_sha`, so the record shows which release deployed | First service |
 
 Later stages (every service sharing the image, more Development and
 Pre-production environments, then Production) are each proven in the sandbox
