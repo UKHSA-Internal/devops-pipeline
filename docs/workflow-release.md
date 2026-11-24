@@ -103,10 +103,12 @@ tag lookup fails the job.
 ## Canary smoke test
 
 The release's `smoke-test` job calls the local `standard-pipeline.yml` with
-`sample-app/.github/pipeline-settings.yml` after `canary` succeeds. The canary
+`sample-app/.github/smoke-test-settings.yml` after `canary` succeeds. The canary
 points at a child commit whose action references are pinned to the source
 commit. Promotion asserts that the canary points at that pinned commit. The
-smoke test passes only if every pipeline stage passes.
+smoke test passes only if every pipeline stage passes. The settings are
+`unattended` with an exception ID, so the release never waits for a human
+approval.
 
 For a manual check, run `smoke-test-pipeline.yml` using `workflow_dispatch`
 in the Actions tab or with `gh workflow run smoke-test-pipeline.yml`. Unlike

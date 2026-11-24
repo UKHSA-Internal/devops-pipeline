@@ -31,6 +31,15 @@ outputs:
   timeout_seconds:
     description: Verification timeout in seconds
     value: ${{ steps.resolve.outputs.timeout_seconds }}
+  approval_mode:
+    description: Production approval mode (all-approvers, single-approver or unattended)
+    value: ${{ steps.resolve.outputs.approval_mode }}
+  approval_environments:
+    description: JSON list of approval environments and the approver groups each covers; empty when unattended
+    value: ${{ steps.resolve.outputs.approval_environments }}
+  approval_exception_id:
+    description: Architecture Exception ID, set only when the mode is unattended
+    value: ${{ steps.resolve.outputs.approval_exception_id }}
 
 runs:
   using: composite

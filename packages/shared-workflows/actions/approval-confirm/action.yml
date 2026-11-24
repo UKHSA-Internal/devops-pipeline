@@ -1,0 +1,29 @@
+name: Approval Confirm
+description: Logs the approval marker for an approver group, and rejects an approval given too late
+
+inputs:
+  environment:
+    description: Approval environment this job was gated by
+    required: true
+  groups:
+    description: Comma-separated approver groups the environment covers
+    required: true
+  gate_opened_at:
+    description: UTC ISO 8601 time the approval guard passed
+    required: true
+  max_age_hours:
+    description: Hours after the gate opened that an approval is still accepted
+    required: false
+    default: "24"
+
+runs:
+  using: composite
+  steps:
+    - name: Confirm Approval
+      shell: bash
+      env:
+        APPROVAL_ENVIRONMENT: ${{ inputs.environment }}
+        APPROVAL_GROUPS: ${{ inputs.groups }}
+        GATE_OPENED_AT: ${{ inputs.gate_opened_at }}
+        MAX_AGE_HOURS: ${{ inputs.max_age_hours }}
+      run: python3 "${{ github.action_path }}/approval_confirm.py"

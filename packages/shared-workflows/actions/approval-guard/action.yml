@@ -1,0 +1,32 @@
+name: Approval Guard
+description: Fails unless every Production approval environment exists with required reviewers
+
+inputs:
+  approval_environments:
+    description: JSON list of approval environments from the resolver; empty when unattended
+    required: true
+  token:
+    description: Token used to read environment settings. Needs actions read access.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  gate_opened_at:
+    description: UTC ISO 8601 time the guard passed; approvals given more than 24 hours later are rejected
+    value: ${{ steps.opened.outputs.gate_opened_at }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check Approval Environments
+      shell: bash
+      env:
+        APPROVAL_ENVIRONMENTS: ${{ inputs.approval_environments }}
+        REPOSITORY: ${{ github.repository }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: python3 "${{ github.action_path }}/approval_guard.py"
+
+    - name: Record Gate Open Time
+      id: opened
+      shell: bash
+      run: echo "gate_opened_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
