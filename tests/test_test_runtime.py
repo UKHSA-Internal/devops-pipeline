@@ -1,7 +1,7 @@
 """Tests for the Test step's runtime resolution.
 
 The logic lives in the "Resolve Test Runtime" step of
-packages/shared-workflows/actions/test/action.yml. These tests extract that
+packages/shared-workflows/actions/test-runtime/action.yml. These tests extract that
 script from the action and run it with bash, so the shell behaviour is tested
 rather than a copy of it.
 """
@@ -20,7 +20,7 @@ ACTION_PATH = (
     / "packages"
     / "shared-workflows"
     / "actions"
-    / "test"
+    / "test-runtime"
     / "action.yml"
 )
 STEP_NAME = "Resolve Test Runtime"
@@ -51,9 +51,7 @@ class ResolveTestRuntimeTests(unittest.TestCase):
                 (service / name).write_text(content, encoding="utf-8")
 
             output_path = root / "github_output"
-            summary_path = root / "github_summary"
             output_path.touch()
-            summary_path.touch()
 
             completed = subprocess.run(
                 ["bash", "-c", self.script],
@@ -65,7 +63,6 @@ class ResolveTestRuntimeTests(unittest.TestCase):
                     "SERVICE_DIRECTORY": "service",
                     "LANGUAGE": language,
                     "GITHUB_OUTPUT": str(output_path),
-                    "GITHUB_STEP_SUMMARY": str(summary_path),
                 },
             )
             outputs = dict(
@@ -73,31 +70,31 @@ class ResolveTestRuntimeTests(unittest.TestCase):
                 for line in output_path.read_text(encoding="utf-8").splitlines()
                 if "=" in line
             )
-            return completed, outputs, summary_path.read_text(encoding="utf-8")
+            return completed, outputs
 
     def test_python_resolves_the_python_version_file(self):
-        completed, outputs, summary = self.run_step("python", [(".python-version", "3.11\n")])
+        completed, outputs = self.run_step("python", [(".python-version", "3.11\n")])
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["language"], "python")
         self.assertEqual(outputs["version_file"], "service/.python-version")
-        self.assertIn(".python-version", summary)
+        self.assertEqual(outputs["description"], "python from .python-version")
 
     def test_node_resolves_nvmrc(self):
-        completed, outputs, _ = self.run_step("node", [(".nvmrc", "22\n")])
+        completed, outputs = self.run_step("node", [(".nvmrc", "22\n")])
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["language"], "node")
         self.assertEqual(outputs["version_file"], "service/.nvmrc")
 
     def test_node_falls_back_to_node_version_file(self):
-        completed, outputs, _ = self.run_step("node", [(".node-version", "22\n")])
+        completed, outputs = self.run_step("node", [(".node-version", "22\n")])
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["version_file"], "service/.node-version")
 
     def test_node_prefers_nvmrc_over_node_version(self):
-        completed, outputs, _ = self.run_step(
+        completed, outputs = self.run_step(
             "node", [(".nvmrc", "22\n"), (".node-version", "20\n")]
         )
 
@@ -105,46 +102,46 @@ class ResolveTestRuntimeTests(unittest.TestCase):
         self.assertEqual(outputs["version_file"], "service/.nvmrc")
 
     def test_language_is_matched_case_insensitively(self):
-        completed, outputs, _ = self.run_step("  Python  ", [(".python-version", "3.11\n")])
+        completed, outputs = self.run_step("  Python  ", [(".python-version", "3.11\n")])
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["language"], "python")
 
     def test_missing_python_version_file_fails_and_names_the_file(self):
-        completed, outputs, _ = self.run_step("python")
+        completed, outputs = self.run_step("python")
 
         self.assertEqual(completed.returncode, 1)
         self.assertIn(".python-version", completed.stderr)
         self.assertNotIn("language", outputs)
 
     def test_missing_node_version_file_names_both_accepted_files(self):
-        completed, _, _ = self.run_step("node")
+        completed, _ = self.run_step("node")
 
         self.assertEqual(completed.returncode, 1)
         self.assertIn(".nvmrc or .node-version", completed.stderr)
 
     def test_unsupported_language_warns_and_sets_up_no_runtime(self):
-        completed, outputs, summary = self.run_step("go")
+        completed, outputs = self.run_step("go")
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["language"], "")
         self.assertIn("WARNING", completed.stdout)
-        self.assertIn("Runtime: **none**", summary)
+        self.assertEqual(outputs["description"], "no runtime set up")
 
     def test_internal_whitespace_is_not_stripped_and_takes_the_unsupported_path(self):
-        completed, outputs, summary = self.run_step("py thon", [(".python-version", "3.11\n")])
+        completed, outputs = self.run_step("py thon", [(".python-version", "3.11\n")])
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["language"], "")
         self.assertIn('"py thon"', completed.stdout)
-        self.assertIn("Runtime: **none**", summary)
+        self.assertEqual(outputs["description"], "no runtime set up")
 
     def test_missing_language_warns_and_sets_up_no_runtime(self):
-        completed, outputs, summary = self.run_step("")
+        completed, outputs = self.run_step("")
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(outputs["language"], "")
-        self.assertIn("Runtime: **none**", summary)
+        self.assertEqual(outputs["description"], "no runtime set up")
 
 
 if __name__ == "__main__":

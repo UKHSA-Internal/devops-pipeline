@@ -10,8 +10,9 @@ disagree, the specification wins.
 - Documentation and tests are part of every change.
 - Follow CONTRIBUTING.md for branch names (`<type>/<jira-key>/<description>`),
   commits and pull requests.
-- Settings changes must be backward compatible: existing settings files keep
-  working.
+- Settings changes within a major version are additive and optional: existing
+  settings files keep passing, and a new field is registered under a new
+  settings file version. Breaking changes need a new major version.
 - Keep shared code free of anything specific to one service. A guard test
   enforces this.
 - Keep the toolchain minimal: local work needs only Python and Docker (`act`).
@@ -59,7 +60,8 @@ disagree, the specification wins.
 - Severities:
   - an Error stops the run at Check;
   - a Warning is reported but never blocks.
-- The current rules are CHK-01 to CHK-13, with the severities set out in LLD section 4.1.
+- The rules and their severities are set out in LLD section 4.1; rules.py is the
+  source of truth in code.
 - Modes:
   - default: used in pipelines; fails on errors;
   - `--strict`: used by the pre-gate and local runs; fails on warnings too;

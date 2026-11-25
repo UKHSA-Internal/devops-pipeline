@@ -7,9 +7,21 @@ inputs:
     required: true
 
 outputs:
-  test_command:
-    description: Service test command run by the Test step
-    value: ${{ steps.resolve.outputs.test_command }}
+  test_suites:
+    description: JSON list of the suites, each with a name and a command
+    value: ${{ steps.resolve.outputs.test_suites }}
+  test_setup:
+    description: Setup command, or empty
+    value: ${{ steps.resolve.outputs.test_setup }}
+  test_collect:
+    description: Files each suite uploads for the final step, one pattern per line, relative to the service directory
+    value: ${{ steps.resolve.outputs.test_collect }}
+  test_final_name:
+    description: Name of the final step, or empty
+    value: ${{ steps.resolve.outputs.test_final_name }}
+  test_final_command:
+    description: Command of the final step, or empty
+    value: ${{ steps.resolve.outputs.test_final_command }}
   language:
     description: Service language, lower-cased, used to set up the Test step's runtime
     value: ${{ steps.resolve.outputs.language }}

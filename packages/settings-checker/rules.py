@@ -18,6 +18,72 @@ ENVIRONMENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 URL_PATH = re.compile(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*")
 ACCOUNT_ID = re.compile(r"[0-9]{12}")
 PLACEHOLDER = re.compile(r"replace-with-|todo", re.IGNORECASE)
+SETTINGS_VERSION = re.compile(r"[0-9]+(\.[0-9]+)*")
+SUITE_NAME = re.compile(r"[a-z0-9-]{1,32}")
+MAX_SUITES = 10
+
+# Settings file version -> the field paths it introduced. "[]" stands for every
+# entry of a list. A new field goes under a new version, never an existing one;
+# tests/test_settings_checker.py fails if a field the rules read is missing.
+SETTINGS_VERSIONS = {
+    "1.0": (
+        "version",
+        "service",
+        "service.name",
+        "service.owner_team",
+        "service.language",
+        "service.test_command",
+        "environments",
+        "environments[].name",
+        "environments[].category",
+        "environments[].account_id",
+        "environments[].role_name",
+        "environments[].region",
+        "governance",
+        "governance.approvers",
+        "governance.retention_days",
+        "verification",
+        "verification.health_endpoint",
+        "verification.timeout_seconds",
+        "verification.db_check_required",
+        "verification.custom_checks",
+        "verification.custom_checks[].name",
+        "verification.custom_checks[].command",
+        "verification.custom_checks[].timeout_seconds",
+        "verification.custom_checks[].allow_failure",
+        "deploy",
+        "deploy.production",
+        "deploy.production.approval_mode",
+        "deploy.production.exception_id",
+    ),
+    "1.1": (
+        "service.test",
+        "service.test.setup",
+        "service.test.suites",
+        "service.test.suites[].name",
+        "service.test.suites[].command",
+        "service.test.collect",
+        "service.test.final",
+        "service.test.final.name",
+        "service.test.final.command",
+    ),
+}
+
+
+def parse_version(text: str) -> tuple:
+    return tuple(int(part) for part in text.split("."))
+
+
+def is_newer(version: tuple, than: tuple) -> bool:
+    """Compare versions as numbers by part, treating missing parts as zero."""
+    width = max(len(version), len(than))
+    pad = lambda numbers: numbers + (0,) * (width - len(numbers))
+    return pad(version) > pad(than)
+
+
+LATEST_SETTINGS_VERSION = max(SETTINGS_VERSIONS, key=parse_version)
+SUPPORTED_SETTINGS_VERSION = parse_version(LATEST_SETTINGS_VERSION)
+FIELD_VERSIONS = {field: version for version, fields in SETTINGS_VERSIONS.items() for field in fields}
 
 
 class Rule(NamedTuple):
@@ -63,6 +129,16 @@ def is_valid_account_id(value) -> bool:
 
 def is_approver_list(value) -> bool:
     return isinstance(value, list) and bool(value) and all(is_text(item) for item in value)
+
+
+def is_relative_path(value) -> bool:
+    """A non-empty path that stays inside the repository: not absolute and with no ".." part."""
+    return (
+        is_single_line(value)
+        and not value.startswith(("/", "\\", "~"))
+        and re.match(r"[A-Za-z]:", value) is None
+        and ".." not in re.split(r"[/\\]", value)
+    )
 
 
 def one_of(options):
@@ -188,6 +264,50 @@ def version(settings, report):
     report.value(settings, "version", lambda value: isinstance(value, str), 'must be text in quotes, for example "1.0"')
 
 
+@rule("CHK-14", ERROR)
+def supported_version(settings, report):
+    value = settings.get("version")
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return  # Reported by CHK-01.
+    text = str(value).strip()
+    if SETTINGS_VERSION.fullmatch(text) is None:
+        return  # Reported by CHK-01 only when it is not text.
+    parts = parse_version(text)
+    if is_newer(parts, SUPPORTED_SETTINGS_VERSION):
+        report.problem("version", f"{text} is newer than this pipeline supports (up to {LATEST_SETTINGS_VERSION})")
+    for field, introduced in _fields_newer_than(settings, parts):
+        report.problem(field, f"needs settings file version {introduced} or later")
+
+
+def _fields_newer_than(value, version: tuple, path: str = "", field: str = "", seen=None):
+    """Yield (field, version) for each registered field introduced after version.
+
+    Fields inside a reported field are not reported again. Like _walk_strings,
+    it tracks containers on the current path so a cyclic YAML alias cannot
+    recurse forever.
+    """
+    if seen is None:
+        seen = set()
+    if isinstance(value, dict):
+        if id(value) in seen:
+            return
+        seen = seen | {id(value)}
+        for key, item in value.items():
+            key_path = f"{path}.{key}" if path else str(key)
+            key_field = f"{field}.{key}" if field else str(key)
+            introduced = FIELD_VERSIONS.get(key_path)
+            if introduced is not None and is_newer(parse_version(introduced), version):
+                yield key_field, introduced
+            else:
+                yield from _fields_newer_than(item, version, key_path, key_field, seen)
+    elif isinstance(value, list):
+        if id(value) in seen:
+            return
+        seen = seen | {id(value)}
+        for index, item in enumerate(value):
+            yield from _fields_newer_than(item, version, f"{path}[]", f"{field}[{index}]", seen)
+
+
 # service
 
 
@@ -203,7 +323,101 @@ def service_details(settings, report):
 def test_command(settings, report):
     service = report.section(settings, "service")
     if service is not None:
-        report.value(service, "service.test_command", is_single_line, "must be a single line, not empty")
+        # CHK-15 reports when neither test_command nor test is set.
+        report.value(
+            service, "service.test_command", is_single_line, "must be a single line, not empty", required=False
+        )
+
+
+@rule("CHK-15", ERROR)
+def one_way_to_test(settings, report):
+    service = settings.get("service")
+    if not isinstance(service, dict):
+        return  # Reported by CHK-02 and CHK-11.
+    has_test, has_test_command = "test" in service, "test_command" in service
+    if has_test and has_test_command:
+        report.problem("service", "set only one of test and test_command, not both")
+    elif not has_test and not has_test_command:
+        report.problem("service", "set one of test and test_command")
+
+
+def _test_block(settings):
+    """Return the service.test mapping, or None when it is absent or not a mapping."""
+    service = settings.get("service")
+    test = service.get("test") if isinstance(service, dict) else None
+    return test if isinstance(test, dict) else None
+
+
+def _suite_names(test) -> set:
+    suites = test.get("suites")
+    entries = suites if isinstance(suites, list) else []
+    return {entry["name"] for entry in entries if isinstance(entry, dict) and isinstance(entry.get("name"), str)}
+
+
+NAME_MESSAGE = "must be 1 to 32 lowercase letters, digits and hyphens"
+
+
+@rule("CHK-16", ERROR)
+def test_suites(settings, report):
+    service = settings.get("service")
+    if not isinstance(service, dict) or "test" not in service:
+        return
+    test = report.section(service, "service.test")
+    if test is None:
+        return
+    suites = report.entries(test, "service.test.suites")
+    if isinstance(test.get("suites"), list) and not 1 <= len(test["suites"]) <= MAX_SUITES:
+        report.problem("service.test.suites", f"must have 1 to {MAX_SUITES} suites")
+    names = set()
+    for field, suite in suites:
+        report.value(suite, f"{field}.name", matches(SUITE_NAME), NAME_MESSAGE)
+        name = suite.get("name")
+        if isinstance(name, str) and SUITE_NAME.fullmatch(name):
+            if name in names:
+                report.problem(f"{field}.name", f"'{name}' is used by more than one suite")
+            names.add(name)
+    final = report.section(test, "service.test.final", required=False)
+    if final is not None:
+        report.value(final, "service.test.final.name", matches(SUITE_NAME), NAME_MESSAGE)
+        name = final.get("name")
+        if isinstance(name, str) and name in names:
+            report.problem("service.test.final.name", "must differ from every suite name")
+
+
+@rule("CHK-17", ERROR)
+def test_commands(settings, report):
+    test = _test_block(settings)
+    if test is None:
+        return  # Reported by CHK-16.
+    message = "must be a single line, not empty"
+    report.value(test, "service.test.setup", is_single_line, message, required=False)
+    suites = test.get("suites")
+    for index, suite in enumerate(suites if isinstance(suites, list) else []):
+        if isinstance(suite, dict):  # Other entries are reported by CHK-16.
+            report.value(suite, f"service.test.suites[{index}].command", is_single_line, message)
+    final = test.get("final")
+    if isinstance(final, dict):
+        report.value(final, "service.test.final.command", is_single_line, message)
+
+
+def _path_list(report, parent, field, valid, message, required):
+    """Report field if it is not a list of valid items; a required list must also be non-empty."""
+    report.value(
+        parent,
+        field,
+        lambda value: isinstance(value, list) and (not required or bool(value)) and all(valid(item) for item in value),
+        message,
+        required=required,
+    )
+
+
+@rule("CHK-18", ERROR)
+def test_paths(settings, report):
+    test = _test_block(settings)
+    if test is None:
+        return  # Reported by CHK-16.
+    paths_message = "must be a list of relative paths inside the repository, without '..'"
+    _path_list(report, test, "service.test.collect", is_relative_path, paths_message, required=False)
 
 
 # environments

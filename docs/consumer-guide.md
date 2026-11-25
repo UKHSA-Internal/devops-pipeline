@@ -42,9 +42,93 @@ copying the template without editing it does not pass unnoticed: each
 placeholder with the service's real tests. The
 [sample app](../sample-app/README.md) shows a working example.
 
+### Settings file versions
+
+The `version` field at the top of your settings file says which settings it
+uses. It's separate from the pipeline release you call (for example `@v1` or
+`v1.3.0`).
+
+| `version` | Adds | Needs pipeline release | ADR |
+| --- | --- | --- | --- |
+| `"1.0"` | The original settings | Any v1 | — |
+| `"1.1"` | `service.test`: named suites, setup, collect, final | The release that adds structured tests | [0007](adr/0007-structured-test-settings.md) |
+
+Use the lowest version that covers the settings you use. A version newer than
+the pipeline release supports fails Check (CHK-14).
+
+Using a field from a newer version than your `version` fails Check (CHK-14).
+
+### Structured tests (settings file version 1.1)
+
+For more than one command, use a `service.test` block instead of
+`test_command` (set exactly one of them). `test_command` stays valid: it is
+shorthand for one suite named `test`, with no setup or final step.
+The [sample app](../sample-app/README.md) runs `unit` and `integration` suites
+this way.
+
+```yaml
+version: "1.1"
+
+service:
+  test:
+    setup: "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
+    suites:
+      - name: unit
+        command: ".venv/bin/python -m pytest tests/unit --junitxml=test-results/unit.xml"
+      - name: api
+        command: ".venv/bin/python -m pytest tests/api --junitxml=test-results/api.xml"
+    collect: [".coverage.*"]
+    final:
+      name: coverage
+      command: ".venv/bin/python -m coverage combine && .venv/bin/python -m coverage report"
+```
+
+- **Suites** (1 to 10) always run in parallel, each as its own "Test (name)"
+  job. To run commands in order, chain them in one suite.
+- **Setup.** `setup` runs at the start of each suite job and of the final
+  step. `collect` paths are relative to the service directory and can't
+  contain `..`.
+- **Collect and final.** Each suite uploads the `collect` files. `final` is a
+  command that runs once every suite has passed, with all the collected files
+  downloaded into the service directory. Use it to combine coverage, merge
+  reports or apply a quality gate, without running the tests again. The
+  pipeline treats it like a suite and never by its name.
+- **Reports.** Each suite and the final step is timed by the pipeline. Its job
+  summary has one line with the result, duration, runtime, counts and coverage
+  when known. See [Test reports](#test-reports).
+- **One result.** The Test stage passes only if every suite and the final step
+  pass. The run record's `steps.test` keeps that meaning, and `test_suites`
+  lists each suite and the final step with its tests, failures, errors,
+  duration and coverage. A step that never ran is `SKIPPED`.
+
+#### Test reports
+
+Two optional files in `test-results/` give a step more detail. Both are
+conventions, not settings, and work the same for any suite or the final step:
+
+- **JUnit XML**, `test-results/*.xml`. The job summary and the run record get
+  the tests, failures, errors and duration (JUnit's duration wins over the
+  pipeline's timing), and the job summary lists up to 10 failed tests with the
+  first line of each message, and how many more there are. With pytest:
+  `pytest --junitxml=test-results/<suite>.xml`
+- **Cobertura XML**, `test-results/coverage.xml`. The root `line-rate` becomes
+  the step's `coverage_percent` (one decimal place) in the run record and
+  "Coverage: NN.N%" in the job summary. An unreadable file gives a warning and
+  no percentage, never a failure. With coverage.py:
+  `coverage xml -o test-results/coverage.xml`
+
+Only files a step writes while it runs are read for that step, so the final
+step's own files are reported, not the ones it downloaded from the suites. With
+neither file, the step shows its result and its duration.
+
+Every command is a single line. The checker rules are CHK-14 to CHK-18 in the
+[checker reference](../packages/settings-checker/README.md). See the
+[tested example](examples/pipeline-settings.yml) and the
+[decision record](adr/0007-structured-test-settings.md).
+
 ### Test runtime
 
-The Test stage sets up a language runtime before running `test_command`, based
+The Test stage sets up a language runtime before running `test_command` (or each suite, and the setup), based
 on `service.language`. The runner has no particular version pre-installed, so
 the service must declare the version it needs:
 
@@ -81,7 +165,8 @@ for the complete contract and options.
 ## What the pipeline does
 
 The Check stage validates settings, then the pipeline sets up the service's
-language runtime and runs the configured test command and placeholder scan.
+language runtime and runs the configured tests (`test_command`, or the suites
+of a `test` block) and the placeholder scan.
 Pushes additionally build, deploy and verify the service; pull requests stop
 after Scan, so they never build an image or deploy. It records a run report
 and passes the full-commit-SHA image tag to each deployment. Deployments

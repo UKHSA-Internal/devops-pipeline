@@ -1,0 +1,127 @@
+name: Test Run
+description: Runs one test suite or the final step from the test plan, times it, then records its result and uploads its files
+
+inputs:
+  service_directory:
+    description: Service directory the command runs in
+    required: true
+  kind:
+    description: suite or final
+    required: true
+  name:
+    description: Suite name, or final step name, from the test plan
+    required: true
+  command:
+    description: Single-line command from the test plan
+    required: true
+  runtime:
+    description: Runtime description from test-runtime, shown in the step's job summary
+    required: false
+    default: ''
+  collect:
+    description: Newline-separated files to upload besides test-results/*.xml, relative to the service directory
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    # Lets the result ignore test-results files that were there before the command ran,
+    # such as the ones the final step downloads from the suites.
+    - name: Snapshot Test Results
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        SNAPSHOT_FILE: ${{ runner.temp }}/test-results-before-${{ inputs.name }}.json
+      run: |
+        set -euo pipefail
+        python3 "${{ github.action_path }}/record_result.py" snapshot
+
+    - name: Run Command
+      id: run
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        COMMAND: ${{ inputs.command }}
+        STEP_NAME: ${{ inputs.name }}
+        STEP_KIND: ${{ inputs.kind }}
+      run: |
+        set -euo pipefail
+        printf '[STEP: TEST] %s (%s): running in %s: %s\n' "$STEP_NAME" "$STEP_KIND" "$SERVICE_DIRECTORY" "$COMMAND"
+        cd "$SERVICE_DIRECTORY"
+        status=0
+        started="$(date +%s%N)"
+        bash -e -o pipefail -c "$COMMAND" || status=$?
+        printf 'duration_ms=%s\n' "$(( ($(date +%s%N) - started) / 1000000 ))" >> "$GITHUB_OUTPUT"
+        printf '[STEP: TEST] %s (%s): exit code %s\n' "$STEP_NAME" "$STEP_KIND" "$status"
+        exit "$status"
+
+    - name: Record Result
+      if: ${{ always() }}
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        SUITE_NAME: ${{ inputs.name }}
+        STEP_KIND: ${{ inputs.kind }}
+        RUN_OUTCOME: ${{ steps.run.outcome }}
+        DURATION_MS: ${{ steps.run.outputs.duration_ms }}
+        RUNTIME_DESCRIPTION: ${{ inputs.runtime }}
+        SNAPSHOT_FILE: ${{ runner.temp }}/test-results-before-${{ inputs.name }}.json
+      run: |
+        set -euo pipefail
+        if [[ "${ACT:-}" == "true" ]]; then
+          export RESULT_DIRECTORY="$GITHUB_WORKSPACE/.act-artifacts/test-suites"
+        else
+          export RESULT_DIRECTORY="$RUNNER_TEMP/test-suite-result"
+        fi
+        python3 "${{ github.action_path }}/record_result.py"
+
+    # The test-<suite> artifact holds the collect files and test-results/*.xml. Each suite's
+    # summary (tests, failures, errors, duration) is built from its own XML before this upload,
+    # so the final step's download merging same-named XML files from several suites, with
+    # one overwriting another, doesn't change any result.
+    - name: Stage Suite Files
+      if: ${{ always() && inputs.kind == 'suite' && env.ACT != 'true' }}
+      shell: bash
+      env:
+        SERVICE_DIRECTORY: ${{ inputs.service_directory }}
+        COLLECT: ${{ inputs.collect }}
+      run: |
+        set -euo pipefail
+        # Copy to a staging folder so the artifact keeps the paths relative to the service directory.
+        stage="$RUNNER_TEMP/test-artifact"
+        rm -rf "$stage"
+        mkdir -p "$stage"
+        cd "$SERVICE_DIRECTORY"
+        shopt -s globstar nullglob
+        patterns=("test-results/*.xml")
+        while IFS= read -r pattern; do
+          [[ -n "$pattern" ]] && patterns+=("$pattern")
+        done <<< "$COLLECT"
+        IFS=$'\n'
+        for pattern in "${patterns[@]}"; do
+          for file in $pattern; do
+            mkdir -p "$stage/$(dirname -- "$file")"
+            cp -R "$file" "$stage/$(dirname -- "$file")/"
+          done
+        done
+
+    - name: Upload Suite Files
+      if: ${{ always() && inputs.kind == 'suite' && env.ACT != 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-${{ inputs.name }}
+        path: ${{ runner.temp }}/test-artifact
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload Result
+      if: ${{ always() && env.ACT != 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: suite-result-${{ inputs.name }}
+        path: ${{ runner.temp }}/test-suite-result
+        if-no-files-found: ignore
+        # Kept for GitHub's longest approval wait; the run record is written after Production approval
+        retention-days: 30

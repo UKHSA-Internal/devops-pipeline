@@ -1,22 +1,13 @@
-import importlib.util
+import sys
 import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
 
-RESOLVER_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "packages"
-    / "shared-workflows"
-    / "actions"
-    / "resolve-deployments"
-    / "resolve_deployments.py"
-)
-RESOLVER_SPEC = importlib.util.spec_from_file_location("resolve_deployments", RESOLVER_PATH)
-if RESOLVER_SPEC is None or RESOLVER_SPEC.loader is None:
-    raise ImportError(f"Unable to load deployment resolver from {RESOLVER_PATH}")
-RESOLVER = importlib.util.module_from_spec(RESOLVER_SPEC)
-RESOLVER_SPEC.loader.exec_module(RESOLVER)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from helpers import ACTIONS, load_script
+
+RESOLVER = load_script(ACTIONS / "resolve-deployments" / "resolve_deployments.py", "resolve_deployments")
 
 
 def environment(name, category):
@@ -53,7 +44,8 @@ class ResolveDeploymentsTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in plan["prod_deployments"]], ["prod"])
         self.assertEqual(plan["health_endpoint"], "/health")
         self.assertEqual(plan["timeout_seconds"], 60)
-        self.assertEqual(plan["test_command"], "python3 -m unittest discover")
+        self.assertEqual(plan["test_suites"], [{"name": "test", "command": "python3 -m unittest discover"}])
+        self.assertEqual((plan["test_setup"], plan["test_collect"], plan["test_final_name"]), ("", "", ""))
 
     def test_supports_multiple_deployments_per_category_in_promotion_order(self):
         plan = RESOLVER.resolve(
@@ -120,16 +112,65 @@ class ResolveDeploymentsTests(unittest.TestCase):
 
     def test_outputs_are_delimited_so_values_cannot_add_outputs(self):
         plan = RESOLVER.resolve(
-            settings(verification={"health_endpoint": "/health\ntest_command=injected", "timeout_seconds": 60})
+            settings(verification={"health_endpoint": "/health\nlanguage=injected", "timeout_seconds": 60})
         )
         with tempfile.TemporaryDirectory() as directory:
             output_path = Path(directory) / "output"
             RESOLVER.write_outputs(plan, output_path)
             lines = output_path.read_text(encoding="utf-8").splitlines()
 
-        self.assertEqual(sum(line.startswith("test_command<<") for line in lines), 1)
-        self.assertIn("test_command=injected", lines)
-        self.assertTrue(lines[0].startswith("test_command<<EOF_"))
+        self.assertEqual(sum(line.startswith("language<<") for line in lines), 1)
+        self.assertIn("language=injected", lines)
+
+
+STRUCTURED_TEST = {
+    "setup": "python3 -m venv .venv",
+    "suites": [
+        {"name": "unit", "command": "python3 -m unittest discover -s tests/unit"},
+        {"name": "api", "command": "python3 -m unittest discover -s tests/api"},
+    ],
+    "collect": [".coverage.*"],
+    "final": {"name": "coverage", "command": "python3 -m coverage combine"},
+}
+
+
+def structured_settings(**test):
+    values = settings()
+    del values["service"]["test_command"]
+    values["service"]["test"] = {**STRUCTURED_TEST, **test}
+    return values
+
+
+class ResolveTestPlanTests(unittest.TestCase):
+    def test_test_command_is_one_suite_with_no_setup_or_final_step(self):
+        values = settings()
+        values["service"]["test_command"] = "  make test  "
+
+        plan = RESOLVER.resolve(values)
+
+        self.assertEqual(plan["test_suites"], [{"name": "test", "command": "make test"}])
+        self.assertEqual(plan["test_setup"], "")
+        self.assertEqual(plan["test_final_name"], "")
+        self.assertEqual(plan["test_collect"], "")
+
+    def test_full_test_block(self):
+        plan = RESOLVER.resolve(structured_settings())
+
+        self.assertEqual([suite["name"] for suite in plan["test_suites"]], ["unit", "api"])
+        self.assertEqual(plan["test_setup"], "python3 -m venv .venv")
+        self.assertEqual(plan["test_collect"], ".coverage.*")
+        self.assertEqual((plan["test_final_name"], plan["test_final_command"]), ("coverage", "python3 -m coverage combine"))
+
+    def test_optional_parts_can_be_left_out(self):
+        values = structured_settings()
+        for key in ("setup", "collect", "final"):
+            del values["service"]["test"][key]
+
+        plan = RESOLVER.resolve(values)
+
+        self.assertEqual(plan["test_final_name"], "")
+        self.assertEqual(plan["test_setup"], "")
+        self.assertEqual(len(plan["test_suites"]), 2)
 
 
 class ResolveApprovalTests(unittest.TestCase):

@@ -26,7 +26,11 @@ jobs:
       dev_deployments: ${{ steps.deployments.outputs.dev_deployments }}
       preprod_deployments: ${{ steps.deployments.outputs.preprod_deployments }}
       prod_deployments: ${{ steps.deployments.outputs.prod_deployments }}
-      test_command: ${{ steps.deployments.outputs.test_command }}
+      test_suites: ${{ steps.deployments.outputs.test_suites }}
+      test_setup: ${{ steps.deployments.outputs.test_setup }}
+      test_collect: ${{ steps.deployments.outputs.test_collect }}
+      test_final_name: ${{ steps.deployments.outputs.test_final_name }}
+      test_final_command: ${{ steps.deployments.outputs.test_final_command }}
       language: ${{ steps.deployments.outputs.language }}
       deployments: ${{ steps.deployments.outputs.deployments }}
       health_endpoint: ${{ steps.deployments.outputs.health_endpoint }}
@@ -117,9 +121,61 @@ jobs:
           printf '[STEP: CHECK] %s\n' "$CHECK_RESULT"
           printf -- '- Check action: **%s**\n' "$CHECK_RESULT" >> "$GITHUB_STEP_SUMMARY"
 
-  test:
-    name: Test
+  # The Test stage is several jobs: one job per suite, an optional final step,
+  # and the "test" job that gives the stage one result. Setup runs at the start of
+  # each suite job and of the final step.
+  test-suites:
+    name: Test (${{ matrix.suite.name }})
     needs: check
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.check.outputs.test_suites || '[]') }}
+    steps:
+      - name: Checkout Caller Repo
+        uses: actions/checkout@v7
+        if: ${{ env.ACT != 'true' }}
+
+      - name: Set Up Runtime
+        id: runtime
+        uses: ./packages/shared-workflows/actions/test-runtime
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          language: ${{ needs.check.outputs.language }}
+
+      - name: Run Setup
+        if: ${{ needs.check.outputs.test_setup != '' }}
+        shell: bash
+        working-directory: ${{ needs.check.outputs.service_directory }}
+        env:
+          SETUP_COMMAND: ${{ needs.check.outputs.test_setup }}
+          SUITE_NAME: ${{ matrix.suite.name }}
+        run: |
+          set -euo pipefail
+          printf '[STEP: TEST] %s: running setup: %s\n' "$SUITE_NAME" "$SETUP_COMMAND"
+          bash -e -o pipefail -c "$SETUP_COMMAND"
+
+      - name: Run Suite
+        uses: ./packages/shared-workflows/actions/test-run
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          kind: suite
+          name: ${{ matrix.suite.name }}
+          command: ${{ matrix.suite.command }}
+          runtime: ${{ steps.runtime.outputs.description }}
+          collect: ${{ needs.check.outputs.test_collect }}
+
+  test-final:
+    name: Test (final step)
+    needs: [check, test-suites]
+    if: >-
+      !cancelled() && needs.check.result == 'success'
+      && needs.check.outputs.test_final_name != ''
+      && needs.test-suites.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -128,16 +184,79 @@ jobs:
         uses: actions/checkout@v7
         if: ${{ env.ACT != 'true' }}
 
-      - name: Execute Test Step
-        uses: ./packages/shared-workflows/actions/test
+      - name: Set Up Runtime
+        id: runtime
+        uses: ./packages/shared-workflows/actions/test-runtime
         with:
           service_directory: ${{ needs.check.outputs.service_directory }}
-          test_command: ${{ needs.check.outputs.test_command }}
           language: ${{ needs.check.outputs.language }}
+
+      # Setup runs before the download, so it can never delete the downloaded files.
+      - name: Run Setup
+        if: ${{ needs.check.outputs.test_setup != '' }}
+        shell: bash
+        working-directory: ${{ needs.check.outputs.service_directory }}
+        env:
+          SETUP_COMMAND: ${{ needs.check.outputs.test_setup }}
+          FINAL_NAME: ${{ needs.check.outputs.test_final_name }}
+        run: |
+          set -euo pipefail
+          printf '[STEP: TEST] %s: running setup: %s\n' "$FINAL_NAME" "$SETUP_COMMAND"
+          bash -e -o pipefail -c "$SETUP_COMMAND"
+
+      # Under act the jobs share the bound workspace, so the files are already there.
+      - name: Download Suite Files
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-*
+          path: ${{ needs.check.outputs.service_directory }}
+          merge-multiple: true
+
+      - name: Run Final Step
+        uses: ./packages/shared-workflows/actions/test-run
+        with:
+          service_directory: ${{ needs.check.outputs.service_directory }}
+          kind: final
+          name: ${{ needs.check.outputs.test_final_name }}
+          command: ${{ needs.check.outputs.test_final_command }}
+          runtime: ${{ steps.runtime.outputs.description }}
+
+  # One result for the whole Test stage, so Scan and the run record don't need
+  # to know how many jobs it has. Skipped when Check fails.
+  test:
+    name: Test
+    needs: [check, test-suites, test-final]
+    # Runs even when cancelled: it runs no service code and has no permissions, and
+    # it must record suites that finished.
+    if: ${{ always() && needs.check.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Aggregate Test Results
+        shell: bash
+        env:
+          HAS_FINAL: ${{ needs.check.outputs.test_final_name != '' }}
+          SUITES_RESULT: ${{ needs.test-suites.result }}
+          FINAL_RESULT: ${{ needs.test-final.result }}
+        run: |
+          set -euo pipefail
+          status=0
+          [[ "$SUITES_RESULT" == "success" ]] || status=1
+          [[ "$HAS_FINAL" != "true" || "$FINAL_RESULT" == "success" ]] || status=1
+          printf '[STEP: TEST] Suites: %s, final: %s\n' "$SUITES_RESULT" "$FINAL_RESULT"
+          {
+            printf '## Test\n\n'
+            printf -- '- Suites: **%s**\n- Final step: **%s**\n' "$SUITES_RESULT" "$FINAL_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
   scan:
     name: Scan
     needs: test
+    # Explicit status checks: the default success() also skips a job when any
+    # ancestor was skipped, and the final step skips by design.
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -152,7 +271,10 @@ jobs:
   build:
     name: Build
     needs: [check, scan]
-    if: needs.check.outputs.should_build_and_deploy == 'true'
+    if: >-
+      !cancelled()
+      && needs.scan.result == 'success'
+      && needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -174,7 +296,10 @@ jobs:
   deploy-dev:
     name: Deploy Development (${{ matrix.deployment.name }})
     needs: [check, build]
-    if: needs.check.outputs.should_build_and_deploy == 'true'
+    if: >-
+      !cancelled()
+      && needs.build.result == 'success'
+      && needs.check.outputs.should_build_and_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -252,7 +377,11 @@ jobs:
   deploy-preprod:
     name: Deploy Pre-production (${{ matrix.deployment.name }})
     needs: [check, build, deploy-dev]
-    if: needs.check.outputs.should_deploy_main_only == 'true'
+    if: >-
+      !cancelled()
+      && needs.build.result == 'success'
+      && needs.deploy-dev.result == 'success'
+      && needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -333,7 +462,10 @@ jobs:
   approval-guard:
     name: Approval Guard
     needs: [check, deploy-preprod]
-    if: needs.check.outputs.should_deploy_main_only == 'true'
+    if: >-
+      !cancelled()
+      && needs.deploy-preprod.result == 'success'
+      && needs.check.outputs.should_deploy_main_only == 'true'
     runs-on: ubuntu-latest
     # No permissions block on purpose: inherit the caller's token, which needs
     # actions: read to read environment settings.
@@ -363,7 +495,11 @@ jobs:
     # The report finds this job by name: keep it equal to APPROVAL_JOB_NAME in
     # publish-run-report/approvals.py (a test checks).
     needs: [check, approval-guard]
-    if: needs.check.outputs.should_deploy_main_only == 'true' && needs.check.outputs.approval_mode != 'unattended'
+    if: >-
+      !cancelled()
+      && needs.approval-guard.result == 'success'
+      && needs.check.outputs.should_deploy_main_only == 'true'
+      && needs.check.outputs.approval_mode != 'unattended'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -503,6 +639,8 @@ jobs:
           deploy_dev_result: ${{ needs.deploy-dev.result }}
           deploy_preprod_result: ${{ needs.deploy-preprod.result }}
           deploy_prod_result: ${{ needs.deploy-prod.result }}
+          test_suites: ${{ needs.check.outputs.test_suites }}
+          test_final_name: ${{ needs.check.outputs.test_final_name }}
           deployments: ${{ needs.check.outputs.deployments }}
           approval_mode: ${{ needs.check.outputs.approval_mode }}
           approval_exception_id: ${{ needs.check.outputs.approval_exception_id }}

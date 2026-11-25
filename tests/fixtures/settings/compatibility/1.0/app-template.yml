@@ -1,0 +1,42 @@
+# The app template's settings with its placeholders filled in; every field and comment is otherwise unchanged.
+version: "1.0"
+
+service:
+  name: "template-service"
+  # Must also appear in governance.approvers (CHK-05).
+  owner_team: "template-approvers"
+  language: "python"
+  # Runs tests/test_placeholder.py; replace the placeholder with the service's real tests.
+  test_command: "python3 -m unittest discover -s tests -v"
+
+# Replace the placeholder accounts and roles. Each category needs at least one environment.
+environments:
+  - name: dev-env-1
+    category: Development
+    account_id: "123456789012"
+    role_name: dev-pipeline-role
+    region: eu-west-2
+  - name: preprod-env-1
+    category: Pre-production
+    account_id: "123456789012"
+    role_name: preprod-pipeline-role
+    region: eu-west-2
+  - name: prod
+    category: Production
+    account_id: "123456789012"
+    role_name: prod-pipeline-role
+    region: eu-west-2
+
+governance:
+  retention_days: 30
+  approvers:
+    - "template-approvers"
+
+verification:
+  health_endpoint: "/health"
+  timeout_seconds: 60
+  db_check_required: false
+
+deploy:
+  production:
+    approval_mode: "all-approvers"

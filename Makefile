@@ -1,4 +1,4 @@
-.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-approval-modes test-pipeline-node test-pipeline-missing-version-file test-pipeline-unsupported-language test-pipeline-pinned-python-version install-hooks
+.PHONY: help check-settings test-pregate-local test-standard-pipeline-local test-pipeline-failing-test test-pipeline-failing-check test-pipeline-settings-errors test-pipeline-settings-warnings test-pipeline-approval-modes test-pipeline-node test-pipeline-missing-version-file test-pipeline-unsupported-language test-pipeline-pinned-python-version install-hooks test-pipeline-structured-test
 
 ACT_RUNNER_IMAGE ?= catthehacker/ubuntu:act-latest
 ACT_EVENT_FILE ?=
@@ -93,6 +93,12 @@ test-pipeline-pinned-python-version: ## Run the pipeline for a python service pi
 	@rm -f .act-artifacts/run-record.json
 	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/pinned-python-version/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
 	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && echo "OK: pinned python version set up from .python-version, test PASSED"
+
+test-pipeline-structured-test: ## Run the pipeline for a service with three parallel suites and a final step; expects test PASSED and all four in test_suites
+	@rm -f .act-artifacts/run-record.json
+	@rm -rf tests/fixtures/structured-test/test-results tests/fixtures/structured-test/.coverage.*
+	@./act-run.sh workflow_call -W .github/workflows/standard-pipeline.yml --input settings_path=tests/fixtures/structured-test/.github/pipeline-settings.yml -P ubuntu-latest=$(ACT_RUNNER_IMAGE)
+	@grep -q '"test": "PASSED"' .act-artifacts/run-record.json && python3 -c "import json; suites = json.load(open('.act-artifacts/run-record.json'))['test_suites']; assert sorted(s['name'] for s in suites) == ['coverage', 'lint', 'static', 'unit'] and all(s['result'] == 'PASSED' for s in suites), suites" && echo "OK: three suites and the final step PASSED, test PASSED"
 
 install-hooks: ## Configure this repository to use the local Git hooks
 	@git config core.hooksPath .githooks

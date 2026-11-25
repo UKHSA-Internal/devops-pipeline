@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CHECKER_DIRECTORY = REPOSITORY_ROOT / "packages" / "settings-checker"
 sys.path.insert(0, str(CHECKER_DIRECTORY))
@@ -18,6 +20,8 @@ import checker as CHECKER  # noqa: E402
 import rules as RULES  # noqa: E402
 
 FIXTURES = REPOSITORY_ROOT / "tests" / "fixtures" / "settings"
+COMPATIBILITY_FIXTURES = FIXTURES / "compatibility"
+EXAMPLE_SETTINGS = REPOSITORY_ROOT / "docs" / "examples" / "pipeline-settings.yml"
 ERROR_FIXTURES = FIXTURES / "errors"
 
 # Error fixture -> the only rule it may report.
@@ -27,6 +31,8 @@ EXPECTED_FIXTURE_RULES = {
     "health-endpoint-without-leading-slash.yml": "CHK-07",
     "environment-missing-role-name.yml": "CHK-03",
     "missing-test-command.yml": "CHK-11",
+    "newer-settings-version.yml": "CHK-14",
+    "final-name-is-a-list.yml": "CHK-16",
     "no-approvers.yml": "CHK-05",
     "no-production-environment.yml": "CHK-04",
     "unattended-without-exception-id.yml": "CHK-10",
@@ -100,6 +106,38 @@ def delete_path(path):
         del target[last]
 
     return change
+
+
+STRUCTURED_TEST = {
+    "setup": "python3 -m venv .venv",
+    "suites": [
+        {"name": "unit", "command": "python3 -m unittest discover -s tests/unit"},
+        {"name": "integration", "command": "python3 -m unittest discover -s tests/integration"},
+    ],
+    "collect": [".coverage.*"],
+    "final": {"name": "coverage", "command": "python3 -m coverage combine"},
+}
+
+
+def structured(*changes):
+    """Use settings file version 1.1 and replace test_command with the full test block, then apply each change."""
+
+    def change(values):
+        values["version"] = "1.1"
+        del values["service"]["test_command"]
+        values["service"]["test"] = copy.deepcopy(STRUCTURED_TEST)
+        for each in changes:
+            each(values)
+
+    return change
+
+
+def test_block(key, value):
+    return structured(set_path(["service", "test", key], value))
+
+
+def suites(count):
+    return test_block("suites", [{"name": f"suite-{number}", "command": "true"} for number in range(count)])
 
 
 # rule -> (label -> change). Every change must violate that rule and no other.
@@ -192,11 +230,57 @@ FAILING_CASES = {
         "missing verification": delete_path(["verification"]),
     },
     "CHK-11": {
-        "missing test_command": delete_path(["service", "test_command"]),
         "blank test_command": set_path(["service", "test_command"], "  "),
         "multiline test_command": set_path(["service", "test_command"], "a\nb"),
         "numeric test_command": set_path(["service", "test_command"], 1),
         "empty test_command": set_path(["service", "test_command"], None),
+    },
+    "CHK-14": {
+        "newer minor version": set_path(["version"], "1.2"),
+        "newer major version": set_path(["version"], "2.0"),
+        "compared as numbers, not text": set_path(["version"], "1.10"),
+        "three part version": set_path(["version"], "1.1.1"),
+        "test block in a 1.0 file": structured(set_path(["version"], "1.0")),
+    },
+    "CHK-15": {
+        "neither test nor test_command": delete_path(["service", "test_command"]),
+        "both test and test_command": lambda v: (
+            v.update(version="1.1"),
+            v["service"].update(test=copy.deepcopy(STRUCTURED_TEST)),
+        ),
+    },
+    "CHK-16": {
+        "test not a mapping": structured(set_path(["service", "test"], "unit")),
+        "missing suites": structured(delete_path(["service", "test", "suites"])),
+        "suites not a list": test_block("suites", "unit"),
+        "no suites": test_block("suites", []),
+        "eleven suites": suites(11),
+        "suite not a mapping": test_block("suites", ["unit"]),
+        "missing suite name": structured(delete_path(["service", "test", "suites", 0, "name"])),
+        "uppercase suite name": structured(set_path(["service", "test", "suites", 0, "name"], "Unit")),
+        "underscore suite name": structured(set_path(["service", "test", "suites", 0, "name"], "unit_tests")),
+        "suite name over 32 characters": structured(set_path(["service", "test", "suites", 0, "name"], "a" * 33)),
+        "duplicate suite names": structured(set_path(["service", "test", "suites", 1, "name"], "unit")),
+        "bad final name": structured(set_path(["service", "test", "final", "name"], "Coverage Report")),
+        "missing final name": structured(delete_path(["service", "test", "final", "name"])),
+        "final name matches a suite": structured(set_path(["service", "test", "final", "name"], "unit")),
+        "final not a mapping": test_block("final", "coverage"),
+        "final name is a list": structured(set_path(["service", "test", "final", "name"], ["coverage"])),
+    },
+    "CHK-17": {
+        "multiline setup": test_block("setup", "make deps\nmake more"),
+        "blank setup": test_block("setup", " "),
+        "numeric setup": test_block("setup", 1),
+        "missing suite command": structured(delete_path(["service", "test", "suites", 0, "command"])),
+        "blank suite command": structured(set_path(["service", "test", "suites", 0, "command"], "")),
+        "multiline suite command": structured(set_path(["service", "test", "suites", 1, "command"], "a\nb")),
+        "missing final command": structured(delete_path(["service", "test", "final", "command"])),
+        "multiline final command": structured(set_path(["service", "test", "final", "command"], "a\r\nb")),
+    },
+    "CHK-18": {
+        "absolute collect path": test_block("collect", ["/tmp/.coverage"]),
+        "parent collect path": test_block("collect", ["../.coverage"]),
+        "collect not a list": test_block("collect", ".coverage.*"),
     },
     "CHK-13": {
         "replace-with placeholder": set_path(["service", "name"], "replace-with-service-name"),
@@ -213,7 +297,7 @@ FAILING_CASES = {
 }
 
 PASSING_CASES = {
-    "CHK-01": {"string version": set_path(["version"], "2")},
+    "CHK-01": {"string version": set_path(["version"], "1")},
     "CHK-02": {"other language": set_path(["service", "language"], "java")},
     "CHK-03": {
         "several deployments per category": lambda v: v["environments"].append(environment("dev-2", "Development")),
@@ -240,6 +324,33 @@ PASSING_CASES = {
     },
     "CHK-10": {
         "exception_id not needed": set_path(["deploy", "production"], {"approval_mode": "all-approvers"}),
+    },
+    "CHK-14": {
+        "current version": set_path(["version"], "1.1"),
+        "older version": set_path(["version"], "1.0"),
+        "same version with trailing zero": set_path(["version"], "1.1.0"),
+        "older patch version": set_path(["version"], "1.0.9"),
+        "test block in a 1.1 file": structured(),
+    },
+    "CHK-15": {"only test": structured()},
+    "CHK-16": {
+        "ten suites": suites(10),
+        "one suite": suites(1),
+        "no final step": structured(delete_path(["service", "test", "final"])),
+        "name with digits and hyphens": structured(set_path(["service", "test", "suites", 0, "name"], "unit-2")),
+        "name of 32 characters": structured(set_path(["service", "test", "suites", 0, "name"], "a" * 32)),
+    },
+    "CHK-17": {
+        "setup omitted": structured(delete_path(["service", "test", "setup"])),
+        "command with arguments": structured(
+            set_path(["service", "test", "suites", 0, "command"], "pytest -m 'not slow' tests/")
+        ),
+    },
+    "CHK-18": {
+        "collect omitted": structured(delete_path(["service", "test", "collect"])),
+        "empty collect": test_block("collect", []),
+        "nested relative paths": structured(set_path(["service", "test", "collect"], ["build/out", "./reports"])),
+        "dots inside a name": structured(set_path(["service", "test", "collect"], ["reports/a..b.xml"])),
     },
     "CHK-11": {"command with arguments": set_path(["service", "test_command"], "make test ARGS='-v'")},
     "CHK-12": {"db check required": set_path(["verification", "db_check_required"], True)},
@@ -268,10 +379,11 @@ def rule_ids():
 class RuleTests(unittest.TestCase):
     def test_rule_ids_are_unique_and_complete(self):
         ids = [rule.id for rule in RULES.RULES]
-        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 14)])
+        self.assertEqual(sorted(ids), [f"CHK-{number:02d}" for number in range(1, 19)])
 
     def test_severities_match_contract(self):
         errors = {"CHK-03", "CHK-04", "CHK-05", "CHK-07", "CHK-08", "CHK-09", "CHK-10", "CHK-11"}
+        errors |= {"CHK-14", "CHK-15", "CHK-16", "CHK-17", "CHK-18"}
         for rule in RULES.RULES:
             with self.subTest(rule.id):
                 self.assertEqual(rule.severity, RULES.ERROR if rule.id in errors else RULES.WARNING)
@@ -377,7 +489,7 @@ class RuleTests(unittest.TestCase):
 
     def test_messages_say_what_is_wrong(self):
         cases = [
-            (delete_path(["service", "test_command"]), "service.test_command", "is required"),
+            (delete_path(["service", "test_command"]), "service", "set one of test and test_command"),
             (set_path(["service", "test_command"], "a\nb"), "service.test_command", "must be a single line, not empty"),
             (set_path(["deploy"], "x"), "deploy", "must be a mapping"),
             (set_path(["verification", "custom_checks"], "smoke"), "verification.custom_checks", "must be a list"),
@@ -415,6 +527,139 @@ class RuleTests(unittest.TestCase):
                 self.assertEqual(
                     [(item["field"], item["message"]) for item in RULES.check(settings(change))], [(field, message)]
                 )
+
+
+class ReadTracker(dict):
+    """A settings mapping that records the field path of every key the rules read."""
+
+    def __init__(self, value, path, reads):
+        super().__init__({key: track(item, self._join(path, key), reads) for key, item in value.items()})
+        self._path, self._reads = path, reads
+
+    @staticmethod
+    def _join(path, key):
+        return f"{path}.{key}" if path else str(key)
+
+    def _read(self, key):
+        self._reads.add(self._join(self._path, key))
+
+    def __getitem__(self, key):
+        self._read(key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        self._read(key)
+        return super().get(key, default)
+
+    def __contains__(self, key):
+        self._read(key)
+        return super().__contains__(key)
+
+
+def track(value, path, reads):
+    if isinstance(value, dict):
+        return ReadTracker(value, path, reads)
+    if isinstance(value, list):
+        return [track(item, f"{path}[]", reads) for item in value]
+    return value
+
+
+def settings_examples():
+    """Every settings variant the tests and the repository hold, so each rule branch is exercised."""
+    examples = [copy.deepcopy(COMPLIANT)]
+    for cases in (FAILING_CASES, PASSING_CASES):
+        examples += [settings(change) for each in cases.values() for change in each.values()]
+    for path in sorted(REPOSITORY_ROOT.glob("**/*.yml")):
+        if ".git" in path.parts:
+            continue
+        try:
+            values = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            continue
+        if isinstance(values, dict) and "version" in values and "service" in values:
+            examples.append(values)
+    return examples
+
+
+class SettingsVersionTests(unittest.TestCase):
+    def test_every_field_the_rules_read_is_in_a_settings_file_version(self):
+        reads = set()
+        for values in settings_examples():
+            RULES.check(track(values, "", reads))
+
+        self.assertIn("service.test.final.command", reads)  # The tracker sees nested reads.
+        missing = sorted(reads - set(RULES.FIELD_VERSIONS))
+        self.assertEqual(
+            missing,
+            [],
+            "The rules read fields that no settings file version lists. Add them to "
+            "SETTINGS_VERSIONS in rules.py under a new version, not an existing one.",
+        )
+
+    def test_supported_version_is_the_highest_registered_version(self):
+        versions = [RULES.parse_version(version) for version in RULES.SETTINGS_VERSIONS]
+
+        self.assertEqual(RULES.SUPPORTED_SETTINGS_VERSION, max(versions))
+        self.assertEqual(RULES.parse_version(RULES.LATEST_SETTINGS_VERSION), RULES.SUPPORTED_SETTINGS_VERSION)
+
+    def test_example_settings_use_the_supported_version(self):
+        example = yaml.safe_load(EXAMPLE_SETTINGS.read_text(encoding="utf-8"))
+
+        self.assertEqual(RULES.parse_version(example["version"]), RULES.SUPPORTED_SETTINGS_VERSION)
+
+    def test_field_from_a_newer_version_is_reported_once_at_its_top(self):
+        problems = RULES.check(settings(structured(set_path(["version"], "1.0"))))
+
+        self.assertEqual(
+            problems,
+            [
+                {
+                    "field": "service.test",
+                    "severity": "Error",
+                    "message": "needs settings file version 1.1 or later",
+                    "rule": "CHK-14",
+                }
+            ],
+        )
+
+    def test_numeric_version_is_compared_like_text(self):
+        problems = RULES.check(settings(structured(set_path(["version"], 1.0))))
+
+        self.assertIn(
+            {
+                "field": "service.test",
+                "severity": "Error",
+                "message": "needs settings file version 1.1 or later",
+                "rule": "CHK-14",
+            },
+            problems,
+        )
+
+    def test_missing_version_is_left_to_chk_01(self):
+        self.assertEqual(rules(settings(structured(delete_path(["version"])))), {"CHK-01"})
+
+
+class CompatibilityTests(unittest.TestCase):
+    """Settings files written for each settings file version keep passing. These fixtures are never edited."""
+
+    def test_every_compatibility_file_passes_in_strict_mode(self):
+        files = sorted(COMPATIBILITY_FIXTURES.glob("*/*.yml"))
+        self.assertTrue(files)
+        for path in files:
+            with self.subTest(path=str(path.relative_to(COMPATIBILITY_FIXTURES))):
+                status, output = run_cli("--settings", str(path), "--strict")
+                self.assertEqual(status, 0, output)
+
+    def test_each_file_uses_its_folder_version(self):
+        for path in sorted(COMPATIBILITY_FIXTURES.glob("*/*.yml")):
+            with self.subTest(path=str(path.relative_to(COMPATIBILITY_FIXTURES))):
+                values = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertEqual(values["version"], path.parent.name)
+
+    def test_every_settings_file_version_has_a_folder(self):
+        folders = {path.name for path in COMPATIBILITY_FIXTURES.iterdir() if path.is_dir()}
+
+        self.assertEqual(folders, set(RULES.SETTINGS_VERSIONS))
 
 
 class PlaceholderWalkTests(unittest.TestCase):
@@ -480,7 +725,7 @@ class CliTests(unittest.TestCase):
     MODES = ((), ("--strict",), ("--report-only",))
 
     def expected_exit(self, fixture, mode):
-        if "--report-only" in mode or fixture.name == "compliant.yml":
+        if "--report-only" in mode or fixture.name in ("compliant.yml", "structured-test.yml"):
             return 0
         if fixture.name == "warnings-only.yml":
             return 1 if "--strict" in mode else 0
@@ -488,7 +733,7 @@ class CliTests(unittest.TestCase):
 
     def test_fixtures_are_the_expected_set(self):
         self.assertEqual(
-            {path.name for path in FIXTURES.glob("*.yml")}, {"compliant.yml", "warnings-only.yml", "unparseable.yml"}
+            {path.name for path in FIXTURES.glob("*.yml")}, {"compliant.yml", "structured-test.yml", "warnings-only.yml", "unparseable.yml"}
         )
         self.assertEqual({path.name for path in ERROR_FIXTURES.glob("*.yml")}, set(EXPECTED_FIXTURE_RULES))
 
@@ -606,6 +851,7 @@ class CliTests(unittest.TestCase):
         _, output = run_cli("--settings", str(ERROR_FIXTURES / "missing-test-command.yml"), "--format", "markdown")
 
         self.assertIn("**Not ready: 1 error**", output)
+        self.assertIn(f"Accepts settings file versions up to {RULES.LATEST_SETTINGS_VERSION}", output)
         self.assertIn("| ✗ Error | `service.test_command` | must be a single line, not empty | CHK-11 |", output)
 
     def test_markdown_escapes_table_characters(self):
