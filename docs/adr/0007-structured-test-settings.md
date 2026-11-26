@@ -19,7 +19,7 @@ is set now, before other services copy it.
 Add a `service.test` block. It is part of settings file version 1.1 and is
 additive: existing 1.0 files keep working.
 
-- `suites` (required): 1 to 10 named suites, each with a single-line `command`.
+- `suites` (required): 1 to 15 named suites, each with a single-line `command`.
   Names are lowercase letters, digits and hyphens, unique, at most 32
   characters.
 - `setup` (optional): one single-line command that prepares the environment. It
@@ -47,7 +47,7 @@ Other decisions:
 
 - Suites always run in parallel. A service that needs an order chains commands
   in one suite.
-- At most 10 suites, to cap runner minutes.
+- At most 15 suites, to cap runner minutes. (Raised from 10 by DP-282.)
 - Results come from JUnit XML in `test-results/`, a convention, not a setting;
   they appear in the job summary (with up to 10 failed tests) and in
   `test_suites[]`.

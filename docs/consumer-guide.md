@@ -83,8 +83,10 @@ service:
       command: ".venv/bin/python -m coverage combine && .venv/bin/python -m coverage report"
 ```
 
-- **Suites** (1 to 10) always run in parallel, each as its own "Test (name)"
-  job. To run commands in order, chain them in one suite.
+- **Suites** (1 to 15) always run in parallel, each as its own "Test (name)"
+  job. To run commands in order, chain them in one suite. More than 10 suites
+  needs pipeline release `v1.4.0` or later; earlier releases reject them at
+  Check (CHK-16). This needs no new settings file version.
 - **Setup.** `setup` runs at the start of each suite job and of the final
   step. `collect` paths are relative to the service directory and can't
   contain `..`.

@@ -32,7 +32,7 @@ SETTINGS_VERSIONS = {
         "service.name",
         "service.owner_team",
         "service.language",
-        "service.test_command",
+        "service.git ch",
         "environments",
         "environments[].name",
         "environments[].category",

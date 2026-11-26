@@ -254,7 +254,7 @@ FAILING_CASES = {
         "missing suites": structured(delete_path(["service", "test", "suites"])),
         "suites not a list": test_block("suites", "unit"),
         "no suites": test_block("suites", []),
-        "eleven suites": suites(11),
+        "sixteen suites": suites(16),
         "suite not a mapping": test_block("suites", ["unit"]),
         "missing suite name": structured(delete_path(["service", "test", "suites", 0, "name"])),
         "uppercase suite name": structured(set_path(["service", "test", "suites", 0, "name"], "Unit")),
@@ -334,7 +334,7 @@ PASSING_CASES = {
     },
     "CHK-15": {"only test": structured()},
     "CHK-16": {
-        "ten suites": suites(10),
+        "fifteen suites": suites(15),
         "one suite": suites(1),
         "no final step": structured(delete_path(["service", "test", "final"])),
         "name with digits and hyphens": structured(set_path(["service", "test", "suites", 0, "name"], "unit-2")),

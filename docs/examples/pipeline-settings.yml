@@ -20,7 +20,7 @@ service:
   #   test_command: "python3 -m unittest discover -s tests" # single line, non-empty; CHK-11 (Error)
   test:
     setup: "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt" # optional; single line; CHK-17 (Error)
-    suites: # required; 1 to 10, run in parallel; CHK-16 (Error)
+    suites: # required; 1 to 15, run in parallel; CHK-16 (Error)
       - name: unit # lowercase letters, digits and hyphens; unique; at most 32 characters
         command: ".venv/bin/python -m unittest discover -s tests/unit" # single line, non-empty; CHK-17 (Error)
       - name: api
