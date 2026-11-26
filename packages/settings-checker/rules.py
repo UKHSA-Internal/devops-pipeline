@@ -20,7 +20,7 @@ ACCOUNT_ID = re.compile(r"[0-9]{12}")
 PLACEHOLDER = re.compile(r"replace-with-|todo", re.IGNORECASE)
 SETTINGS_VERSION = re.compile(r"[0-9]+(\.[0-9]+)*")
 SUITE_NAME = re.compile(r"[a-z0-9-]{1,32}")
-MAX_SUITES = 10
+MAX_SUITES = 15
 
 # Settings file version -> the field paths it introduced. "[]" stands for every
 # entry of a list. A new field goes under a new version, never an existing one;
